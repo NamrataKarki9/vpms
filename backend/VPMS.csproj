@@ -10,11 +10,4 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Compile Remove="VehicleInventorySystem.Api\**\*.cs" />
-    <Content Remove="VehicleInventorySystem.Api\**\*" />
-    <EmbeddedResource Remove="VehicleInventorySystem.Api\**\*" />
-    <None Remove="VehicleInventorySystem.Api\**\*" />
-  </ItemGroup>
-
 </Project>
