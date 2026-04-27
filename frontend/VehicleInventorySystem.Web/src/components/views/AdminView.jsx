@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import StaffManager from '../management/StaffManager';
 import InventoryManager from '../management/InventoryManager';
 import CustomerManager from '../management/CustomerManager';
+import { vendorService } from '../../services/vendorService';
 
-export function AdminView({ staffList, onAddStaff, onRemoveStaff, onUpdateStaff, sales, inventory, onUpdateInventory, customerList, onRemoveCustomer, onUpdateCustomer }) {
+export function AdminView({ staffList, onAddStaff, onRemoveStaff, onUpdateStaff, sales, inventory, onUpdateInventory, customerList, onRemoveCustomer, onUpdateCustomer, onOpenVendorManagement }) {
   const [viewType, setViewType] = useState('daily');
   const [adminRoute, setAdminRoute] = useState('main');
   const [report, setReport] = useState({ TotalRevenue: 0, InvoiceCount: 0 });
@@ -20,7 +21,14 @@ export function AdminView({ staffList, onAddStaff, onRemoveStaff, onUpdateStaff,
           });
         }
       });
-      apiFetch('/Inventory/vendors').then(res => res && setVendors(res));
+      vendorService.getVendors({ pageNumber: 1, pageSize: 5 }).then((res) => {
+        if (Array.isArray(res)) {
+          setVendors(res);
+          return;
+        }
+        const items = Array.isArray(res?.items) ? res.items : [];
+        setVendors(items);
+      }).catch(() => setVendors([]));
     });
   }, [viewType]);
 
@@ -98,9 +106,7 @@ export function AdminView({ staffList, onAddStaff, onRemoveStaff, onUpdateStaff,
   if (adminRoute === 'manage-inventory') return <InventoryPurchasePage inventory={inventory} onUpdate={onUpdateInventory} onBack={() => setAdminRoute('main')} />;
   if (adminRoute === 'manage-customers') return <CustomerManagementPage customers={customerList} onRemove={onRemoveCustomer} onUpdate={onUpdateCustomer} onBack={() => setAdminRoute('main')} />;
   if (adminRoute === 'add-part') return <AddPartPage inventory={inventory} vendors={vendors} onUpdate={onUpdateInventory} onBack={() => setAdminRoute('main')} />;
-  if (adminRoute === 'add-vendor') return <AddVendorPage onBack={() => setAdminRoute('main')} onVendorAdded={(v) => { setVendors([...vendors, v]); setAdminRoute('main'); }} />;
   if (adminRoute === 'view-all-inventory') return <FullInventoryPage inventory={inventory} onBack={() => setAdminRoute('main')} />;
-  if (adminRoute === 'view-all-vendors') return <FullVendorsPage vendors={vendors} onBack={() => setAdminRoute('main')} />;
   if (adminRoute === 'view-all-staff') return <FullStaffPage staffList={staffList} onBack={() => setAdminRoute('main')} />;
 
   return (
@@ -148,8 +154,7 @@ export function AdminView({ staffList, onAddStaff, onRemoveStaff, onUpdateStaff,
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3>Partners & Vendors</h3>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button onClick={() => setAdminRoute('view-all-vendors')} className="btn-small" style={{ background: '#f1f5f9', color: '#0f172a' }}>View All</button>
-              <button onClick={() => setAdminRoute('add-vendor')} className="btn-small">+ Add Vendor</button>
+              <button onClick={onOpenVendorManagement} className="btn-small" style={{ background: '#dbeafe', color: '#1d4ed8' }}>Vendor Management</button>
             </div>
           </div>
           <div className="data-list">

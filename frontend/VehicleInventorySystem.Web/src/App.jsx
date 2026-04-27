@@ -5,11 +5,14 @@ import CustomerVehicleForm from './components/management/CustomerVehicleForm';
 import { AdminView } from './components/views/AdminView';
 import { StaffView } from './components/views/StaffView';
 import { CustomerView } from './components/views/CustomerView';
+import MainLayout from './layout/MainLayout';
+import VendorPage from './pages/vendors/VendorPage';
 import './index.css';
 
 const ROLES = { ADMIN: 'Admin', STAFF: 'Staff', CUSTOMER: 'Customer' };
 
 function App() {
+  const [currentPath, setCurrentPath] = useState(() => window.location.pathname || '/');
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('vis_user');
     return saved ? JSON.parse(saved) : null;
@@ -25,6 +28,22 @@ function App() {
   const [salesHistory, setSalesHistory] = useState([]);
   const [staffView, setStaffView] = useState('main');
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const handlePopState = () => setCurrentPath(window.location.pathname || '/');
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const handleNavigate = (event, path) => {
+    event.preventDefault();
+    if (path === currentPath) {
+      return;
+    }
+
+    window.history.pushState({}, '', path);
+    setCurrentPath(path);
+  };
 
   useEffect(() => {
     import('./api').then(({ apiFetch }) => {
@@ -181,6 +200,14 @@ function App() {
 
   const handleUpdateInventory = (newParts) => setInventory(newParts);
 
+  if (currentPath === '/vendors') {
+    return (
+      <MainLayout currentPath={currentPath} onNavigate={handleNavigate}>
+        <VendorPage />
+      </MainLayout>
+    );
+  }
+
   return (
     <div className="app-container">
       {user && <Header user={user} onLogout={logout} onNavigateStaff={setStaffView} />}
@@ -194,7 +221,7 @@ function App() {
             user={user} staffList={staffList} customerList={customerList} inventory={inventory} salesHistory={salesHistory}
             onAddStaff={handleAddStaff} onRemoveStaff={handleRemoveStaff} onUpdateStaff={handleUpdateStaff} onProcessSale={handleProcessSale}
             onUpdateInventory={handleUpdateInventory} onRemoveCustomer={handleRemoveCustomer} onUpdateCustomer={handleUpdateCustomer}
-            staffView={staffView} setStaffView={setStaffView}
+            staffView={staffView} setStaffView={setStaffView} onOpenVendorManagement={() => { window.history.pushState({}, '', '/vendors'); setCurrentPath('/vendors'); }}
           />
         )}
       </main>
@@ -264,11 +291,11 @@ function SignUp({ onComplete, onBack, onAddCustomer }) {
   return <div style={{ maxWidth: '600px', margin: 'auto' }}><button onClick={onBack} className="btn-small">← Back</button><CustomerVehicleForm onRegister={async (data) => { const newId = await onAddCustomer(data); if(newId) onComplete({ id: newId, name: data.name, role: ROLES.CUSTOMER }); }} /></div>;
 }
 
-function Dashboard({ user, staffList, customerList, inventory, salesHistory, onAddStaff, onRemoveStaff, onUpdateStaff, onProcessSale, onUpdateInventory, onRemoveCustomer, onUpdateCustomer, staffView, setStaffView }) {
+function Dashboard({ user, staffList, customerList, inventory, salesHistory, onAddStaff, onRemoveStaff, onUpdateStaff, onProcessSale, onUpdateInventory, onRemoveCustomer, onUpdateCustomer, staffView, setStaffView, onOpenVendorManagement }) {
   return (
     <div>
       <h1>{user.role} Dashboard</h1>
-      {user.role === ROLES.ADMIN && (<AdminView staffList={staffList} onAddStaff={onAddStaff} onRemoveStaff={onRemoveStaff} onUpdateStaff={onUpdateStaff} sales={salesHistory} inventory={inventory} onUpdateInventory={onUpdateInventory} customerList={customerList} onRemoveCustomer={onRemoveCustomer} onUpdateCustomer={onUpdateCustomer} />)}
+      {user.role === ROLES.ADMIN && (<AdminView staffList={staffList} onAddStaff={onAddStaff} onRemoveStaff={onRemoveStaff} onUpdateStaff={onUpdateStaff} sales={salesHistory} inventory={inventory} onUpdateInventory={onUpdateInventory} customerList={customerList} onRemoveCustomer={onRemoveCustomer} onUpdateCustomer={onUpdateCustomer} onOpenVendorManagement={onOpenVendorManagement} />)}
       {user.role === ROLES.STAFF && (<StaffView view={staffView} setView={setStaffView} customers={customerList} parts={inventory} sales={salesHistory} onProcessSale={onProcessSale} />)}
       {user.role === ROLES.CUSTOMER && (<CustomerView user={user} sales={salesHistory} />)}
     </div>
