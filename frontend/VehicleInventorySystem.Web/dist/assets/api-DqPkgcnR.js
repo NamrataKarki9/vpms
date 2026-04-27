@@ -1,1 +1,0 @@
-const a="http://localhost:5169/api",c=async(o,e={})=>{const r=`${a}${o}`,t=await fetch(r,{headers:{"Content-Type":"application/json",...e.headers},...e});if(!t.ok){const s=await t.text();throw new Error(`API Error: ${t.status} - ${s}`)}const n=t.headers.get("content-type");return n&&n.includes("application/json")?t.json():null};export{a as API_BASE_URL,c as apiFetch};
