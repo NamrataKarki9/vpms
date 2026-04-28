@@ -1,4 +1,3 @@
 <Solution>
   <Project Path="backend\VPMS.csproj" />
-  <Project Path="backend/VehicleInventorySystem.Api/VehicleInventorySystem.Api.csproj" />
 </Solution>
