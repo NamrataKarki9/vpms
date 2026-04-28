@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import StaffManager from '../management/StaffManager';
 import InventoryManager from '../management/InventoryManager';
 import CustomerManager from '../management/CustomerManager';
+import Dialog from '../Dialog';
 import { vendorService } from '../../services/vendorService';
 
 export function AdminView({ staffList, onAddStaff, onRemoveStaff, onUpdateStaff, sales, inventory, onUpdateInventory, customerList, onRemoveCustomer, onUpdateCustomer, onOpenVendorManagement }) {
@@ -243,9 +244,93 @@ function InventoryPurchasePage({ inventory, onUpdate, onBack }) {
 
 function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
   const [editingId, setEditingId] = useState(null);
-  const [editData, setEditData] = useState({ name: '', plate: '', phone: '' });
-  const startEdit = (c) => { setEditingId(c.id); setEditData({ name: c.name, plate: c.plate, phone: c.phone || '' }); };
-  const handleSave = (id) => { onUpdate({ ...editData, id }); setEditingId(null); };
+  const [editData, setEditData] = useState({ name: '', email: '', phone: '', plate: '' });
+  const [validationErrors, setValidationErrors] = useState({ name: '', email: '', phone: '' });
+  const [removeDialog, setRemoveDialog] = useState({ isOpen: false, customerId: null, customerName: '' });
+  const [successDialog, setSuccessDialog] = useState({ isOpen: false, message: '' });
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const startEdit = (c) => { setEditingId(c.id); setEditData({ name: c.name, email: c.email || '', phone: c.phone || '', plate: c.plate || '' }); setValidationErrors({ name: '', email: '', phone: '' }); };
+
+  const validateName = (name) => {
+    if (!name.trim()) return 'Name is required';
+    if (!/^[a-zA-Z\s]*$/.test(name)) return 'Name must contain only letters and spaces';
+    return '';
+  };
+
+  const validateEmail = (email) => {
+    if (!email.trim()) return 'Email is required';
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return 'Invalid email format';
+    return '';
+  };
+
+  const validatePhone = (phone) => {
+    if (!phone.trim()) return 'Phone number is required';
+    if (!/^\d{10}$/.test(phone.replace(/\D/g, ''))) return 'Phone must be 10 digits with no letters or symbols';
+    return '';
+  };
+  
+  const handleSave = async (id) => {
+    const nameError = validateName(editData.name);
+    const emailError = validateEmail(editData.email);
+    const phoneError = validatePhone(editData.phone);
+
+    setValidationErrors({ name: nameError, email: emailError, phone: phoneError });
+
+    if (nameError || emailError || phoneError) return;
+
+    setIsSaving(true);
+    try {
+      const { apiFetch } = await import('../../api');
+      await apiFetch(`/Users/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ 
+          name: editData.name, 
+          email: editData.email,
+          phoneNumber: editData.phone
+        })
+      });
+      
+      // Find the original customer to preserve all properties
+      const originalCustomer = customers.find(c => c.id === id);
+      const updatedCustomer = { 
+        ...originalCustomer,
+        name: editData.name, 
+        email: editData.email,
+        phone: editData.phone,
+        plate: editData.plate
+      };
+      
+      setEditingId(null);
+      onUpdate(updatedCustomer);
+      setSuccessDialog({ isOpen: true, message: `${editData.name} has been updated successfully.` });
+    } catch (error) {
+      alert('Error updating customer: ' + (error.message || 'Unknown error'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleRemoveClick = (customerId, customerName) => {
+    setRemoveDialog({ isOpen: true, customerId, customerName });
+  };
+
+  const handleConfirmRemove = async () => {
+    setIsRemoving(true);
+    try {
+      await onRemove(removeDialog.customerId);
+      setRemoveDialog({ isOpen: false, customerId: null, customerName: '' });
+      setSuccessDialog({ isOpen: true, message: `${removeDialog.customerName} has been removed successfully.` });
+    } catch (error) {
+      alert('Error removing customer: ' + (error.message || 'Unknown error'));
+      setRemoveDialog({ isOpen: false, customerId: null, customerName: '' });
+    } finally {
+      setIsRemoving(false);
+    }
+  };
+
   return (
     <div className="card" style={{ maxWidth: '800px', margin: 'auto' }}>
       <button onClick={onBack} className="btn-small" style={{ marginBottom: '1rem', background: '#cbd5e1', color: '#0f172a' }}>← Back</button>
@@ -255,18 +340,94 @@ function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
           <div key={c.id} className="list-item">
             {editingId === c.id ? (
               <div className="mini-form" style={{ width: '100%' }}>
-                <input type="text" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} />
-                <button onClick={() => handleSave(c.id)} className="btn-small">Save</button>
+                <div>
+                  <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>Name</label>
+                  <input 
+                    type="text" 
+                    value={editData.name} 
+                    onChange={e => {
+                      setEditData({...editData, name: e.target.value});
+                      setValidationErrors({...validationErrors, name: validateName(e.target.value)});
+                    }}
+                    placeholder="Customer Name"
+                    style={{ borderColor: validationErrors.name ? '#ef4444' : '' }}
+                  />
+                  {validationErrors.name && <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>{validationErrors.name}</span>}
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>Email</label>
+                  <input 
+                    type="email" 
+                    value={editData.email} 
+                    onChange={e => {
+                      setEditData({...editData, email: e.target.value});
+                      setValidationErrors({...validationErrors, email: validateEmail(e.target.value)});
+                    }}
+                    placeholder="Email"
+                    style={{ borderColor: validationErrors.email ? '#ef4444' : '' }}
+                  />
+                  {validationErrors.email && <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>{validationErrors.email}</span>}
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>Phone</label>
+                  <input 
+                    type="text" 
+                    value={editData.phone} 
+                    onChange={e => {
+                      setEditData({...editData, phone: e.target.value});
+                      setValidationErrors({...validationErrors, phone: validatePhone(e.target.value)});
+                    }}
+                    placeholder="Phone Number"
+                    style={{ borderColor: validationErrors.phone ? '#ef4444' : '' }}
+                  />
+                  {validationErrors.phone && <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>{validationErrors.phone}</span>}
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>Plate Number</label>
+                  <input 
+                    type="text" 
+                    value={editData.plate} 
+                    onChange={e => setEditData({...editData, plate: e.target.value})}
+                    placeholder="Vehicle Plate"
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+                  <button onClick={() => handleSave(c.id)} className="btn-small" disabled={isSaving || validationErrors.name || validationErrors.email || validationErrors.phone} style={{ flex: 1 }}>
+                    {isSaving ? 'Saving...' : 'Save'}
+                  </button>
+                  <button onClick={() => setEditingId(null)} className="btn-small" style={{ flex: 1, background: '#cbd5e1', color: '#0f172a' }}>Cancel</button>
+                </div>
               </div>
             ) : (
               <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
                 <div><strong>{c.name}</strong><br/>{c.plate}</div>
-                <div><button onClick={() => startEdit(c)} className="btn-small">Edit</button><button onClick={() => onRemove(c.id)} className="btn-small">Remove</button></div>
+                <div><button onClick={() => startEdit(c)} className="btn-small">Edit</button><button onClick={() => handleRemoveClick(c.id, c.name)} className="btn-small">Remove</button></div>
               </div>
             )}
           </div>
         ))}
       </div>
+
+      <Dialog
+        isOpen={removeDialog.isOpen}
+        title="Remove Customer"
+        message={`Are you sure you want to remove ${removeDialog.customerName}? This action cannot be undone.`}
+        type="confirm"
+        confirmText="Remove"
+        cancelText="Cancel"
+        isLoading={isRemoving}
+        onConfirm={handleConfirmRemove}
+        onCancel={() => setRemoveDialog({ isOpen: false, customerId: null, customerName: '' })}
+      />
+
+      <Dialog
+        isOpen={successDialog.isOpen}
+        title="Success"
+        message={successDialog.message}
+        type="success"
+        confirmText="OK"
+        onConfirm={() => setSuccessDialog({ isOpen: false, message: '' })}
+      />
     </div>
   );
 }

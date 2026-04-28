@@ -12,7 +12,16 @@ export const apiFetch = async (endpoint, options = {}) => {
 
   if (!response.ok) {
     const errorBody = await response.text();
-    throw new Error(`API Error: ${response.status} - ${errorBody}`);
+    let errorMessage = `API Error: ${response.status}`;
+    
+    try {
+      const errorJson = JSON.parse(errorBody);
+      errorMessage = errorJson.message || errorMessage;
+    } catch {
+      errorMessage = errorBody || errorMessage;
+    }
+    
+    throw new Error(errorMessage);
   }
 
   // Handle empty responses (e.g. 204 No Content or simple 200 without JSON)

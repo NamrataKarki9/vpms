@@ -104,18 +104,40 @@ function App() {
       alert('Network Error saving to cloud.');
     }
   };
-  const handleRemoveStaff = (id) => setStaffList(staffList.filter(s => s.id !== id));
-  const handleUpdateStaff = async (id, updatedData) => {
+  const handleRemoveStaff = async (id) => {
     try {
       const { apiFetch } = await import('./api');
       await apiFetch(`/Users/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ name: updatedData.name, email: updatedData.email, passwordHash: updatedData.password })
+        method: 'DELETE'
       });
-      setStaffList(staffList.map(s => s.id === id ? { ...s, name: updatedData.name, email: updatedData.email, password: updatedData.password || s.password } : s));
-      alert('Staff credentials updated on cloud!');
+      setStaffList(staffList.filter(s => s.id !== id));
     } catch(err) {
-      alert('Failed to update staff credentials.');
+      throw new Error(err.message || 'Failed to remove staff member');
+    }
+  };
+  const handleUpdateStaff = async (id, updatedData) => {
+    try {
+      const { apiFetch } = await import('./api');
+      const requestBody = { 
+        name: updatedData.name, 
+        email: updatedData.email
+      };
+      // Only include password if it's provided and not empty
+      if (updatedData.password && updatedData.password.trim().length > 0) {
+        requestBody.password = updatedData.password.trim();
+      }
+      const response = await apiFetch(`/Users/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(requestBody)
+      });
+      
+      setStaffList(staffList.map(s => 
+        s.id === id 
+          ? { ...s, name: updatedData.name, email: updatedData.email, password: updatedData.password || s.password } 
+          : s
+      ));
+    } catch(err) {
+      throw new Error(err.message || 'Failed to update staff credentials');
     }
   };
   const handleRegisterCustomer = async (customerData) => {
@@ -135,11 +157,12 @@ function App() {
         body: JSON.stringify({ 
           name: customerData.name, 
           email: customerData.email, 
-          passwordHash: customerData.password,
+          password: customerData.password,
+          phoneNumber: customerData.phone,
           vehicles: [{ plateNumber: customerData.plate, model: model, make: model.split(' ')[0] || 'Unknown', year: year }]
         })
       });
-      setCustomerList(prev => [...prev, { ...savedCustomer, plate: customerData.plate, spend: 0, password: savedCustomer.passwordHash || customerData.password }]);
+      setCustomerList(prev => [...prev, { ...savedCustomer, plate: customerData.plate, phone: customerData.phone, spend: 0 }]);
       return savedCustomer.id;
     } catch(err) {
       console.error(err);
@@ -147,7 +170,17 @@ function App() {
       return false;
     }
   };
-  const handleRemoveCustomer = (id) => setCustomerList(customerList.filter(c => c.id !== id));
+  const handleRemoveCustomer = async (id) => {
+    try {
+      const { apiFetch } = await import('./api');
+      await apiFetch(`/Users/${id}`, {
+        method: 'DELETE'
+      });
+      setCustomerList(customerList.filter(c => c.id !== id));
+    } catch(err) {
+      throw new Error(err.message || 'Failed to remove customer');
+    }
+  };
   const handleUpdateCustomer = (updatedCust) => setCustomerList(customerList.map(c => c.id === updatedCust.id ? updatedCust : c));
   
   const handleProcessSale = async (customerId, cartItems) => {
@@ -234,9 +267,29 @@ function Login({ onLogin, onSignUp, staff, customers }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [errors, setErrors] = useState({ email: '', password: '' });
+  const [loginError, setLoginError] = useState('');
+
+  const validateEmail = (emailVal) => {
+    if (!emailVal.trim()) return 'Email is required';
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailVal)) return 'Invalid email format';
+    return '';
+  };
+
+  const validatePassword = (passwordVal) => {
+    if (!passwordVal.trim()) return 'Password is required';
+    if (passwordVal.length < 1) return 'Password is required';
+    return '';
+  };
 
   const handleLogin = () => {
-    if (!email || !password) return alert('Please enter both email and password.');
+    const emailError = validateEmail(email);
+    const passwordError = validatePassword(password);
+    setErrors({ email: emailError, password: passwordError });
+    setLoginError('');
+
+    if (emailError || passwordError) return;
 
     // 1. Admin Verification
     if (email === 'np01cp4s230131@islingtoncollege.edu.np') {
@@ -244,7 +297,8 @@ function Login({ onLogin, onSignUp, staff, customers }) {
         onLogin({ name: 'System Admin', role: ROLES.ADMIN });
         return;
       }
-      return alert('Access Denied: Incorrect Admin password.');
+      setLoginError('Access Denied: Incorrect Admin password.');
+      return;
     }
 
     // 2. Staff Verification
@@ -254,7 +308,8 @@ function Login({ onLogin, onSignUp, staff, customers }) {
         onLogin({ id: staffMember.id, name: staffMember.name || email.split('@')[0], role: ROLES.STAFF });
         return;
       }
-      return alert('Access Denied: Incorrect password for Staff.');
+      setLoginError('Access Denied: Incorrect password for Staff.');
+      return;
     }
 
     // 3. Customer Verification
@@ -264,23 +319,46 @@ function Login({ onLogin, onSignUp, staff, customers }) {
         onLogin({ id: customer.id, name: customer.name, role: ROLES.CUSTOMER });
         return;
       }
-      return alert('Access Denied: Incorrect password for Customer.');
+      setLoginError('Access Denied: Incorrect password for Customer.');
+      return;
     }
 
-    alert('Access Denied: Account not found. Please sign up or contact Admin.');
+    setLoginError('Access Denied: Account not found. Please sign up or contact Admin.');
   };
 
   return (
     <div className="card" style={{ maxWidth: '400px', margin: 'auto' }}>
       <h2>Login</h2>
-      <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
+      <div>
+        <input 
+          type="text" 
+          placeholder="Email" 
+          value={email} 
+          onChange={e => {
+            setEmail(e.target.value);
+            setErrors({...errors, email: validateEmail(e.target.value)});
+          }}
+          style={{ borderColor: errors.email ? '#ef4444' : '' }}
+        />
+        {errors.email && <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>{errors.email}</span>}
+      </div>
       <div style={{ position: 'relative', width: '100%' }}>
-        <input type={showPassword ? "text" : "password"} placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', marginBottom: '1rem' }} />
+        <input 
+          type={showPassword ? "text" : "password"} 
+          placeholder="Password" 
+          value={password} 
+          onChange={e => {
+            setPassword(e.target.value);
+            setErrors({...errors, password: validatePassword(e.target.value)});
+          }}
+          style={{ width: '100%', marginBottom: '0.25rem', borderColor: errors.password ? '#ef4444' : '' }}
+        />
         <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '10px', top: '12px', background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: 0, boxShadow: 'none' }}>
           {showPassword ? 'Hide' : 'Show'}
         </button>
       </div>
-      <button onClick={handleLogin}>Enter System</button>
+      {errors.password && <span style={{ fontSize: '0.75rem', color: '#ef4444', display: 'block', marginBottom: '1rem' }}>{errors.password}</span>}
+      <button onClick={handleLogin} disabled={!!errors.email || !!errors.password}>Enter System</button>
       <p style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: '0.9rem' }}>New customer? <button onClick={onSignUp} className="btn-small">Sign Up Here</button></p>
     </div>
   );
