@@ -612,26 +612,6 @@ input, select {
   justify-content: flex-end;
 }
 
-.vendor-filter-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  justify-content: flex-end;
-}
-
-.vendor-filter-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.45rem 0.75rem;
-  border-radius: 999px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  color: #475569;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
 .vendor-status-chip {
   background: #eef2ff;
   color: #1d4ed8;

@@ -4,7 +4,6 @@ using System.Text.Json.Serialization;
 using VehicleInventorySystem.Api.Services;
 using VehicleInventorySystem.Api.Services.Interfaces;
 using VehicleInventorySystem.Api.Services.Implementations;
-using System.Data.Common;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,54 +36,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await dbContext.Database.MigrateAsync();
-
-    var connection = dbContext.Database.GetDbConnection();
-    if (connection.State != System.Data.ConnectionState.Open)
-    {
-        connection.Open();
-    }
-
-    static bool ColumnExists(DbConnection connection, string columnName)
-    {
-        using var existsCommand = connection.CreateCommand();
-        existsCommand.CommandText = @"
-SELECT EXISTS (
-    SELECT 1
-    FROM information_schema.columns
-    WHERE table_schema = 'public'
-      AND table_name = 'Vendors'
-      AND column_name = @columnName
-);";
-
-        var parameter = existsCommand.CreateParameter();
-        parameter.ParameterName = "@columnName";
-        parameter.Value = columnName;
-        existsCommand.Parameters.Add(parameter);
-
-        return Convert.ToBoolean(existsCommand.ExecuteScalar());
-    }
-
-    static void ExecuteSql(DbConnection connection, string sql)
-    {
-        using var command = connection.CreateCommand();
-        command.CommandText = sql;
-        command.ExecuteNonQuery();
-    }
-
-    if (ColumnExists(connection, "Email") && !ColumnExists(connection, "EmailAddress"))
-    {
-        ExecuteSql(connection, "ALTER TABLE \"Vendors\" RENAME COLUMN \"Email\" TO \"EmailAddress\";");
-    }
-
-    if (ColumnExists(connection, "Phone") && !ColumnExists(connection, "PhoneNumber"))
-    {
-        ExecuteSql(connection, "ALTER TABLE \"Vendors\" RENAME COLUMN \"Phone\" TO \"PhoneNumber\";");
-    }
-
-    ExecuteSql(connection, "ALTER TABLE \"Vendors\" ADD COLUMN IF NOT EXISTS \"IsActive\" boolean NOT NULL DEFAULT true;");
-    ExecuteSql(connection, "ALTER TABLE \"Vendors\" ADD COLUMN IF NOT EXISTS \"CreatedAt\" timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP;");
-    ExecuteSql(connection, "ALTER TABLE \"Vendors\" ADD COLUMN IF NOT EXISTS \"UpdatedAt\" timestamp with time zone NULL;");
+    dbContext.Database.Migrate();
 }
 
 // Configure the HTTP request pipeline.

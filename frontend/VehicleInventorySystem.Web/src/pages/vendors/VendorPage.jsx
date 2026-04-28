@@ -40,7 +40,6 @@ export default function VendorPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [toast, setToast] = useState(null);
-  const hasActiveFilters = Boolean(submittedSearchTerm.trim()) || appliedStatusFilter !== 'all';
 
   const loadVendors = async (targetPage = pageNumber) => {
     setIsLoading(true);
@@ -75,9 +74,23 @@ export default function VendorPage() {
     setTimeout(() => setToast(null), 3000);
   };
 
+  const clearVendorFilters = () => {
+    setSearchInput('');
+    setDraftStatusFilter('all');
+    setSubmittedSearchTerm('');
+    setAppliedStatusFilter('all');
+    setPageNumber(1);
+  };
+
   useEffect(() => {
     loadVendors();
   }, [pageNumber, pageSize, submittedSearchTerm, appliedStatusFilter]);
+
+  useEffect(() => {
+    if (searchInput.trim() === '') {
+      clearVendorFilters();
+    }
+  }, [searchInput]);
 
   const stats = useMemo(() => {
     const active = vendors.filter((vendor) => vendor.isActive).length;
@@ -196,12 +209,18 @@ export default function VendorPage() {
 
   const handleClearFilters = (event) => {
     event.preventDefault();
-    setSearchInput('');
-    setDraftStatusFilter('all');
-    setSubmittedSearchTerm('');
-    setAppliedStatusFilter('all');
-    setPageNumber(1);
+    clearVendorFilters();
   };
+
+  const handleSearchInputClear = (event) => {
+    if (event.target.value === '') {
+      clearVendorFilters();
+    }
+  };
+
+  const canClearFilters = Boolean(
+    searchInput.trim() || submittedSearchTerm || appliedStatusFilter !== 'all' || draftStatusFilter !== 'all'
+  );
 
   return (
     <div className="vendor-page">
@@ -221,10 +240,9 @@ export default function VendorPage() {
         statusFilter={draftStatusFilter}
         onStatusChange={setDraftStatusFilter}
         onSearch={handleSearch}
+        onInputSearch={handleSearchInputClear}
         onClear={handleClearFilters}
-        canClear={hasActiveFilters || Boolean(searchInput.trim()) || draftStatusFilter !== 'all'}
-        appliedSearchTerm={submittedSearchTerm}
-        appliedStatusFilter={appliedStatusFilter}
+        canClearFilters={canClearFilters}
       />
 
       {toast && (
