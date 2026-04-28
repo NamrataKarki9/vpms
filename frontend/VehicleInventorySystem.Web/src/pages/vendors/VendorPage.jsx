@@ -4,6 +4,7 @@ import VendorFilters from '../../components/vendors/VendorFilters';
 import VendorStatsCards from '../../components/vendors/VendorStatsCards';
 import VendorTable from '../../components/vendors/VendorTable';
 import VendorFormModal from '../../components/vendors/VendorFormModal';
+import Dialog from '../../components/Dialog';
 
 const EMPTY_VENDORS = [];
 
@@ -40,6 +41,7 @@ export default function VendorPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [toast, setToast] = useState(null);
+  const [successDialog, setSuccessDialog] = useState({ isOpen: false, vendorName: '' });
   const hasActiveFilters = Boolean(submittedSearchTerm.trim()) || appliedStatusFilter !== 'all';
 
   const loadVendors = async (targetPage = pageNumber) => {
@@ -118,6 +120,7 @@ export default function VendorPage() {
     try {
       if (editingVendor) {
         await vendorService.updateVendor(editingVendor.id, payload);
+        setSuccessDialog({ isOpen: true, vendorName: editingVendor.name });
       } else {
         await vendorService.createVendor(payload);
       }
@@ -301,6 +304,15 @@ export default function VendorPage() {
         onClose={handleCloseModal}
         onSubmit={handleSubmit}
         isSaving={isSaving}
+      />
+
+      <Dialog
+        isOpen={successDialog.isOpen}
+        title="Success"
+        message={`${successDialog.vendorName} has been updated successfully.`}
+        type="success"
+        confirmText="OK"
+        onConfirm={() => setSuccessDialog({ isOpen: false, vendorName: '' })}
       />
 
       {isStatusModalOpen && statusVendor && (

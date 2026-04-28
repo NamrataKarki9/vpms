@@ -8,16 +8,7 @@ namespace VehicleInventorySystem.Api.Migrations
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.RenameColumn(
-                name: "Email",
-                table: "Vendors",
-                newName: "EmailAddress");
-
-            migrationBuilder.RenameColumn(
-                name: "Phone",
-                table: "Vendors",
-                newName: "PhoneNumber");
-
+            // Only add IsActive and timestamps - skip problematic renames
             migrationBuilder.AddColumn<bool>(
                 name: "IsActive",
                 table: "Vendors",
