@@ -81,17 +81,32 @@ public class VendorService : IVendorService
     {
         ValidateVendorInput(request.Name, request.ContactPerson, request.PhoneNumber, request.EmailAddress, request.Address);
 
-        var normalizedName = request.Name.Trim().ToLower();
-        var normalizedPhone = request.PhoneNumber.Trim().ToLower();
-        var normalizedEmail = request.EmailAddress.Trim().ToLower();
+        var normalizedName = request.Name.Trim().ToLowerInvariant();
+        var normalizedPhone = request.PhoneNumber.Trim().ToLowerInvariant();
+        var normalizedEmail = request.EmailAddress.Trim().ToLowerInvariant();
 
-        var duplicateExists = await _context.Vendors.AnyAsync(v =>
-            (v.Name.ToLower() == normalizedName && v.PhoneNumber.ToLower() == normalizedPhone) ||
-            v.EmailAddress.ToLower() == normalizedEmail);
+        var emailExists = await _context.Vendors.AnyAsync(v => v.EmailAddress.ToLower() == normalizedEmail);
+        var phoneExists = await _context.Vendors.AnyAsync(v => v.PhoneNumber.ToLower() == normalizedPhone);
+        var nameExists = await _context.Vendors.AnyAsync(v => v.Name.ToLower() == normalizedName);
 
-        if (duplicateExists)
+        if (emailExists && phoneExists)
         {
-            throw new InvalidOperationException("Duplicate vendor: a vendor with the same name and phone number, or email address, already exists.");
+            throw new InvalidOperationException("Vendor with this email or phone number already exists.");
+        }
+
+        if (emailExists)
+        {
+            throw new InvalidOperationException("Email address already exists.");
+        }
+
+        if (phoneExists)
+        {
+            throw new InvalidOperationException("Phone number already exists.");
+        }
+
+        if (nameExists)
+        {
+            throw new InvalidOperationException("Vendor name already exists.");
         }
 
         var vendor = new Vendor
@@ -127,18 +142,35 @@ public class VendorService : IVendorService
             throw new KeyNotFoundException("Vendor not found.");
         }
 
-        var normalizedName = request.Name.Trim().ToLower();
-        var normalizedPhone = request.PhoneNumber.Trim().ToLower();
-        var normalizedEmail = request.EmailAddress.Trim().ToLower();
+        var normalizedName = request.Name.Trim().ToLowerInvariant();
+        var normalizedPhone = request.PhoneNumber.Trim().ToLowerInvariant();
+        var normalizedEmail = request.EmailAddress.Trim().ToLowerInvariant();
 
-        var duplicateExists = await _context.Vendors.AnyAsync(v =>
-            v.Id != id &&
-            ((v.Name.ToLower() == normalizedName && v.PhoneNumber.ToLower() == normalizedPhone) ||
-             v.EmailAddress.ToLower() == normalizedEmail));
+        var emailExists = await _context.Vendors.AnyAsync(v =>
+            v.Id != id && v.EmailAddress.ToLower() == normalizedEmail);
+        var phoneExists = await _context.Vendors.AnyAsync(v =>
+            v.Id != id && v.PhoneNumber.ToLower() == normalizedPhone);
+        var nameExists = await _context.Vendors.AnyAsync(v =>
+            v.Id != id && v.Name.ToLower() == normalizedName);
 
-        if (duplicateExists)
+        if (emailExists && phoneExists)
         {
-            throw new InvalidOperationException("Duplicate vendor: a vendor with the same name and phone number, or email address, already exists.");
+            throw new InvalidOperationException("Vendor with this email or phone number already exists.");
+        }
+
+        if (emailExists)
+        {
+            throw new InvalidOperationException("Email address already exists.");
+        }
+
+        if (phoneExists)
+        {
+            throw new InvalidOperationException("Phone number already exists.");
+        }
+
+        if (nameExists)
+        {
+            throw new InvalidOperationException("Vendor name already exists.");
         }
 
         vendor.Name = request.Name.Trim();
@@ -205,7 +237,7 @@ public class VendorService : IVendorService
             string.IsNullOrWhiteSpace(emailAddress) ||
             string.IsNullOrWhiteSpace(address))
         {
-            throw new ArgumentException("Invalid input: Name, ContactPerson, PhoneNumber, EmailAddress, and Address are required.");
+            throw new ArgumentException("Please fill in all required fields.");
         }
     }
 

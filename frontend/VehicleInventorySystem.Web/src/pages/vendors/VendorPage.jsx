@@ -4,7 +4,6 @@ import VendorFilters from '../../components/vendors/VendorFilters';
 import VendorStatsCards from '../../components/vendors/VendorStatsCards';
 import VendorTable from '../../components/vendors/VendorTable';
 import VendorFormModal from '../../components/vendors/VendorFormModal';
-import Dialog from '../../components/Dialog';
 
 const EMPTY_VENDORS = [];
 
@@ -41,7 +40,6 @@ export default function VendorPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [toast, setToast] = useState(null);
-  const [successDialog, setSuccessDialog] = useState({ isOpen: false, vendorName: '' });
 
   const loadVendors = async (targetPage = pageNumber) => {
     setIsLoading(true);
@@ -133,9 +131,10 @@ export default function VendorPage() {
     try {
       if (editingVendor) {
         await vendorService.updateVendor(editingVendor.id, payload);
-        setSuccessDialog({ isOpen: true, vendorName: editingVendor.name });
+        showToast('success', 'Vendor updated successfully.');
       } else {
         await vendorService.createVendor(payload);
+        showToast('success', 'New vendor created successfully.');
       }
 
       await loadVendors(pageNumber);
@@ -143,7 +142,7 @@ export default function VendorPage() {
       setEditingVendor(null);
       setSelectedVendor(null);
     } catch (error) {
-      setToast({ type: 'error', message: error.message || 'Unable to save vendor.' });
+      showToast('error', error?.message || 'Something went wrong. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -182,7 +181,7 @@ export default function VendorPage() {
         setPageNumber(pageNumber - 1);
       }
     } catch (error) {
-      showToast('error', 'Unable to update vendor status. Please try again.');
+      showToast('error', error?.message || 'Something went wrong. Please try again.');
     } finally {
       setIsUpdatingStatus(false);
     }
@@ -249,7 +248,29 @@ export default function VendorPage() {
       />
 
       {toast && (
-        <div className={`vendor-toast vendor-toast-${toast.type}`} role="status">
+        <div
+          className={`vendor-toast vendor-toast-${toast.type}`}
+          role="status"
+        >
+          <span className="vendor-toast-icon" aria-hidden="true">
+            {toast.type === 'success' ? (
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.78-9.22a.75.75 0 00-1.06-1.06L9 11.44 7.28 9.72a.75.75 0 10-1.06 1.06l2.25 2.25c.29.3.77.3 1.06 0l3.25-3.25z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm-.75-11.25a.75.75 0 011.5 0v4.5a.75.75 0 01-1.5 0v-4.5zm.75 8.5a1 1 0 100-2 1 1 0 000 2z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            )}
+          </span>
           {toast.message}
         </div>
       )}
@@ -322,15 +343,6 @@ export default function VendorPage() {
         onClose={handleCloseModal}
         onSubmit={handleSubmit}
         isSaving={isSaving}
-      />
-
-      <Dialog
-        isOpen={successDialog.isOpen}
-        title="Success"
-        message={`${successDialog.vendorName} has been updated successfully.`}
-        type="success"
-        confirmText="OK"
-        onConfirm={() => setSuccessDialog({ isOpen: false, vendorName: '' })}
       />
 
       {isStatusModalOpen && statusVendor && (

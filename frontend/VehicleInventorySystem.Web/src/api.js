@@ -16,7 +16,21 @@ export const apiFetch = async (endpoint, options = {}) => {
     
     try {
       const errorJson = JSON.parse(errorBody);
-      errorMessage = errorJson.message || errorMessage;
+      if (errorJson?.message) {
+        errorMessage = errorJson.message;
+      } else if (errorJson?.title) {
+        errorMessage = errorJson.title;
+      }
+
+      if (errorJson?.errors) {
+        const errorDetails = Object.values(errorJson.errors)
+          .flat()
+          .filter(Boolean)
+          .join(' ');
+        if (errorDetails) {
+          errorMessage = `${errorMessage}: ${errorDetails}`;
+        }
+      }
     } catch {
       errorMessage = errorBody || errorMessage;
     }

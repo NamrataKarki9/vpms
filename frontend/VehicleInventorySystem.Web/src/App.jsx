@@ -96,12 +96,12 @@ function App() {
       const { apiFetch } = await import('./api');
       const savedStaff = await apiFetch('/Users/register/staff', {
         method: 'POST',
-        body: JSON.stringify({ name: newStaff.name, email: newStaff.email, passwordHash: newStaff.password })
+        body: JSON.stringify({ name: newStaff.name, email: newStaff.email, password: newStaff.password })
       });
       setStaffList([...staffList, { ...savedStaff, role: 'Staff', password: savedStaff.passwordHash || newStaff.password }]);
       alert('System staff successfully saved to NEON Cloud!');
     } catch(err) {
-      alert('Network Error saving to cloud.');
+      alert(err.message || 'Network Error saving to cloud.');
     }
   };
   const handleRemoveStaff = async (id) => {

@@ -77,11 +77,15 @@ public class VendorsController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return Conflict(new { message = ex.Message });
+            return BadRequest(new { message = ex.Message });
         }
         catch (KeyNotFoundException ex)
         {
             return NotFound(new { message = ex.Message });
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, new { message = "Something went wrong. Please try again." });
         }
     }
 
@@ -102,11 +106,15 @@ public class VendorsController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return Conflict(new { message = ex.Message });
+            return BadRequest(new { message = ex.Message });
         }
         catch (KeyNotFoundException ex)
         {
             return NotFound(new { message = ex.Message });
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, new { message = "Something went wrong. Please try again." });
         }
     }
 }
