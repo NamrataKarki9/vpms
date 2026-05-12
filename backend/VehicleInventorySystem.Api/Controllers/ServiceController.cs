@@ -16,7 +16,6 @@ public class ServiceController : ControllerBase
         _context = context;
     }
 
-    // F13: Book Appointments
     [HttpPost("appointments")]
     public async Task<ActionResult<Appointment>> BookAppointment(Appointment appointment)
     {
@@ -34,13 +33,86 @@ public class ServiceController : ControllerBase
         return await query.Include(a => a.Vehicle).ToListAsync();
     }
 
+    [HttpPut("appointments/{id}")]
+    public async Task<ActionResult<Appointment>> UpdateAppointment(int id, Appointment appointment)
+    {
+        if (id != appointment.Id)
+            return BadRequest("ID mismatch");
+
+        _context.Entry(appointment).State = EntityState.Modified;
+        try
+        {
+            await _context.SaveChangesAsync();
+            return Ok(appointment);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (!_context.Appointments.Any(a => a.Id == id))
+                return NotFound();
+            throw;
+        }
+    }
+
+    [HttpDelete("appointments/{id}")]
+    public async Task<IActionResult> DeleteAppointment(int id)
+    {
+        var appointment = await _context.Appointments.FindAsync(id);
+        if (appointment == null)
+            return NotFound();
+
+        _context.Appointments.Remove(appointment);
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
     // F13: Request Unavailable Parts
     [HttpPost("part-requests")]
     public async Task<ActionResult<PartRequest>> RequestPart(PartRequest request)
     {
+        request.RequestDate = DateTime.UtcNow;
         _context.PartRequests.Add(request);
         await _context.SaveChangesAsync();
         return Ok(request);
+    }
+
+    [HttpGet("part-requests")]
+    public async Task<ActionResult<IEnumerable<PartRequest>>> GetPartRequests([FromQuery] int? customerId)
+    {
+        var query = _context.PartRequests.AsQueryable();
+        if (customerId.HasValue) query = query.Where(pr => pr.CustomerId == customerId);
+        return await query.ToListAsync();
+    }
+
+    [HttpPut("part-requests/{id}")]
+    public async Task<ActionResult<PartRequest>> UpdatePartRequest(int id, PartRequest request)
+    {
+        if (id != request.Id)
+            return BadRequest("ID mismatch");
+
+        _context.Entry(request).State = EntityState.Modified;
+        try
+        {
+            await _context.SaveChangesAsync();
+            return Ok(request);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (!_context.PartRequests.Any(pr => pr.Id == id))
+                return NotFound();
+            throw;
+        }
+    }
+
+    [HttpDelete("part-requests/{id}")]
+    public async Task<IActionResult> DeletePartRequest(int id)
+    {
+        var request = await _context.PartRequests.FindAsync(id);
+        if (request == null)
+            return NotFound();
+
+        _context.PartRequests.Remove(request);
+        await _context.SaveChangesAsync();
+        return NoContent();
     }
 
     // F13: Service Reviews
