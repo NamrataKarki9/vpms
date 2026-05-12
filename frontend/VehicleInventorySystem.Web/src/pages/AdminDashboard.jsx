@@ -4,13 +4,19 @@ import InventoryManager from '../components/management/InventoryManager';
 import CustomerManager from '../components/management/CustomerManager';
 import Dialog from '../components/Dialog';
 import { vendorService } from '../services/vendorService';
+import { useToast } from '../context/ToastContext';
+import PartFormModal from '../components/parts/PartFormModal';
+import VendorSearchSelect from '../components/VendorSearchSelect';
 
 export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateStaff, sales, inventory, onUpdateInventory, customerList, onRemoveCustomer, onUpdateCustomer, onOpenVendorManagement }) {
+  const showToast = useToast();
   const [viewType, setViewType] = useState('daily');
   const [adminRoute, setAdminRoute] = useState('main');
   const [report, setReport] = useState({ TotalRevenue: 0, InvoiceCount: 0 });
   const [vendors, setVendors] = useState([]);
   const [isSeeding, setIsSeeding] = useState(false);
+  const [isAddPartModalOpen, setIsAddPartModalOpen] = useState(false);
+  const [isAddPartSaving, setIsAddPartSaving] = useState(false);
 
   useEffect(() => {
     import('../services/api').then(({ apiFetch }) => {
@@ -22,7 +28,7 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
           });
         }
       });
-      vendorService.getVendors({ pageNumber: 1, pageSize: 5 }).then((res) => {
+      vendorService.getVendors({ pageNumber: 1, pageSize: 200, status: 'all' }).then((res) => {
         if (Array.isArray(res)) {
           setVendors(res);
           return;
@@ -52,7 +58,7 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
       ];
       const createdVendors = [];
       for (const v of seedVendors) {
-        const res = await apiFetch('/Inventory/vendors', { method: 'POST', body: JSON.stringify(v) });
+        const res = await apiFetch('/vendors', { method: 'POST', body: JSON.stringify(v) });
         if (res) createdVendors.push(res);
       }
       const partTemplates = [
@@ -81,7 +87,7 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
         });
       }
       for (const p of partsToSeed) {
-        await apiFetch('/Inventory/parts', { method: 'POST', body: JSON.stringify(p) });
+        await apiFetch('/parts', { method: 'POST', body: JSON.stringify(p) });
       }
 
       // Seed 5 Customers
@@ -97,16 +103,34 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
         await apiFetch('/Users', { method: 'POST', body: JSON.stringify({ ...c, role: 'Customer', password: 'password' }) });
       }
 
-      alert('System fully populated with Vendors, Parts, and Sample Customers!');
+      showToast('success', 'System fully populated with Vendors, Parts, and Sample Customers!');
       window.location.reload();
-    } catch(err) { alert('Seeding partially failed.'); }
+    } catch(err) { showToast('error', 'Seeding partially failed.'); }
     finally { setIsSeeding(false); }
+  };
+
+  const handleAdminAddPart = async (payload) => {
+    setIsAddPartSaving(true);
+    try {
+      const { apiFetch } = await import('../services/api');
+      const newPart = await apiFetch('/parts', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      const vendorName = vendors.find(v => v.id === payload.vendorId)?.name || 'Unknown Vendor';
+      onUpdateInventory([...inventory, { id: newPart.id, name: newPart.name, stock: newPart.stockLevel, price: newPart.price, vendor: vendorName }]);
+      showToast('success', 'Part created successfully.');
+      setIsAddPartModalOpen(false);
+    } catch (error) {
+      showToast('error', error?.message || 'Failed to create part.');
+    } finally {
+      setIsAddPartSaving(false);
+    }
   };
 
   if (adminRoute === 'add-staff') return <AddStaffPage onAdd={onAddStaff} onBack={() => setAdminRoute('main')} />;
   if (adminRoute === 'manage-inventory') return <InventoryPurchasePage inventory={inventory} onUpdate={onUpdateInventory} onBack={() => setAdminRoute('main')} />;
   if (adminRoute === 'manage-customers') return <CustomerManagementPage customers={customerList} onRemove={onRemoveCustomer} onUpdate={onUpdateCustomer} onBack={() => setAdminRoute('main')} />;
-  if (adminRoute === 'add-part') return <AddPartPage inventory={inventory} vendors={vendors} onUpdate={onUpdateInventory} onBack={() => setAdminRoute('main')} />;
   if (adminRoute === 'view-all-inventory') return <FullInventoryPage inventory={inventory} onBack={() => setAdminRoute('main')} />;
   if (adminRoute === 'view-all-staff') return <FullStaffPage staffList={staffList} onBack={() => setAdminRoute('main')} />;
 
@@ -170,8 +194,17 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
         <StaffManager userRole="Admin" staffList={staffList} onNavigate={setAdminRoute} onRemove={onRemoveStaff} onUpdate={onUpdateStaff} />
         <div id="customers"><CustomerManager customers={customerList} onNavigate={setAdminRoute} onRemove={onRemoveCustomer} onEdit={onUpdateCustomer} /></div>
       </div>
-      <div id="inventory"><InventoryManager inventory={inventory} onNavigate={setAdminRoute} /></div>
+        <div id="inventory"><InventoryManager inventory={inventory} onNavigate={setAdminRoute} onAddPart={() => setIsAddPartModalOpen(true)} /></div>
     </div>
+      <PartFormModal
+        isOpen={isAddPartModalOpen}
+        isEditing={false}
+        initialPart={null}
+        vendors={vendors}
+        onClose={() => setIsAddPartModalOpen(false)}
+        onSubmit={handleAdminAddPart}
+        isSaving={isAddPartSaving}
+      />
     </div>
   );
 }
@@ -198,9 +231,17 @@ function AddStaffPage({ onAdd, onBack }) {
 }
 
 function InventoryPurchasePage({ inventory, onUpdate, onBack }) {
+  const showToast = useToast();
   const [purchaseData, setPurchaseData] = useState({ partId: '', quantity: '', vendorId: '' });
   const [vendors, setVendors] = useState([]);
-  useEffect(() => { import('../services/api').then(({ apiFetch }) => apiFetch('/Inventory/vendors').then(res => res && setVendors(res))); }, []);
+  useEffect(() => {
+    import('../services/api').then(({ apiFetch }) =>
+      apiFetch('/vendors?pageSize=200').then((res) => {
+        const items = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
+        setVendors(items);
+      })
+    );
+  }, []);
   const handlePurchase = async (e) => {
     e.preventDefault();
     const part = inventory.find(p => p.id === parseInt(purchaseData.partId));
@@ -215,11 +256,11 @@ function InventoryPurchasePage({ inventory, onUpdate, onBack }) {
           items: [{ partId: parseInt(purchaseData.partId), quantity: parseInt(purchaseData.quantity), unitPrice: part.price * 0.7 }]
         })
       });
-      alert('Stock updated!');
+      showToast('success', 'Stock updated successfully.');
       const updatedInventory = inventory.map(p => p.id === parseInt(purchaseData.partId) ? { ...p, stock: p.stock + parseInt(purchaseData.quantity) } : p);
       onUpdate(updatedInventory);
       onBack();
-    } catch(err) { alert('Purchase failed.'); }
+    } catch(err) { showToast('error', 'Purchase failed.'); }
   };
   return (
     <div className="card" style={{ maxWidth: '600px', margin: 'auto' }}>
@@ -231,10 +272,11 @@ function InventoryPurchasePage({ inventory, onUpdate, onBack }) {
           {inventory.map(p => <option key={p.id} value={p.id}>{p.name} (Current: {p.stock})</option>)}
         </select>
         <input type="number" placeholder="Quantity" required onChange={e => setPurchaseData({...purchaseData, quantity: e.target.value})} value={purchaseData.quantity} />
-        <select required onChange={e => setPurchaseData({...purchaseData, vendorId: e.target.value})} value={purchaseData.vendorId}>
-          <option value="">Select Vendor</option>
-          {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-        </select>
+        <VendorSearchSelect
+          vendors={vendors}
+          value={purchaseData.vendorId ? Number(purchaseData.vendorId) : null}
+          onChange={(id) => setPurchaseData({...purchaseData, vendorId: id ? String(id) : ''})}
+        />
         <button type="submit" style={{ marginTop: '1rem' }}>Complete Purchase</button>
       </form>
     </div>
@@ -242,6 +284,7 @@ function InventoryPurchasePage({ inventory, onUpdate, onBack }) {
 }
 
 function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
+  const showToast = useToast();
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ name: '', email: '', phone: '', plate: '' });
   const [validationErrors, setValidationErrors] = useState({ name: '', email: '', phone: '' });
@@ -305,7 +348,7 @@ function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
       onUpdate(updatedCustomer);
       setSuccessDialog({ isOpen: true, message: `${editData.name} has been updated successfully.` });
     } catch (error) {
-      alert('Error updating customer: ' + (error.message || 'Unknown error'));
+      showToast('error', 'Error updating customer: ' + (error.message || 'Unknown error'));
     } finally {
       setIsSaving(false);
     }
@@ -322,7 +365,7 @@ function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
       setRemoveDialog({ isOpen: false, customerId: null, customerName: '' });
       setSuccessDialog({ isOpen: true, message: `${removeDialog.customerName} has been removed successfully.` });
     } catch (error) {
-      alert('Error removing customer: ' + (error.message || 'Unknown error'));
+      showToast('error', 'Error removing customer: ' + (error.message || 'Unknown error'));
       setRemoveDialog({ isOpen: false, customerId: null, customerName: '' });
     } finally {
       setIsRemoving(false);
@@ -430,36 +473,6 @@ function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
   );
 }
 
-function AddPartPage({ inventory, vendors, onUpdate, onBack }) {
-  const [partData, setPartData] = useState({ name: '', code: '', description: '', price: '', vendorId: '', initialStock: '0' });
-  const handleSave = async (e) => {
-    e.preventDefault();
-    try {
-      const { apiFetch } = await import('../services/api');
-      const newPart = await apiFetch('/Inventory/parts', {
-        method: 'POST',
-        body: JSON.stringify({ name: partData.name, partCode: partData.code, description: partData.description, price: parseFloat(partData.price), stockLevel: parseInt(partData.initialStock), vendorId: parseInt(partData.vendorId) })
-      });
-      onUpdate([...inventory, { id: newPart.id, name: newPart.name, stock: newPart.stockLevel, price: newPart.price, vendor: vendors.find(v => v.id === parseInt(partData.vendorId))?.name || 'Local' }]);
-      alert('Part registered!'); onBack();
-    } catch(err) { alert('Error.'); }
-  };
-  return (
-    <div className="card" style={{ maxWidth: '600px', margin: 'auto' }}>
-      <button onClick={onBack} className="btn-small" style={{ marginBottom: '1rem', background: '#cbd5e1', color: '#0f172a' }}>← Back</button>
-      <h2>New Part</h2>
-      <form onSubmit={handleSave} className="mini-form">
-        <input placeholder="Name" required value={partData.name} onChange={e => setPartData({...partData, name: e.target.value})} />
-        <input placeholder="Code" required value={partData.code} onChange={e => setPartData({...partData, code: e.target.value})} />
-        <input type="number" placeholder="Price" required value={partData.price} onChange={e => setPartData({...partData, price: e.target.value})} />
-        <select required value={partData.vendorId} onChange={e => setPartData({...partData, vendorId: e.target.value})}>
-          <option value="">Vendor</option>{vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-        </select>
-        <button type="submit">Register</button>
-      </form>
-    </div>
-  );
-}
 
 function FullInventoryPage({ inventory, onBack }) {
   return (

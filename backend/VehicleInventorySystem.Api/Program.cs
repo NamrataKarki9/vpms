@@ -30,6 +30,7 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IVendorService, VendorService>();
+builder.Services.AddScoped<IPartService, PartService>();
 
 var app = builder.Build();
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from '../context/ToastContext';
 
 export function StaffDashboard({ view, setView, customers, parts, sales, onProcessSale }) {
 
@@ -69,6 +70,7 @@ export function StaffDashboard({ view, setView, customers, parts, sales, onProce
 }
 
 function ProcessSalePage({ customers, parts, onProcessSale, onBack }) {
+  const showToast = useToast();
   const [selectedCust, setSelectedCust] = useState('');
   const [selectedPart, setSelectedPart] = useState('');
   const [quantity, setQuantity] = useState(1);
@@ -78,7 +80,7 @@ function ProcessSalePage({ customers, parts, onProcessSale, onBack }) {
     if (!selectedPart) return;
     const part = parts.find(p => p.id === parseInt(selectedPart));
     if (!part) return;
-    if (part.stock < quantity) return alert('Insufficient stock!');
+    if (part.stock < quantity) return showToast('error', 'Insufficient stock!');
 
     const existing = cart.find(c => c.id === part.id);
     if (existing) {
@@ -95,8 +97,8 @@ function ProcessSalePage({ customers, parts, onProcessSale, onBack }) {
   const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
   const handleComplete = () => {
-    if (!selectedCust) return alert('Please select a customer.');
-    if (cart.length === 0) return alert('Cart is empty.');
+    if (!selectedCust) return showToast('error', 'Please select a customer.');
+    if (cart.length === 0) return showToast('error', 'Cart is empty.');
     onProcessSale(selectedCust, cart);
     onBack();
   };
@@ -167,12 +169,13 @@ function ProcessSalePage({ customers, parts, onProcessSale, onBack }) {
 }
 
 function InvoicesPage({ sales, onBack }) {
+  const showToast = useToast();
   const handleEmailInvoice = async (invoiceId) => {
     try {
       const { apiFetch } = await import('../services/api');
       await apiFetch(`/Transactions/${invoiceId}/email`, { method: 'POST' });
-      alert(`Invoice #${invoiceId} has been successfully emailed.`);
-    } catch(err) { alert('Email failed.'); }
+      showToast('success', `Invoice #${invoiceId} has been successfully emailed.`);
+    } catch(err) { showToast('error', 'Failed to email invoice.'); }
   };
 
   return (
@@ -202,6 +205,7 @@ function InvoicesPage({ sales, onBack }) {
 }
 
 function CustomerSearchPage({ onBack }) {
+  const showToast = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState(null);
 
@@ -211,7 +215,7 @@ function CustomerSearchPage({ onBack }) {
       const { apiFetch } = await import('../services/api');
       const results = await apiFetch(`/Customers/search?query=${encodeURIComponent(searchTerm)}`);
       setSearchResults(results || []);
-    } catch(err) { alert('Search failed.'); }
+    } catch(err) { showToast('error', 'Search failed.'); }
   };
 
   return (
@@ -243,6 +247,7 @@ function CustomerSearchPage({ onBack }) {
 }
 
 function ReportsPage({ onBack }) {
+  const showToast = useToast();
   const [reportType, setReportType] = useState('high-spenders');
   const [reportData, setReportData] = useState([]);
 
@@ -256,8 +261,8 @@ function ReportsPage({ onBack }) {
     try {
       const { apiFetch } = await import('../services/api');
       const res = await apiFetch('/Reports/send-unpaid-reminders', { method: 'POST' });
-      alert(res.message || 'Reminders sent.');
-    } catch(err) { alert('Failed.'); }
+      showToast('success', res.message || 'Reminders sent.');
+    } catch(err) { showToast('error', 'Failed to send reminders.'); }
   };
 
   return (

@@ -3,6 +3,7 @@ import React from 'react';
 const NAV_ITEMS = [
   { label: 'Dashboard', path: '/' },
   { label: 'Vendors', path: '/vendors' },
+  { label: 'Parts', path: '/parts' },
   { label: 'Inventory', path: '/inventory' },
   { label: 'Purchase Orders', path: '/purchase-orders' },
   { label: 'Sales', path: '/sales' },

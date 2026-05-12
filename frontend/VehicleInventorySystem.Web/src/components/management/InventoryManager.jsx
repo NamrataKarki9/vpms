@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-function InventoryManager({ inventory, onNavigate }) {
+function InventoryManager({ inventory, onNavigate, onAddPart }) {
 
   return (
     <div className="management-card">
@@ -8,7 +8,7 @@ function InventoryManager({ inventory, onNavigate }) {
         <h3>Inventory & Stock Purchases</h3>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button onClick={() => onNavigate('view-all-inventory')} className="btn-small" style={{ background: '#f1f5f9', color: '#0f172a', border: '1px solid #e2e8f0' }}>View All</button>
-          <button onClick={() => onNavigate('add-part')} className="btn-small" style={{ background: '#10b981', color: '#fff' }}>
+          <button onClick={onAddPart} className="btn-small" style={{ background: '#10b981', color: '#fff' }}>
             + New Part
           </button>
           <button onClick={() => onNavigate('manage-inventory')} className="btn-small" style={{ background: 'var(--primary)', color: '#fff' }}>
@@ -23,6 +23,7 @@ function InventoryManager({ inventory, onNavigate }) {
           <div key={p.id} className="list-item">
             <div>
               <strong>{p.name}</strong>
+              <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>{p.vendor}</div>
               <div style={{ fontSize: '0.8rem', color: p.stock < 10 ? 'var(--secondary)' : 'inherit' }}>
                  Stock: {p.stock} {p.stock < 10 && '(LOW)'}
               </div>

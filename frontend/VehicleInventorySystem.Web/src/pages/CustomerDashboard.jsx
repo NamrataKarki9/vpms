@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../services/api.js';
+import { useToast } from '../context/ToastContext';
 
 export function CustomerDashboard({ user }) {
+  const showToast = useToast();
   const [history, setHistory] = useState([]);
   const [subView, setSubView] = useState('main');
   const [appointments, setAppointments] = useState([]);
@@ -31,7 +33,7 @@ export function CustomerDashboard({ user }) {
       setAppointments(prev => prev.filter(a => a.id !== id));
     } catch (error) {
       console.error('Error deleting appointment:', error);
-      alert('Failed to delete appointment');
+      showToast('error', 'Failed to delete appointment');
     }
   };
 
@@ -41,7 +43,7 @@ export function CustomerDashboard({ user }) {
       setPartRequests(prev => prev.filter(r => r.id !== id));
     } catch (error) {
       console.error('Error deleting request:', error);
-      alert('Failed to delete request');
+      showToast('error', 'Failed to delete request');
     }
   };
 
@@ -54,7 +56,7 @@ export function CustomerDashboard({ user }) {
       setAppointments(prev => prev.map(a => a.id === updatedAppointment.id ? updatedAppointment : a));
     } catch (error) {
       console.error('Error updating appointment:', error);
-      alert('Failed to update appointment');
+      showToast('error', 'Failed to update appointment');
     }
   };
 
@@ -67,7 +69,7 @@ export function CustomerDashboard({ user }) {
       setPartRequests(prev => prev.map(r => r.id === updatedRequest.id ? updatedRequest : r));
     } catch (error) {
       console.error('Error updating request:', error);
-      alert('Failed to update request');
+      showToast('error', 'Failed to update request');
     }
   };
 
@@ -178,6 +180,7 @@ function HistoryPage({ history, onBack }) {
 }
 
 function AppointmentsPage({ list, onDelete, onUpdate, onBack, onNew }) {
+  const showToast = useToast();
   const [cancelDialog, setCancelDialog] = useState({ isOpen: false, id: null, type: '', name: '' });
   const [rescheduleDialog, setRescheduleDialog] = useState({ isOpen: false, id: null, newDate: '' });
   const [rescheduleError, setRescheduleError] = useState('');
@@ -203,7 +206,7 @@ function AppointmentsPage({ list, onDelete, onUpdate, onBack, onNew }) {
     const error = validateCancel(appointment);
     
     if (error) {
-      alert(error);
+      showToast('error', error);
       return;
     }
     
@@ -248,7 +251,7 @@ function AppointmentsPage({ list, onDelete, onUpdate, onBack, onNew }) {
   const handleRescheduleClick = (appointment) => {
     const error = validateReschedule(appointment, new Date().toISOString().split('T')[0]);
     if (error && error.includes('maximum')) {
-      alert(error);
+      showToast('error', error);
       return;
     }
     setRescheduleDialog({ isOpen: true, id: appointment.id, newDate: '' });
@@ -522,6 +525,7 @@ function BookingPage({ onComplete, onBack, user, list = [] }) {
 }
 
 function RequestsPage({ list, onDelete, onUpdate, onBack, onNew }) {
+  const showToast = useToast();
   const [cancelDialog, setCancelDialog] = useState({ isOpen: false, id: null, name: '' });
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ partName: '', vehicleDetails: '' });
@@ -547,7 +551,7 @@ function RequestsPage({ list, onDelete, onUpdate, onBack, onNew }) {
 
   const handleSaveEdit = (id) => {
     if (!editData.partName.trim() || !editData.vehicleDetails.trim()) {
-      alert('Please fill in all fields.');
+      showToast('error', 'Please fill in all fields.');
       return;
     }
 
@@ -652,13 +656,14 @@ function RequestsPage({ list, onDelete, onUpdate, onBack, onNew }) {
 }
 
 function NewRequestPage({ user, onComplete, onBack }) {
+  const showToast = useToast();
   const [form, setForm] = useState({ partName: '', vehicleDetails: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successDialog, setSuccessDialog] = useState(false);
 
   const handleSubmit = async () => {
     if (!form.partName || !form.vehicleDetails) {
-      alert('Please fill in all fields.');
+      showToast('error', 'Please fill in all fields.');
       return;
     }
 
@@ -683,11 +688,11 @@ function NewRequestPage({ user, onComplete, onBack }) {
           onComplete(response);
         }, 2000);
       } else {
-        alert('Failed to submit request. Please try again.');
+        showToast('error', 'Failed to submit request. Please try again.');
       }
     } catch (error) {
       console.error('Error submitting request:', error);
-      alert('Error submitting request: ' + error.message);
+      showToast('error', 'Error submitting request: ' + error.message);
     } finally {
       setIsSubmitting(false);
     }

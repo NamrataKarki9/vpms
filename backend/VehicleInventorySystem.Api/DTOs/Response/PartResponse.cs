@@ -1,6 +1,5 @@
-namespace VehicleInventorySystem.Api.Models;
-
-public class Part
+namespace VehicleInventorySystem.Api.DTOs.Response;
+public class PartResponse
 {
     public int Id { get; set; }
 
@@ -14,13 +13,9 @@ public class Part
 
     public int StockLevel { get; set; }
 
-    public bool IsActive { get; set; } = true;
-
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
-    public DateTime? UpdatedAt { get; set; }
+    public bool IsActive { get; set; }
 
     public int VendorId { get; set; }
 
-    public Vendor? Vendor { get; set; }
+    public string VendorName { get; set; } = string.Empty;
 }

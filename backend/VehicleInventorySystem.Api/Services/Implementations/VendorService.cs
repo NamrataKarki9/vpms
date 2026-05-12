@@ -245,7 +245,7 @@ public class VendorService : IVendorService
     {
         var normalizedRequest = request ?? new VendorQueryRequest();
         normalizedRequest.PageNumber = normalizedRequest.PageNumber < 1 ? 1 : normalizedRequest.PageNumber;
-        normalizedRequest.PageSize = normalizedRequest.PageSize is 5 or 10 or 15 ? normalizedRequest.PageSize : 5;
+        normalizedRequest.PageSize = normalizedRequest.PageSize > 0 ? Math.Min(normalizedRequest.PageSize, 200) : 5;
         normalizedRequest.SearchTerm = string.IsNullOrWhiteSpace(normalizedRequest.SearchTerm)
             ? null
             : normalizedRequest.SearchTerm.Trim().ToLowerInvariant();

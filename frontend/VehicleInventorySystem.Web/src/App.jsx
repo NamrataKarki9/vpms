@@ -9,11 +9,14 @@ import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import MainLayout from './layout/MainLayout';
 import VendorPage from './pages/vendors/VendorPage';
+import PartsPage from './pages/parts/PartsPage';
+import { useToast } from './context/ToastContext';
 import './index.css';
 
 const ROLES = { ADMIN: 'Admin', STAFF: 'Staff', CUSTOMER: 'Customer' };
 
 function App() {
+  const showToast = useToast();
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname || '/');
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('vis_user');
@@ -62,9 +65,13 @@ function App() {
           })));
 
           // Fetch Inventory Data
-          const partsRes = await apiFetch('/Inventory/parts') || [];
+          const partsRes = await apiFetch('/parts') || [];
           setInventory(partsRes.map(p => ({
-             id: p.id, name: p.name, stock: p.stockLevel, price: p.price, vendor: p.vendor?.name || 'Local'
+             id: p.id || p.Id,
+             name: p.name || p.Name || '',
+             stock: p.stockLevel || p.StockLevel || 0,
+             price: p.price || p.Price || 0,
+             vendor: p.vendorName || p.VendorName || 'Unknown Vendor'
           })));
 
           // Fetch Transaction History
@@ -80,7 +87,7 @@ function App() {
           setIsLoading(false);
         } catch (error) {
           console.error("Cloud DB Connection Error:", error);
-          alert("Failed to connect to NEON Cloud API.");
+          showToast('error', 'Failed to connect to NEON Cloud API.');
           setIsLoading(false);
         }
       };
@@ -101,9 +108,9 @@ function App() {
         body: JSON.stringify({ name: newStaff.name, email: newStaff.email, password: newStaff.password })
       });
       setStaffList([...staffList, { ...savedStaff, role: 'Staff', password: savedStaff.passwordHash || newStaff.password }]);
-      alert('System staff successfully saved to NEON Cloud!');
+      showToast('success', 'System staff successfully saved to NEON Cloud!');
     } catch(err) {
-      alert(err.message || 'Network Error saving to cloud.');
+      showToast('error', err.message || 'Network Error saving to cloud.');
     }
   };
   const handleRemoveStaff = async (id) => {
@@ -168,7 +175,7 @@ function App() {
       return savedCustomer;
     } catch(err) {
       console.error(err);
-      alert('Network Error saving customer to cloud.');
+      showToast('error', 'Network Error saving customer to cloud.');
       return false;
     }
   };
@@ -187,7 +194,7 @@ function App() {
   
   const handleProcessSale = async (customerId, cartItems) => {
     const customer = customerList.find(c => c.id === parseInt(customerId));
-    if (!customer || cartItems.length === 0) return alert('Please select a customer and at least one item.');
+    if (!customer || cartItems.length === 0) return showToast('error', 'Please select a customer and at least one item.');
 
     try {
       const { apiFetch } = await import('./services/api');
@@ -227,13 +234,21 @@ function App() {
       });
       setInventory(updatedInv);
       
-      alert(`Success: Invoice generated. ${isDiscounted ? '10% Loyalty Discount Applied!' : ''} Total: Rs. ${finalPrice.toFixed(2)}`);
+      showToast('success', `Invoice generated. ${isDiscounted ? '10% Loyalty Discount Applied! ' : ''}Total: Rs. ${finalPrice.toFixed(2)}`);
     } catch (e) {
-      alert('Failed to process sale.');
+      showToast('error', 'Failed to process sale.');
     }
   };
 
   const handleUpdateInventory = (newParts) => setInventory(newParts);
+
+  if (currentPath === '/parts') {
+    return (
+      <MainLayout currentPath={currentPath} onNavigate={handleNavigate}>
+        <PartsPage />
+      </MainLayout>
+    );
+  }
 
   if (currentPath === '/vendors') {
     return (
