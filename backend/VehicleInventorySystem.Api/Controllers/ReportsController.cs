@@ -31,7 +31,11 @@ public class ReportsController : ControllerBase
         else if (period == "monthly") query = query.Where(i => i.Date >= new DateTime(now.Year, now.Month, 1));
         else if (period == "yearly") query = query.Where(i => i.Date >= new DateTime(now.Year, 1, 1));
 
-        var total = await query.SumAsync(i => i.TotalAmount);
+        var total = await query
+            .Select(i => i.PaymentStatus == "half-payment" ? i.TotalAmount * 0.5m :
+                         i.PaymentStatus == "partial-payment" ? i.TotalAmount * 0.1m :
+                         i.TotalAmount)
+            .SumAsync();
         var count = await query.CountAsync();
 
         return Ok(new { Period = period, TotalRevenue = total, InvoiceCount = count });
@@ -51,7 +55,18 @@ public class ReportsController : ControllerBase
                 PurchaseCount = g.Count()
             })
             .OrderByDescending(x => x.TotalSpent)
-            .Take(10)
+            .Take(5)
+            .Join(_context.Users,
+                r => r.CustomerId,
+                u => (int?)u.Id,
+                (r, u) => new
+                {
+                    r.CustomerId,
+                    CustomerName = u.Name,
+                    CustomerPhone = u.PhoneNumber,
+                    r.TotalSpent,
+                    r.PurchaseCount
+                })
             .ToListAsync();
 
         return Ok(highSpenders);
@@ -70,10 +85,52 @@ public class ReportsController : ControllerBase
                 VisitCount = g.Count()
             })
             .OrderByDescending(x => x.VisitCount)
-            .Take(10)
+            .Take(5)
+            .Join(_context.Users,
+                r => r.CustomerId,
+                u => (int?)u.Id,
+                (r, u) => new
+                {
+                    r.CustomerId,
+                    CustomerName = u.Name,
+                    CustomerPhone = u.PhoneNumber,
+                    r.VisitCount
+                })
             .ToListAsync();
 
         return Ok(regulars);
+    }
+
+    // F9: Staff - Pending credit reports (Customers with unpaid balances)
+    [HttpGet("customers/pending-credits")]
+    public async Task<ActionResult> GetPendingCredits()
+    {
+        var pendingCredits = await _context.Invoices
+            .Where(i => i.Type == InvoiceType.Sale && i.CustomerId.HasValue &&
+                (i.PaymentStatus == "half-payment" || i.PaymentStatus == "partial-payment"))
+            .GroupBy(i => i.CustomerId)
+            .Select(g => new
+            {
+                CustomerId = g.Key,
+                TotalPending = g.Sum(i => i.TotalAmount),
+                UnpaidInvoiceCount = g.Count()
+            })
+            .OrderByDescending(x => x.TotalPending)
+            .Take(5)
+            .Join(_context.Users,
+                r => r.CustomerId,
+                u => (int?)u.Id,
+                (r, u) => new
+                {
+                    r.CustomerId,
+                    CustomerName = u.Name,
+                    CustomerPhone = u.PhoneNumber,
+                    r.TotalPending,
+                    r.UnpaidInvoiceCount
+                })
+            .ToListAsync();
+
+        return Ok(pendingCredits);
     }
 
     // F15: System notification for unpaid credits (Email reminders older than 1 month)

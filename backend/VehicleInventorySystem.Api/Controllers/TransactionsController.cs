@@ -59,6 +59,7 @@ public class TransactionsController : ControllerBase
     {
         invoice.Type = InvoiceType.Sale;
         invoice.Date = DateTime.UtcNow;
+        invoice.IsPaid = invoice.PaymentStatus == null || invoice.PaymentStatus == "full-payment";
         
         using var transaction = await _context.Database.BeginTransactionAsync();
         try

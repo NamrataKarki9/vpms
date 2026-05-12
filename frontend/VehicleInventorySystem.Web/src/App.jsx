@@ -185,7 +185,7 @@ function App() {
   };
   const handleUpdateCustomer = (updatedCust) => setCustomerList(customerList.map(c => c.id === updatedCust.id ? updatedCust : c));
   
-  const handleProcessSale = async (customerId, cartItems) => {
+  const handleProcessSale = async (customerId, cartItems, paymentStatus) => {
     const customer = customerList.find(c => c.id === parseInt(customerId));
     if (!customer || cartItems.length === 0) return alert('Please select a customer and at least one item.');
 
@@ -198,6 +198,7 @@ function App() {
         body: JSON.stringify({
           customerId: parseInt(customerId),
           totalAmount: totalAmount,
+          paymentStatus: paymentStatus,
           items: cartItems.map(item => ({
             partId: item.id,
             quantity: item.quantity,
@@ -257,6 +258,7 @@ function App() {
             onAddStaff={handleAddStaff} onRemoveStaff={handleRemoveStaff} onUpdateStaff={handleUpdateStaff} onProcessSale={handleProcessSale}
             onUpdateInventory={handleUpdateInventory} onRemoveCustomer={handleRemoveCustomer} onUpdateCustomer={handleUpdateCustomer}
             staffView={staffView} setStaffView={setStaffView} onOpenVendorManagement={() => { window.history.pushState({}, '', '/vendors'); setCurrentPath('/vendors'); }}
+            onRegisterCustomer={handleRegisterCustomer}
           />
         )}
       </main>
@@ -265,12 +267,12 @@ function App() {
   );
 }
 
-function Dashboard({ user, staffList, customerList, inventory, salesHistory, onAddStaff, onRemoveStaff, onUpdateStaff, onProcessSale, onUpdateInventory, onRemoveCustomer, onUpdateCustomer, staffView, setStaffView, onOpenVendorManagement }) {
+function Dashboard({ user, staffList, customerList, inventory, salesHistory, onAddStaff, onRemoveStaff, onUpdateStaff, onProcessSale, onUpdateInventory, onRemoveCustomer, onUpdateCustomer, staffView, setStaffView, onOpenVendorManagement, onRegisterCustomer }) {
   return (
     <div>
       <h1>{user.role} Dashboard</h1>
       {user.role === ROLES.ADMIN && (<AdminDashboard staffList={staffList} onAddStaff={onAddStaff} onRemoveStaff={onRemoveStaff} onUpdateStaff={onUpdateStaff} sales={salesHistory} inventory={inventory} onUpdateInventory={onUpdateInventory} customerList={customerList} onRemoveCustomer={onRemoveCustomer} onUpdateCustomer={onUpdateCustomer} onOpenVendorManagement={onOpenVendorManagement} />)}
-      {user.role === ROLES.STAFF && (<StaffDashboard view={staffView} setView={setStaffView} customers={customerList} parts={inventory} sales={salesHistory} onProcessSale={onProcessSale} />)}
+      {user.role === ROLES.STAFF && (<StaffDashboard view={staffView} setView={setStaffView} customers={customerList} parts={inventory} sales={salesHistory} onProcessSale={onProcessSale} onRegisterCustomer={onRegisterCustomer} />)}
       {user.role === ROLES.CUSTOMER && (<CustomerDashboard user={user} sales={salesHistory} />)}
     </div>
   );

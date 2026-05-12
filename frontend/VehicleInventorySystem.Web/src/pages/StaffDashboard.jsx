@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import CustomerVehicleForm from '../components/management/CustomerVehicleForm';
 
-export function StaffDashboard({ view, setView, customers, parts, sales, onProcessSale }) {
+export function StaffDashboard({ view, setView, customers, parts, sales, onProcessSale, onRegisterCustomer }) {
 
   if (view === 'sales') return <ProcessSalePage customers={customers} parts={parts} onProcessSale={onProcessSale} onBack={() => setView('main')} />;
   if (view === 'invoices') return <InvoicesPage sales={sales} onBack={() => setView('main')} />;
   if (view === 'customers') return <CustomerSearchPage onBack={() => setView('main')} />;
   if (view === 'reports') return <ReportsPage onBack={() => setView('main')} />;
   if (view === 'orders') return <OrdersPage onBack={() => setView('main')} />;
+  if (view === 'register-customer') return <RegisterCustomerPage onRegister={onRegisterCustomer} onBack={() => setView('main')} />;
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '2rem', alignItems: 'start' }}>
@@ -53,6 +55,12 @@ export function StaffDashboard({ view, setView, customers, parts, sales, onProce
         <button onClick={() => setView('customers')} className="btn-small" style={{ width: '100%', marginTop: '1rem', background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)' }}>Open Full Search Engine</button>
       </div>
 
+      <div className="card" id="register">
+        <h3>Register New Customer</h3>
+        <p style={{ opacity: 0.6, fontSize: '0.9rem' }}>Add customer details and vehicle information.</p>
+        <button onClick={() => setView('register-customer')} style={{ width: '100%', marginTop: '1rem' }}>Register Customer</button>
+      </div>
+
       <div className="card" id="reports">
         <h3>Customer Reports</h3>
         <p style={{ opacity: 0.6, fontSize: '0.9rem' }}>View high-spenders, regular visitors, and unpaid reminders.</p>
@@ -73,6 +81,7 @@ function ProcessSalePage({ customers, parts, onProcessSale, onBack }) {
   const [selectedPart, setSelectedPart] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [cart, setCart] = useState([]);
+  const [paymentStatus, setPaymentStatus] = useState('');
 
   const handleAddToCart = () => {
     if (!selectedPart) return;
@@ -92,12 +101,29 @@ function ProcessSalePage({ customers, parts, onProcessSale, onBack }) {
 
   const handleRemove = (id) => setCart(cart.filter(c => c.id !== id));
 
-  const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  
+  const getAmountPaid = () => {
+    switch(paymentStatus) {
+      case 'full-payment':
+        return totalAmount;
+      case 'half-payment':
+        return totalAmount / 2;
+      case 'partial-payment':
+        return totalAmount * 0.1; // 10% of total
+      default:
+        return 0;
+    }
+  };
+
+  const amountPaid = getAmountPaid();
+  const remainingAmount = totalAmount - amountPaid;
 
   const handleComplete = () => {
     if (!selectedCust) return alert('Please select a customer.');
     if (cart.length === 0) return alert('Cart is empty.');
-    onProcessSale(selectedCust, cart);
+    if (!paymentStatus) return alert('Please select a payment status.');
+    onProcessSale(selectedCust, cart, paymentStatus);
     onBack();
   };
 
@@ -152,16 +178,51 @@ function ProcessSalePage({ customers, parts, onProcessSale, onBack }) {
         
         <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'var(--primary)', color: '#fff', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>Total Amount:</span>
-          <span style={{ fontSize: '1.5rem', fontWeight: 800 }}>Rs. {total.toFixed(2)}</span>
+          <span style={{ fontSize: '1.5rem', fontWeight: 800 }}>Rs. {totalAmount.toFixed(2)}</span>
         </div>
-
-        <button 
-          onClick={handleComplete} 
-          style={{ marginTop: '1.5rem', width: '100%', background: '#10b981', color: '#fff', fontWeight: 600, fontSize: '1.1rem', padding: '1rem' }}
-        >
-          Finalize Transaction & Generate Invoice
-        </button>
       </div>
+
+      <div className="mini-form" style={{ marginTop: '2rem', background: '#f8fafc', padding: '1.5rem', borderRadius: '12px' }}>
+        <label>3. Select Payment Status</label>
+        <select 
+          value={paymentStatus} 
+          onChange={e => setPaymentStatus(e.target.value)}
+        >
+          <option value="">Choose Payment Type</option>
+          <option value="full-payment">Full Payment (100%)</option>
+          <option value="half-payment">Half Payment (50%)</option>
+          <option value="partial-payment">Partial Payment (10%)</option>
+        </select>
+      </div>
+
+      {paymentStatus && (
+        <div style={{ marginTop: '2rem', padding: '1.5rem', background: '#f0f9ff', border: '2px solid #0ea5e9', borderRadius: '12px' }}>
+          <h3 style={{ marginTop: 0, color: '#0369a1' }}>📋 Invoice Preview</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid #bae6fd' }}>
+            <span style={{ fontSize: '0.9rem', opacity: 0.8 }}>Total Bill Amount:</span>
+            <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>Rs. {totalAmount.toFixed(2)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', padding: '0.75rem', background: '#dcfce7', borderRadius: '8px' }}>
+            <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>💚 Amount Paid:</span>
+            <span style={{ fontWeight: 700, fontSize: '1.1rem', color: '#15803d' }}>Rs. {amountPaid.toFixed(2)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', background: '#fee2e2', borderRadius: '8px' }}>
+            <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>⏳ Remaining Balance:</span>
+            <span style={{ fontWeight: 700, fontSize: '1.1rem', color: '#991b1b' }}>Rs. {remainingAmount.toFixed(2)}</span>
+          </div>
+          <div style={{ marginTop: '1rem', fontSize: '0.85rem', opacity: 0.7 }}>
+            <strong>Payment Type:</strong> {paymentStatus === 'full-payment' ? 'Full Payment' : paymentStatus === 'half-payment' ? 'Half Payment (50%)' : 'Partial Payment (10%)'}
+          </div>
+        </div>
+      )}
+
+      <button 
+        onClick={handleComplete} 
+        disabled={!paymentStatus || cart.length === 0}
+        style={{ marginTop: '1.5rem', width: '100%', background: !paymentStatus || cart.length === 0 ? '#cbd5e1' : '#10b981', color: '#fff', fontWeight: 600, fontSize: '1.1rem', padding: '1rem', cursor: !paymentStatus || cart.length === 0 ? 'not-allowed' : 'pointer', opacity: !paymentStatus || cart.length === 0 ? 0.6 : 1 }}
+      >
+        {!paymentStatus ? 'Select Payment Status First' : 'Finalize Transaction & Generate Invoice'}
+      </button>
     </div>
   );
 }
@@ -247,8 +308,11 @@ function ReportsPage({ onBack }) {
   const [reportData, setReportData] = useState([]);
 
   useEffect(() => {
+    setReportData([]);
     import('../services/api').then(({ apiFetch }) => {
-      apiFetch(`/Reports/customers/${reportType}`).then(res => res && setReportData(res));
+      apiFetch(`/Reports/customers/${reportType}`).then(res => {
+        if (res) setReportData(res);
+      });
     });
   }, [reportType]);
 
@@ -260,33 +324,96 @@ function ReportsPage({ onBack }) {
     } catch(err) { alert('Failed.'); }
   };
 
+  const reportConfig = {
+    'high-spenders': {
+      title: 'High Spenders',
+      subtitle: 'Customers who spent the most',
+      color: '#10b981',
+      bgColor: 'rgba(16, 185, 129, 0.08)',
+      borderColor: 'rgba(16, 185, 129, 0.25)',
+      mainLabel: (item) => `Rs. ${item.totalSpent?.toFixed(2) || '0.00'}`,
+      extraInfo: (item) => `${item.purchaseCount} purchase${item.purchaseCount !== 1 ? 's' : ''}`
+    },
+    'regulars': {
+      title: 'Regular Customers',
+      subtitle: 'Frequent buyers',
+      color: '#3b82f6',
+      bgColor: 'rgba(59, 130, 246, 0.08)',
+      borderColor: 'rgba(59, 130, 246, 0.25)',
+      mainLabel: (item) => `${item.visitCount} visit${item.visitCount !== 1 ? 's' : ''}`,
+      extraInfo: null
+    },
+    'pending-credits': {
+      title: 'Pending Credits',
+      subtitle: 'Unpaid balances',
+      color: '#ef4444',
+      bgColor: 'rgba(239, 68, 68, 0.08)',
+      borderColor: 'rgba(239, 68, 68, 0.25)',
+      mainLabel: (item) => `Rs. ${item.totalPending?.toFixed(2) || '0.00'}`,
+      extraInfo: (item) => `${item.unpaidInvoiceCount} unpaid invoice${item.unpaidInvoiceCount !== 1 ? 's' : ''}`
+    }
+  };
+
+  const config = reportConfig[reportType];
+
   return (
-    <div className="card" style={{ maxWidth: '800px', margin: 'auto' }}>
+    <div className="card" style={{ maxWidth: '900px', margin: 'auto' }}>
       <button onClick={onBack} className="btn-small" style={{ marginBottom: '1rem', background: '#cbd5e1', color: '#0f172a' }}>← Back</button>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2>Strategic Customer Reports</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h2 style={{ margin: 0 }}>{config.title}</h2>
+          <p style={{ opacity: 0.6, fontSize: '0.85rem', marginTop: '0.25rem', marginBottom: 0 }}>{config.subtitle}</p>
+        </div>
         <select value={reportType} onChange={e => setReportType(e.target.value)} style={{ width: 'auto', marginBottom: 0 }}>
           <option value="high-spenders">High Spenders</option>
-          <option value="regulars">Regular Visitors</option>
+          <option value="regulars">Regular Customers</option>
+          <option value="pending-credits">Pending Credits</option>
         </select>
       </div>
       
-      <div className="data-list" style={{ marginTop: '2rem' }}>
-        {reportData.map((r, i) => (
-          <div key={i} className="list-item">
-            <span>Customer #{r.customerId}</span>
-            <span style={{ fontWeight: 700 }}>
-              {reportType === 'high-spenders' ? `Rs. ${r.totalSpent?.toFixed(2) || 0}` : `${r.visitCount} visits`}
-            </span>
+      <div style={{ marginTop: '2rem' }}>
+        {reportData.map((item, i) => (
+          <div key={i} style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '1rem 1.25rem', marginBottom: '0.75rem',
+            background: config.bgColor, borderRadius: '10px',
+            borderLeft: `4px solid ${config.color}`,
+            borderTop: `1px solid ${config.borderColor}`,
+            borderRight: `1px solid ${config.borderColor}`,
+            borderBottom: `1px solid ${config.borderColor}`
+          }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '1rem' }}>{item.customerName}</div>
+              <div style={{ fontSize: '0.8rem', opacity: 0.55, marginTop: '2px' }}>
+                {item.customerPhone || ''}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontWeight: 700, color: config.color, fontSize: '1.05rem' }}>
+                {config.mainLabel(item)}
+              </div>
+              {config.extraInfo && (
+                <div style={{ fontSize: '0.8rem', opacity: 0.55, marginTop: '2px' }}>
+                  {config.extraInfo(item)}
+                </div>
+              )}
+            </div>
           </div>
         ))}
+        {reportData.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '3rem 1rem', opacity: 0.5 }}>
+            <p style={{ margin: 0 }}>No data available for this report.</p>
+          </div>
+        )}
       </div>
 
-      <div style={{ marginTop: '3rem', padding: '2rem', background: 'rgba(239, 68, 68, 0.05)', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-        <h3>Urgent Actions</h3>
-        <p style={{ opacity: 0.7, marginBottom: '1rem' }}>Send automated email reminders to all customers with unpaid balances (F15 System Task).</p>
-        <button onClick={handleSendReminders} style={{ background: 'var(--error)' }}>Send All Unpaid Reminders</button>
-      </div>
+      {reportType === 'pending-credits' && (
+        <div style={{ marginTop: '3rem', padding: '2rem', background: 'rgba(239, 68, 68, 0.05)', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+          <h3>Urgent Actions</h3>
+          <p style={{ opacity: 0.7, marginBottom: '1rem' }}>Send automated email reminders to all customers with unpaid balances (F15 System Task).</p>
+          <button onClick={handleSendReminders} style={{ background: 'var(--error)' }}>Send All Unpaid Reminders</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -301,6 +428,24 @@ function OrdersPage({ onBack }) {
         <p style={{ opacity: 0.5 }}>The order management module is initializing...</p>
         <button className="btn-small" style={{ marginTop: '1rem' }} disabled>Fetch Latest Updates</button>
       </div>
+    </div>
+  );
+}
+
+function RegisterCustomerPage({ onRegister, onBack }) {
+  return (
+    <div style={{ maxWidth: '600px', margin: 'auto' }}>
+      <button onClick={onBack} className="btn-small">← Back to Dashboard</button>
+      <h2 style={{ marginTop: '1rem', marginBottom: '2rem' }}>Register New Customer</h2>
+      <CustomerVehicleForm 
+        onRegister={async (data) => { 
+          const savedCustomer = await onRegister(data); 
+          if(savedCustomer) {
+            alert(`Customer ${data.name} registered successfully!`);
+            onBack();
+          }
+        }} 
+      />
     </div>
   );
 }

@@ -25,6 +25,7 @@ public class Invoice
     public DateTime Date { get; set; } = DateTime.UtcNow;
     public decimal TotalAmount { get; set; }
     public bool IsPaid { get; set; } = true;
+    public string? PaymentStatus { get; set; } // full-payment, half-payment, partial-payment
     
     // For Sale: Staff Id and Customer Id
     // For Purchase: Vendor Id
