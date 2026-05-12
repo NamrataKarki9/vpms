@@ -1,13 +1,14 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using VehicleInventorySystem.Api.Models;
 
 namespace VehicleInventorySystem.Api.Data;
 
-public class AppDbContext : DbContext
+public class AppDbContext : IdentityDbContext<User, IdentityRole<int>, int>
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
-    public DbSet<User> Users { get; set; }
     public DbSet<Vendor> Vendors { get; set; }
     public DbSet<Part> Parts { get; set; }
     public DbSet<Vehicle> Vehicles { get; set; }
@@ -17,31 +18,78 @@ public class AppDbContext : DbContext
     public DbSet<PartRequest> PartRequests { get; set; }
     public DbSet<ServiceReview> Reviews { get; set; }
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    protected override void OnModelCreating(ModelBuilder builder)
     {
-        base.OnModelCreating(modelBuilder);
+        base.OnModelCreating(builder);
 
-        // Seed basic roles (Optional, usually handled via migrations or startup)
-        
-        // Relationships
-        modelBuilder.Entity<Part>()
+        builder.Entity<User>(entity =>
+        {
+            entity.ToTable("Users");
+            entity.HasIndex(u => u.Email).IsUnique();
+            entity.HasIndex(u => u.PhoneNumber).IsUnique();
+            entity.HasIndex(u => u.Role);
+            entity.HasIndex(u => u.IsActive);
+        });
+
+        builder.Entity<IdentityRole<int>>(entity =>
+        {
+            entity.ToTable("Roles");
+        });
+
+        builder.Entity<IdentityUserRole<int>>(entity =>
+        {
+            entity.ToTable("UserRoles");
+        });
+
+        builder.Entity<IdentityUserClaim<int>>(entity =>
+        {
+            entity.ToTable("UserClaims");
+        });
+
+        builder.Entity<IdentityUserLogin<int>>(entity =>
+        {
+            entity.ToTable("UserLogins");
+        });
+
+        builder.Entity<IdentityUserToken<int>>(entity =>
+        {
+            entity.ToTable("UserTokens");
+        });
+
+        builder.Entity<IdentityRoleClaim<int>>(entity =>
+        {
+            entity.ToTable("RoleClaims");
+        });
+
+        builder.Entity<Part>()
             .HasOne(p => p.Vendor)
             .WithMany(v => v.Parts)
             .HasForeignKey(p => p.VendorId);
 
-        modelBuilder.Entity<Vehicle>()
+        builder.Entity<Vehicle>()
             .HasOne(v => v.Customer)
             .WithMany(u => u.Vehicles)
             .HasForeignKey(v => v.CustomerId);
 
-        modelBuilder.Entity<InvoiceItem>()
+        builder.Entity<InvoiceItem>()
             .HasOne(ii => ii.Part)
             .WithMany()
             .HasForeignKey(ii => ii.PartId);
-            
-        modelBuilder.Entity<Invoice>()
+
+        builder.Entity<Invoice>()
             .HasMany(i => i.Items)
             .WithOne()
             .HasForeignKey(ii => ii.InvoiceId);
+
+        builder.Entity<Vendor>(entity =>
+        {
+            entity.HasIndex(v => v.EmailAddress).IsUnique();
+            entity.HasIndex(v => v.PhoneNumber).IsUnique();
+        });
+
+        builder.Entity<Part>(entity =>
+        {
+            entity.HasIndex(p => p.PartCode).IsUnique();
+        });
     }
 }

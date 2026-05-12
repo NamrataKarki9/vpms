@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Identity;
+
 namespace VehicleInventorySystem.Api.Models;
 
 public enum UserRole
@@ -7,17 +9,17 @@ public enum UserRole
     Customer
 }
 
-public class User
+public class User : IdentityUser<int>
 {
-    public int Id { get; set; }
+    public override string? Email { get; set; }
+    public override string? PasswordHash { get; set; }
+
     public string Name { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-    public string? PhoneNumber { get; set; }
-    public string PasswordHash { get; set; } = string.Empty;
     public UserRole Role { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public string? ResetOtp { get; set; }
+    public DateTime? ResetOtpExpiry { get; set; }
 
-    // Optional navigation properties
     public ICollection<Vehicle>? Vehicles { get; set; }
 }

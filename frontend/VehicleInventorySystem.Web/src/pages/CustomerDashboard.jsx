@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../services/api.js';
+import { useToast } from '../context/ToastContext';
 
 export function CustomerDashboard({ user }) {
+  const showToast = useToast();
   const [history, setHistory] = useState([]);
   const [subView, setSubView] = useState('main');
   const [appointments, setAppointments] = useState([]);
@@ -76,7 +78,7 @@ export function CustomerDashboard({ user }) {
       setAppointments(prev => prev.filter(a => a.id !== id));
     } catch (error) {
       console.error('Error deleting appointment:', error);
-      alert('Failed to delete appointment');
+      showToast('error', 'Failed to delete appointment');
     }
   };
 
@@ -87,7 +89,33 @@ export function CustomerDashboard({ user }) {
       setPartRequests(prev => prev.filter(r => r.id !== id));
     } catch (error) {
       console.error('Error deleting request:', error);
-      alert('Failed to delete request');
+      showToast('error', 'Failed to delete request');
+    }
+  };
+
+  const handleUpdateAppointment = async (updatedAppointment) => {
+    try {
+      await apiFetch(`/Service/appointments/${updatedAppointment.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(updatedAppointment)
+      });
+      setAppointments(prev => prev.map(a => a.id === updatedAppointment.id ? updatedAppointment : a));
+    } catch (error) {
+      console.error('Error updating appointment:', error);
+      showToast('error', 'Failed to update appointment');
+    }
+  };
+
+  const handleUpdateRequest = async (updatedRequest) => {
+    try {
+      await apiFetch(`/Service/part-requests/${updatedRequest.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(updatedRequest)
+      });
+      setPartRequests(prev => prev.map(r => r.id === updatedRequest.id ? updatedRequest : r));
+    } catch (error) {
+      console.error('Error updating request:', error);
+      showToast('error', 'Failed to update request');
     }
   };
 
@@ -377,6 +405,38 @@ function AppointmentsPage({ list, vehicles, onDelete, onBack, onNew }) {
 
   const handleCancelClick = (id, serviceType) => {
     setCancelDialog({ isOpen: true, id, name: serviceType });
+function AppointmentsPage({ list, onDelete, onUpdate, onBack, onNew }) {
+  const showToast = useToast();
+  const [cancelDialog, setCancelDialog] = useState({ isOpen: false, id: null, type: '', name: '' });
+  const [rescheduleDialog, setRescheduleDialog] = useState({ isOpen: false, id: null, newDate: '' });
+  const [rescheduleError, setRescheduleError] = useState('');
+  const [successDialog, setSuccessDialog] = useState({ isOpen: false, message: '' });
+
+  const validateCancel = (appointment) => {
+    const appointmentDate = new Date(appointment.date);
+    const now = new Date();
+    
+    if (appointmentDate < now) {
+      return 'Past appointments cannot be cancelled.';
+    }
+    
+    if (appointment.status === 'cancelled') {
+      return 'This appointment is already cancelled.';
+    }
+    
+    return '';
+  };
+
+  const handleCancelClick = (id) => {
+    const appointment = list.find(a => a.id === id);
+    const error = validateCancel(appointment);
+    
+    if (error) {
+      showToast('error', error);
+      return;
+    }
+    
+    setCancelDialog({ isOpen: true, id, type: 'appointment', name: appointment.serviceType });
   };
 
   const handleConfirmCancel = () => {
@@ -387,6 +447,68 @@ function AppointmentsPage({ list, vehicles, onDelete, onBack, onNew }) {
 
   const getVehicleInfo = (vehicleId) => {
     return vehicles.find(v => v.id === vehicleId);
+  const validateReschedule = (appointment, newDate) => {
+    const appointmentDate = new Date(appointment.date);
+    const now = new Date();
+    const hoursUntilAppointment = (appointmentDate - now) / (1000 * 60 * 60);
+
+    if (appointmentDate < now) {
+      return 'Past or completed appointments cannot be rescheduled.';
+    }
+
+    if (appointment.status === 'cancelled') {
+      return 'Cancelled appointments cannot be rescheduled.';
+    }
+
+    if (hoursUntilAppointment < 24) {
+      return 'Appointments can only be rescheduled at least 24 hours before the scheduled service time.';
+    }
+
+    const selectedDate = new Date(newDate);
+    if (selectedDate <= now) {
+      return 'Please select a valid future date and time.';
+    }
+
+    if ((appointment.rescheduleCount || 0) >= 2) {
+      return 'You have reached the maximum number of allowed reschedules for this appointment.';
+    }
+
+    return '';
+  };
+
+  const handleRescheduleClick = (appointment) => {
+    const error = validateReschedule(appointment, new Date().toISOString().split('T')[0]);
+    if (error && error.includes('maximum')) {
+      showToast('error', error);
+      return;
+    }
+    setRescheduleDialog({ isOpen: true, id: appointment.id, newDate: '' });
+    setRescheduleError('');
+  };
+
+  const handleConfirmReschedule = () => {
+    const appointment = list.find(a => a.id === rescheduleDialog.id);
+    const error = validateReschedule(appointment, rescheduleDialog.newDate);
+    
+    if (error) {
+      setRescheduleError(error);
+      return;
+    }
+
+    const updatedAppointment = {
+      ...appointment,
+      appointmentDate: new Date(rescheduleDialog.newDate).toISOString(),
+      rescheduleCount: (appointment.rescheduleCount || 0) + 1
+    };
+    
+    onUpdate(updatedAppointment);
+    setSuccessDialog({ isOpen: true, message: 'Appointment rescheduled successfully!' });
+    setRescheduleDialog({ isOpen: false, id: null, newDate: '' });
+    setRescheduleError('');
+  };
+
+  const getTodayDate = () => {
+    return new Date().toISOString().split('T')[0];
   };
 
   return (
@@ -654,6 +776,8 @@ function BookingPage({ user, vehicles, onComplete, onBack }) {
 }
 
 function RequestsPage({ list, onDelete, onBack, onNew }) {
+function RequestsPage({ list, onDelete, onUpdate, onBack, onNew }) {
+  const showToast = useToast();
   const [cancelDialog, setCancelDialog] = useState({ isOpen: false, id: null, name: '' });
   const [successDialog, setSuccessDialog] = useState({ isOpen: false, message: '' });
 
@@ -665,6 +789,32 @@ function RequestsPage({ list, onDelete, onBack, onNew }) {
     onDelete(cancelDialog.id);
     setSuccessDialog({ isOpen: true, message: 'Part request cancelled.' });
     setCancelDialog({ isOpen: false, id: null, name: '' });
+  };
+
+  const handleEditClick = (request) => {
+    setEditingId(request.id);
+    setEditData({ partName: request.partName, vehicleDetails: request.vehicleDetails });
+  };
+
+  const handleSaveEdit = (id) => {
+    if (!editData.partName.trim() || !editData.vehicleDetails.trim()) {
+      showToast('error', 'Please fill in all fields.');
+      return;
+    }
+
+    const request = list.find(r => r.id === id);
+    const updatedRequest = {
+      id: request.id,
+      customerId: request.customerId,
+      partName: editData.partName,
+      vehicleDetails: editData.vehicleDetails,
+      requestDate: request.requestDate || new Date().toISOString(),
+      isFulfilled: request.isFulfilled || false
+    };
+    
+    onUpdate(updatedRequest);
+    setSuccessDialog({ isOpen: true, message: 'Special order request updated successfully.' });
+    setEditingId(null);
   };
 
   return (
@@ -714,6 +864,7 @@ function RequestsPage({ list, onDelete, onBack, onNew }) {
 }
 
 function NewRequestPage({ user, onComplete, onBack }) {
+  const showToast = useToast();
   const [form, setForm] = useState({ partName: '', vehicleDetails: '' });
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -724,6 +875,7 @@ function NewRequestPage({ user, onComplete, onBack }) {
   const handleSubmit = async () => {
     if (!form.partName || !form.vehicleDetails) {
       setError('Please fill in all fields');
+      showToast('error', 'Please fill in all fields.');
       return;
     }
 
@@ -746,9 +898,14 @@ function NewRequestPage({ user, onComplete, onBack }) {
         setTimeout(() => {
           onComplete(result);
         }, 2000);
+      } else {
+        showToast('error', 'Failed to submit request. Please try again.');
       }
     } catch (err) {
       setError(err.message || 'Failed to submit request');
+    } catch (error) {
+      console.error('Error submitting request:', error);
+      showToast('error', 'Error submitting request: ' + error.message);
     } finally {
       setIsSubmitting(false);
     }

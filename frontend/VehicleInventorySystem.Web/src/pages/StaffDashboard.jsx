@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import CustomerVehicleForm from '../components/management/CustomerVehicleForm';
+import { useToast } from '../context/ToastContext';
 
 export function StaffDashboard({ view, setView, customers, parts, sales, onProcessSale, onRegisterCustomer }) {
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
@@ -79,6 +79,7 @@ export function StaffDashboard({ view, setView, customers, parts, sales, onProce
 }
 
 function ProcessSalePage({ customers, parts, onProcessSale, onBack }) {
+  const showToast = useToast();
   const [selectedCust, setSelectedCust] = useState('');
   const [selectedPart, setSelectedPart] = useState('');
   const [quantity, setQuantity] = useState(1);
@@ -89,7 +90,7 @@ function ProcessSalePage({ customers, parts, onProcessSale, onBack }) {
     if (!selectedPart) return;
     const part = parts.find(p => p.id === parseInt(selectedPart));
     if (!part) return;
-    if (part.stock < quantity) return alert('Insufficient stock!');
+    if (part.stock < quantity) return showToast('error', 'Insufficient stock!');
 
     const existing = cart.find(c => c.id === part.id);
     if (existing) {
@@ -122,10 +123,9 @@ function ProcessSalePage({ customers, parts, onProcessSale, onBack }) {
   const remainingAmount = totalAmount - amountPaid;
 
   const handleComplete = () => {
-    if (!selectedCust) return alert('Please select a customer.');
-    if (cart.length === 0) return alert('Cart is empty.');
-    if (!paymentStatus) return alert('Please select a payment status.');
-    onProcessSale(selectedCust, cart, paymentStatus);
+    if (!selectedCust) return showToast('error', 'Please select a customer.');
+    if (cart.length === 0) return showToast('error', 'Cart is empty.');
+    onProcessSale(selectedCust, cart);
     onBack();
   };
 
@@ -230,21 +230,15 @@ function ProcessSalePage({ customers, parts, onProcessSale, onBack }) {
 }
 
 function InvoicesPage({ sales, onBack }) {
-  const [emailingId, setEmailingId] = useState(null);
-  const [emailStatus, setEmailStatus] = useState(null);
-
+  const showToast = useToast();
   const handleEmailInvoice = async (invoiceId) => {
     setEmailingId(invoiceId);
     setEmailStatus(null);
     try {
       const { apiFetch } = await import('../services/api');
-      const res = await apiFetch(`/Transactions/${invoiceId}/email`, { method: 'POST' });
-      setEmailStatus({ type: 'success', message: res.message || `Invoice #${invoiceId} emailed.` });
-    } catch(err) {
-      setEmailStatus({ type: 'error', message: err.message || 'Email failed.' });
-    } finally {
-      setEmailingId(null);
-    }
+      await apiFetch(`/Transactions/${invoiceId}/email`, { method: 'POST' });
+      showToast('success', `Invoice #${invoiceId} has been successfully emailed.`);
+    } catch(err) { showToast('error', 'Failed to email invoice.'); }
   };
 
   return (
@@ -293,59 +287,18 @@ function InvoicesPage({ sales, onBack }) {
   );
 }
 
-function CustomerManagementPage({ onSelectCustomer, onBack }) {
-  const [searchInput, setSearchInput] = useState('');
-  const [submittedSearch, setSubmittedSearch] = useState('');
-  const [customers, setCustomers] = useState([]);
-  const [pageNumber, setPageNumber] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [totalItems, setTotalItems] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-  const [hasNextPage, setHasNextPage] = useState(false);
-  const [hasPreviousPage, setHasPreviousPage] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+function CustomerSearchPage({ onBack }) {
+  const showToast = useToast();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState(null);
 
-  const loadCustomers = async () => {
-    setIsLoading(true);
+  const handleSearch = async () => {
+    if (!searchTerm) return;
     try {
       const { apiFetch } = await import('../services/api');
-      const params = new URLSearchParams({ pageNumber, pageSize });
-      if (submittedSearch) params.append('search', submittedSearch);
-      const res = await apiFetch(`/Customers?${params}`);
-      if (res) {
-        setCustomers(res.items || []);
-        setTotalItems(res.totalItems ?? 0);
-        setTotalPages(res.totalPages ?? 1);
-        setHasNextPage(Boolean(res.hasNextPage));
-        setHasPreviousPage(Boolean(res.hasPreviousPage));
-      }
-    } catch { /* ignore */ } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => { loadCustomers(); }, [pageNumber, pageSize, submittedSearch]);
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    setSubmittedSearch(searchInput.trim());
-    setPageNumber(1);
-  };
-
-  const handleInputChange = (e) => {
-    const value = e.target.value;
-    setSearchInput(value);
-    if (!value.trim() && submittedSearch) {
-      setSubmittedSearch('');
-      setPageNumber(1);
-    }
-  };
-
-  const handleClear = (e) => {
-    e.preventDefault();
-    setSearchInput('');
-    setSubmittedSearch('');
-    setPageNumber(1);
+      const results = await apiFetch(`/Customers/search?query=${encodeURIComponent(searchTerm)}`);
+      setSearchResults(results || []);
+    } catch(err) { showToast('error', 'Search failed.'); }
   };
 
   return (
@@ -463,6 +416,7 @@ function CustomerManagementPage({ onSelectCustomer, onBack }) {
 }
 
 function ReportsPage({ onBack }) {
+  const showToast = useToast();
   const [reportType, setReportType] = useState('high-spenders');
   const [reportData, setReportData] = useState([]);
 
@@ -479,41 +433,9 @@ function ReportsPage({ onBack }) {
     try {
       const { apiFetch } = await import('../services/api');
       const res = await apiFetch('/Reports/send-unpaid-reminders', { method: 'POST' });
-      alert(res.message || 'Reminders sent.');
-    } catch(err) { alert('Failed.'); }
+      showToast('success', res.message || 'Reminders sent.');
+    } catch(err) { showToast('error', 'Failed to send reminders.'); }
   };
-
-  const reportConfig = {
-    'high-spenders': {
-      title: 'High Spenders',
-      subtitle: 'Customers who spent the most',
-      color: '#10b981',
-      bgColor: 'rgba(16, 185, 129, 0.08)',
-      borderColor: 'rgba(16, 185, 129, 0.25)',
-      mainLabel: (item) => `Rs. ${item.totalSpent?.toFixed(2) || '0.00'}`,
-      extraInfo: (item) => `${item.purchaseCount} purchase${item.purchaseCount !== 1 ? 's' : ''}`
-    },
-    'regulars': {
-      title: 'Regular Customers',
-      subtitle: 'Frequent buyers',
-      color: '#3b82f6',
-      bgColor: 'rgba(59, 130, 246, 0.08)',
-      borderColor: 'rgba(59, 130, 246, 0.25)',
-      mainLabel: (item) => `${item.visitCount} visit${item.visitCount !== 1 ? 's' : ''}`,
-      extraInfo: null
-    },
-    'pending-credits': {
-      title: 'Pending Credits',
-      subtitle: 'Unpaid balances',
-      color: '#ef4444',
-      bgColor: 'rgba(239, 68, 68, 0.08)',
-      borderColor: 'rgba(239, 68, 68, 0.25)',
-      mainLabel: (item) => `Rs. ${item.totalPending?.toFixed(2) || '0.00'}`,
-      extraInfo: (item) => `${item.unpaidInvoiceCount} unpaid invoice${item.unpaidInvoiceCount !== 1 ? 's' : ''}`
-    }
-  };
-
-  const config = reportConfig[reportType];
 
   return (
     <div className="card" style={{ maxWidth: '900px', margin: 'auto' }}>

@@ -12,14 +12,10 @@ export default function VendorFilters({
   statusFilter,
   onStatusChange,
   onSearch,
+  onInputSearch,
   onClear,
-  canClear,
-  appliedSearchTerm,
-  appliedStatusFilter,
+  canClearFilters,
 }) {
-  const showSearchBadge = Boolean(appliedSearchTerm?.trim());
-  const showStatusBadge = appliedStatusFilter && appliedStatusFilter !== 'all';
-
   return (
     <form className="vendor-toolbar card" onSubmit={onSearch}>
       <div className="vendor-search-wrap">
@@ -28,6 +24,7 @@ export default function VendorFilters({
           placeholder="Search by vendor name, email, phone, or contact person..."
           value={searchTerm}
           onChange={(event) => onSearchChange(event.target.value)}
+          onSearch={onInputSearch}
           className="vendor-search"
         />
         <button type="submit" className="vendor-search-button vendor-search-button-search">
@@ -37,7 +34,7 @@ export default function VendorFilters({
           type="button"
           className="vendor-search-button vendor-search-button-clear"
           onClick={onClear}
-          disabled={!canClear}
+          disabled={!canClearFilters}
         >
           Clear
         </button>
@@ -55,18 +52,6 @@ export default function VendorFilters({
           </button>
         ))}
       </div>
-
-      {(showSearchBadge || showStatusBadge) && (
-        <div className="vendor-filter-badges" aria-live="polite">
-          {showSearchBadge && (
-            <span className="vendor-filter-badge">Search applied: {appliedSearchTerm}</span>
-          )}
-          {showStatusBadge && (
-            <span className="vendor-filter-badge">Filter applied: {appliedStatusFilter}</span>
-          )}
-        </div>
-      )}
-
     </form>
   );
 }

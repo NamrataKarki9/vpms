@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { useToast } from '../../context/ToastContext';
 
 function CustomerVehicleForm({ onRegister }) {
+  const showToast = useToast();
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     name: '', phone: '', email: '', password: '',
@@ -67,7 +69,7 @@ function CustomerVehicleForm({ onRegister }) {
         vehicle: `${formData.vehicleModel} (${formData.vehicleYear})`
       });
     }
-    alert(`Success: ${formData.name} registered with vehicle ${formData.plateNumber}`);
+    showToast('success', `${formData.name} registered with vehicle ${formData.plateNumber}`);
     setStep(1);
     setFormData({ name: '', phone: '', email: '', password: '', vehicleModel: '', vehicleYear: '', plateNumber: '' });
     setErrors({ name: '', phone: '', email: '', password: '', vehicleModel: '', vehicleYear: '', plateNumber: '' });
