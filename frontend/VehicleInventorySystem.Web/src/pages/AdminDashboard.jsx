@@ -100,7 +100,16 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
       ];
 
       for (const c of seedCustomers) {
-        await apiFetch('/Users', { method: 'POST', body: JSON.stringify({ ...c, role: 'Customer', password: 'password' }) });
+        await apiFetch('/auth/register/customer', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: c.name,
+            email: c.email,
+            phoneNumber: c.phone,
+            password: 'password',
+            confirmPassword: 'password'
+          })
+        });
       }
 
       showToast('success', 'System fully populated with Vendors, Parts, and Sample Customers!');
@@ -210,21 +219,178 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
 }
 
 function AddStaffPage({ onAdd, onBack }) {
-  const [newStaff, setNewStaff] = useState({ name: '', email: '', password: '', role: 'Staff' });
+  const showToast = useToast();
+  const [newStaff, setNewStaff] = useState({
+    fullName: '',
+    emailAddress: '',
+    phoneNumber: '',
+    password: '',
+    confirmPassword: ''
+  });
+  const [errors, setErrors] = useState({});
+  const [isSaving, setIsSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const handleAdd = (e) => { e.preventDefault(); onAdd(newStaff); onBack(); };
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const handleChange = (field) => (event) => {
+    const { value } = event.target;
+    setNewStaff((current) => ({ ...current, [field]: value }));
+    setErrors((current) => ({ ...current, [field]: '' }));
+  };
+
+  const validate = () => {
+    const nextErrors = {};
+
+    if (!newStaff.fullName.trim()) {
+      nextErrors.fullName = 'Full Name is required.';
+    }
+
+    if (!newStaff.emailAddress.trim()) {
+      nextErrors.emailAddress = 'Email Address is required.';
+    }
+
+    if (!newStaff.phoneNumber.trim()) {
+      nextErrors.phoneNumber = 'Phone Number is required.';
+    }
+
+    if (!newStaff.password) {
+      nextErrors.password = 'Password is required.';
+    } else if (newStaff.password.length < 6) {
+      nextErrors.password = 'Password must be at least 6 characters.';
+    }
+
+    if (!newStaff.confirmPassword) {
+      nextErrors.confirmPassword = 'Confirm Password is required.';
+    } else if (newStaff.password !== newStaff.confirmPassword) {
+      nextErrors.confirmPassword = 'Passwords do not match.';
+    }
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
+  const handleAdd = async (event) => {
+    event.preventDefault();
+
+    if (!validate()) {
+      showToast('error', 'Please fix the highlighted staff form errors.');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const isCreated = await onAdd({
+        fullName: newStaff.fullName.trim(),
+        emailAddress: newStaff.emailAddress.trim(),
+        phoneNumber: newStaff.phoneNumber.trim(),
+        password: newStaff.password,
+        confirmPassword: newStaff.confirmPassword
+      });
+      if (isCreated) {
+        onBack();
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const errorMessages = Object.values(errors).filter(Boolean);
+
   return (
     <div className="card" style={{ maxWidth: '600px', margin: 'auto' }}>
       <button onClick={onBack} className="btn-small" style={{ marginBottom: '1rem', background: '#cbd5e1', color: '#0f172a' }}>← Back</button>
       <h2>Add System Staff</h2>
-      <form onSubmit={handleAdd} className="mini-form">
-        <input type="text" placeholder="Full Name" required value={newStaff.name} onChange={e => setNewStaff({...newStaff, name: e.target.value})} />
-        <input type="email" placeholder="Email" required value={newStaff.email} onChange={e => setNewStaff({...newStaff, email: e.target.value})} />
-        <div style={{ position: 'relative', width: '100%' }}>
-          <input type={showPassword ? "text" : "password"} placeholder="Password" required value={newStaff.password} onChange={e => setNewStaff({...newStaff, password: e.target.value})} style={{ width: '100%', marginBottom: 0 }} />
-          <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '10px', top: '12px', background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: 0 }}>{showPassword ? 'Hide' : 'Show'}</button>
+      <p style={{ opacity: 0.7, marginTop: '0.5rem' }}>Create a staff account with secure credentials and contact details.</p>
+      <form onSubmit={handleAdd} className="vendor-form" style={{ marginTop: '1.5rem' }}>
+        <div className="vendor-form-grid">
+          <label>
+            <span>Full Name</span>
+            <input
+              type="text"
+              placeholder="Staff full name"
+              value={newStaff.fullName}
+              onChange={handleChange('fullName')}
+              aria-invalid={Boolean(errors.fullName)}
+            />
+          </label>
+          <label>
+            <span>Email Address</span>
+            <input
+              type="email"
+              placeholder="staff@example.com"
+              value={newStaff.emailAddress}
+              onChange={handleChange('emailAddress')}
+              aria-invalid={Boolean(errors.emailAddress)}
+            />
+          </label>
+          <label>
+            <span>Phone Number</span>
+            <input
+              type="text"
+              placeholder="98XXXXXXXX"
+              value={newStaff.phoneNumber}
+              onChange={handleChange('phoneNumber')}
+              aria-invalid={Boolean(errors.phoneNumber)}
+            />
+          </label>
+          <label>
+            <span>Password</span>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="At least 6 characters"
+                value={newStaff.password}
+                onChange={handleChange('password')}
+                aria-invalid={Boolean(errors.password)}
+                style={{ marginBottom: 0, paddingRight: '4.5rem' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((current) => !current)}
+                style={{ position: 'absolute', right: '0.85rem', top: '0.85rem', background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: 0 }}
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
+          </label>
+          <label>
+            <span>Confirm Password</span>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                placeholder="Re-enter password"
+                value={newStaff.confirmPassword}
+                onChange={handleChange('confirmPassword')}
+                aria-invalid={Boolean(errors.confirmPassword)}
+                style={{ marginBottom: 0, paddingRight: '4.5rem' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword((current) => !current)}
+                style={{ position: 'absolute', right: '0.85rem', top: '0.85rem', background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: 0 }}
+              >
+                {showConfirmPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
+          </label>
         </div>
-        <button type="submit" style={{ marginTop: '1rem' }}>Save Staff Member</button>
+
+        {errorMessages.length > 0 && (
+          <div className="form-error" style={{ marginTop: '1rem' }}>
+            {errorMessages.map((message) => (
+              <div key={message}>{message}</div>
+            ))}
+          </div>
+        )}
+
+        <div className="modal-actions" style={{ marginTop: '1.5rem' }}>
+          <button type="button" className="btn-secondary" onClick={onBack} disabled={isSaving}>
+            Cancel
+          </button>
+          <button type="submit" disabled={isSaving}>
+            {isSaving ? 'Creating...' : 'Create Staff'}
+          </button>
+        </div>
       </form>
     </div>
   );
@@ -326,7 +492,7 @@ function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
     setIsSaving(true);
     try {
       const { apiFetch } = await import('../services/api');
-      await apiFetch(`/Users/${id}`, {
+      await apiFetch(`/users/${id}`, {
         method: 'PUT',
         body: JSON.stringify({ 
           name: editData.name, 

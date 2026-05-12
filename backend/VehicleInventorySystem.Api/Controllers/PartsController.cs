@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using VehicleInventorySystem.Api.DTOs.Request;
 using VehicleInventorySystem.Api.Services.Interfaces;
@@ -6,6 +7,7 @@ namespace VehicleInventorySystem.Api.Controllers;
 
 [ApiController]
 [Route("api/parts")]
+[Authorize(Roles = "Admin")]
 public class PartsController : ControllerBase
 {
     private readonly IPartService _partService;
@@ -31,6 +33,7 @@ public class PartsController : ControllerBase
         return await ExecuteAsync(() => _partService.GetPartByIdAsync(id));
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreatePartRequest request)
     {
@@ -41,12 +44,14 @@ public class PartsController : ControllerBase
         });
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdatePartRequest request)
     {
         return await ExecuteAsync(() => _partService.UpdatePartAsync(id, request));
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPatch("{id:int}/status")]
     public async Task<IActionResult> ToggleStatus(int id)
     {
@@ -60,32 +65,8 @@ public class PartsController : ControllerBase
             return BadRequest(new { message = "Invalid input.", errors = ModelState });
         }
 
-        try
-        {
-            var result = await action();
-            return Ok(result);
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(new { message = ex.Message });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unhandled error in PartsController (ExecuteAsync<T>).");
-            var errorMessage = _environment.IsDevelopment()
-                ? (ex.InnerException?.Message ?? ex.Message)
-                : "Something went wrong. Please try again.";
-
-            return StatusCode(500, new { message = errorMessage });
-        }
+        var result = await action();
+        return Ok(result);
     }
 
     private async Task<IActionResult> ExecuteAsync(Func<Task<IActionResult>> action)
@@ -95,30 +76,6 @@ public class PartsController : ControllerBase
             return BadRequest(new { message = "Invalid input.", errors = ModelState });
         }
 
-        try
-        {
-            return await action();
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(new { message = ex.Message });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unhandled error in PartsController (ExecuteAsync).");
-            var errorMessage = _environment.IsDevelopment()
-                ? (ex.InnerException?.Message ?? ex.Message)
-                : "Something went wrong. Please try again.";
-
-            return StatusCode(500, new { message = errorMessage });
-        }
+        return await action();
     }
 }

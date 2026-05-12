@@ -14,6 +14,9 @@ public class UpdateUserRequest
 
     public string? PhoneNumber { get; set; }
 
-    // Password is optional - validation handled in controller
+    public string? Role { get; set; }
+
+    public bool? IsActive { get; set; }
+
     public string? Password { get; set; }
 }

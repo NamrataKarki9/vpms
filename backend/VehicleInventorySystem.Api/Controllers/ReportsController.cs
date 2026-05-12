@@ -1,14 +1,16 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VehicleInventorySystem.Api.Data;
 using VehicleInventorySystem.Api.Models;
 
-using VehicleInventorySystem.Api.Services;
+using VehicleInventorySystem.Api.Services.Interfaces;
 
 namespace VehicleInventorySystem.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "Admin")]
 public class ReportsController : ControllerBase
 {
     private readonly AppDbContext _context;
@@ -21,6 +23,7 @@ public class ReportsController : ControllerBase
     }
 
     // F1: Admin - Financial reports (daily, monthly, yearly)
+    [Authorize(Roles = "Admin")]
     [HttpGet("revenue")]
     public async Task<ActionResult> GetRevenueReport([FromQuery] string period = "daily")
     {
@@ -77,6 +80,7 @@ public class ReportsController : ControllerBase
     }
 
     // F15: System notification for unpaid credits (Email reminders older than 1 month)
+    [Authorize(Roles = "Admin")]
     [HttpPost("send-unpaid-reminders")]
     public async Task<ActionResult> SendUnpaidReminders()
     {

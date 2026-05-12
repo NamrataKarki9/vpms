@@ -1,18 +1,40 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace VehicleInventorySystem.Api.DTOs.Request;
 
 public class CreateStaffRequest
 {
-    [Required(ErrorMessage = "Name is required")]
-    [StringLength(100, MinimumLength = 2, ErrorMessage = "Name must be between 2 and 100 characters")]
-    public string Name { get; set; } = string.Empty;
+    [JsonPropertyName("fullName")]
+    public string FullName { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "Email is required")]
-    [EmailAddress(ErrorMessage = "Invalid email address format")]
-    public string Email { get; set; } = string.Empty;
+    [JsonPropertyName("emailAddress")]
+    public string EmailAddress { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "Password is required")]
-    [StringLength(255, MinimumLength = 6, ErrorMessage = "Password must be at least 6 characters")]
+    [JsonPropertyName("phoneNumber")]
+    public string PhoneNumber { get; set; } = string.Empty;
+
+    [JsonPropertyName("password")]
     public string Password { get; set; } = string.Empty;
+
+    [JsonPropertyName("confirmPassword")]
+    public string ConfirmPassword { get; set; } = string.Empty;
+
+    public string? Name { get; set; }
+
+    public string? Email { get; set; }
+
+    public string ResolvedFullName => string.IsNullOrWhiteSpace(FullName)
+        ? Name?.Trim() ?? string.Empty
+        : FullName.Trim();
+
+    public string ResolvedEmailAddress => string.IsNullOrWhiteSpace(EmailAddress)
+        ? Email?.Trim() ?? string.Empty
+        : EmailAddress.Trim();
+
+    public string ResolvedPhoneNumber => PhoneNumber?.Trim() ?? string.Empty;
+
+    public string ResolvedConfirmPassword => string.IsNullOrWhiteSpace(ConfirmPassword)
+        ? Password?.Trim() ?? string.Empty
+        : ConfirmPassword.Trim();
 }

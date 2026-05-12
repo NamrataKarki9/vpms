@@ -12,11 +12,15 @@ public class CreateCustomerRequest
     [EmailAddress(ErrorMessage = "Invalid email address format")]
     public string Email { get; set; } = string.Empty;
 
+    [Required(ErrorMessage = "Phone number is required")]
+    public string PhoneNumber { get; set; } = string.Empty;
+
     [Required(ErrorMessage = "Password is required")]
     [StringLength(255, MinimumLength = 6, ErrorMessage = "Password must be at least 6 characters")]
     public string Password { get; set; } = string.Empty;
 
-    public string? PhoneNumber { get; set; }
+    [Required(ErrorMessage = "Confirm password is required")]
+    public string ConfirmPassword { get; set; } = string.Empty;
 
     public List<VehicleDto>? Vehicles { get; set; }
 }

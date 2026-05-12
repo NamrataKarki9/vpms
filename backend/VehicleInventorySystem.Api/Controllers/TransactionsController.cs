@@ -1,14 +1,16 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VehicleInventorySystem.Api.Data;
 using VehicleInventorySystem.Api.Models;
 
-using VehicleInventorySystem.Api.Services;
+using VehicleInventorySystem.Api.Services.Interfaces;
 
 namespace VehicleInventorySystem.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class TransactionsController : ControllerBase
 {
     private readonly AppDbContext _context;
@@ -21,6 +23,7 @@ public class TransactionsController : ControllerBase
     }
 
     // F4: Admin - Create purchase invoices for stock updates
+    [Authorize(Roles = "Admin")]
     [HttpPost("purchase")]
     public async Task<ActionResult<Invoice>> CreatePurchase(Invoice invoice)
     {
@@ -54,6 +57,7 @@ public class TransactionsController : ControllerBase
     }
 
     // F7: Staff - Sell vehicle parts and create sales invoices
+    [Authorize(Roles = "Admin,Staff")]
     [HttpPost("sale")]
     public async Task<ActionResult<Invoice>> CreateSale(Invoice invoice)
     {
@@ -102,6 +106,7 @@ public class TransactionsController : ControllerBase
     }
 
     // F11: Staff - Send invoices via email to customers
+    [Authorize(Roles = "Admin,Staff")]
     [HttpPost("{invoiceId}/email")]
     public async Task<ActionResult> EmailInvoice(int invoiceId)
     {
@@ -124,6 +129,7 @@ public class TransactionsController : ControllerBase
     }
 
     // F12: Get full history for dashboard
+    [Authorize(Roles = "Admin,Staff")]
     [HttpGet]
     public async Task<ActionResult<IEnumerable<object>>> GetHistory()
     {

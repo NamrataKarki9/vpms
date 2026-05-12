@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using VehicleInventorySystem.Api.DTOs.Request;
 using VehicleInventorySystem.Api.Services.Interfaces;
@@ -6,6 +7,7 @@ namespace VehicleInventorySystem.Api.Controllers;
 
 [ApiController]
 [Route("api/vendors")]
+[Authorize(Roles = "Admin")]
 public class VendorsController : ControllerBase
 {
     private readonly IVendorService _vendorService;
@@ -66,27 +68,8 @@ public class VendorsController : ControllerBase
             return BadRequest(new { message = "Invalid input.", errors = ModelState });
         }
 
-        try
-        {
-            var result = await action();
-            return Ok(result);
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(new { message = ex.Message });
-        }
-        catch (Exception)
-        {
-            return StatusCode(500, new { message = "Something went wrong. Please try again." });
-        }
+        var result = await action();
+        return Ok(result);
     }
 
     private async Task<IActionResult> ExecuteAsync(Func<Task<IActionResult>> action)
@@ -96,25 +79,6 @@ public class VendorsController : ControllerBase
             return BadRequest(new { message = "Invalid input.", errors = ModelState });
         }
 
-        try
-        {
-            return await action();
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(new { message = ex.Message });
-        }
-        catch (Exception)
-        {
-            return StatusCode(500, new { message = "Something went wrong. Please try again." });
-        }
+        return await action();
     }
 }

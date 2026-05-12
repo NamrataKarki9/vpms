@@ -1,19 +1,26 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace VehicleInventorySystem.Api.Migrations
 {
     /// <inheritdoc />
-    public partial class AddPhoneNumberToUser : Migration
+    public partial class AddPasswordResetOtp : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AddColumn<string>(
-                name: "PhoneNumber",
+                name: "ResetOtp",
                 table: "Users",
                 type: "text",
+                nullable: true);
+
+            migrationBuilder.AddColumn<DateTime>(
+                name: "ResetOtpExpiry",
+                table: "Users",
+                type: "timestamp with time zone",
                 nullable: true);
         }
 
@@ -21,7 +28,11 @@ namespace VehicleInventorySystem.Api.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropColumn(
-                name: "PhoneNumber",
+                name: "ResetOtp",
+                table: "Users");
+
+            migrationBuilder.DropColumn(
+                name: "ResetOtpExpiry",
                 table: "Users");
         }
     }

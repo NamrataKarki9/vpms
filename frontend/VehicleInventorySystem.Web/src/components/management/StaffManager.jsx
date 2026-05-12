@@ -1,19 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Dialog from '../Dialog';
+import { useToast } from '../../context/ToastContext';
+import { authApi } from '../../services/api';
 
 function StaffManager({ userRole, staffList, onNavigate, onRemove, onUpdate }) {
+  const showToast = useToast();
   const isAdmin = userRole === 'Admin';
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ name: '', email: '', password: '' });
   const [errors, setErrors] = useState({});
-  
-  // Dialog states
-  const [removeDialog, setRemoveDialog] = useState({ isOpen: false, staffId: null, staffName: '' });
-  const [successDialog, setSuccessDialog] = useState({ isOpen: false, message: '' });
-  const [errorDialog, setErrorDialog] = useState({ isOpen: false, message: '' });
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [staff, setStaff] = useState([]);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
-  // Validation function
+  const [removeDialog, setRemoveDialog] = useState({ isOpen: false, staffId: null, staffName: '' });
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    loadStaff();
+  }, []);
+
+  const loadStaff = async () => {
+    setInitialLoading(true);
+    setLoadError(null);
+    try {
+      const data = await authApi.getStaff();
+      setStaff(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setLoadError(err.message || 'Failed to load staff.');
+      showToast('error', 'Failed to load staff list.');
+    } finally {
+      setInitialLoading(false);
+    }
+  };
+
+  const displayStaff = staff.length > 0 ? staff : (staffList || []);
+
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
@@ -21,50 +45,45 @@ function StaffManager({ userRole, staffList, onNavigate, onRemove, onUpdate }) {
 
   const validateForm = () => {
     const newErrors = {};
-    
+
     if (!editData.name || editData.name.trim().length < 2) {
       newErrors.name = 'Name must be at least 2 characters';
     }
-    
+
     if (!editData.email) {
       newErrors.email = 'Email is required';
     } else if (!validateEmail(editData.email)) {
       newErrors.email = 'Invalid email format';
     }
-    
-    // Validate password only if provided
+
     if (editData.password && editData.password.trim().length > 0) {
       if (editData.password.trim().length < 8) {
         newErrors.password = 'Password must be at least 8 characters';
       }
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleRemoveClick = (id) => {
     if (!isAdmin) return;
-    const staff = staffList.find(s => s.id === id);
-    setRemoveDialog({ isOpen: true, staffId: id, staffName: staff?.name || 'Unknown' });
+    const found = displayStaff.find(s => s.id === id);
+    setRemoveDialog({ isOpen: true, staffId: id, staffName: found?.name || 'Unknown' });
   };
 
   const handleConfirmRemove = async () => {
-    setIsLoading(true);
+    setIsRemoving(true);
     try {
-      await onRemove(removeDialog.staffId);
+      await authApi.toggleUserStatus(removeDialog.staffId);
+      setStaff(prev => prev.filter(s => s.id !== removeDialog.staffId));
       setRemoveDialog({ isOpen: false, staffId: null, staffName: '' });
-      setSuccessDialog({ 
-        isOpen: true, 
-        message: `${removeDialog.staffName} has been successfully removed from the system.` 
-      });
+      showToast('success', `${removeDialog.staffName} has been deactivated successfully.`);
     } catch (error) {
-      setErrorDialog({ 
-        isOpen: true, 
-        message: error.message || 'Failed to remove staff member. Please try again.' 
-      });
+      showToast('error', error.message || 'Failed to deactivate staff member.');
+      setRemoveDialog({ isOpen: false, staffId: null, staffName: '' });
     } finally {
-      setIsLoading(false);
+      setIsRemoving(false);
     }
   };
 
@@ -75,42 +94,53 @@ function StaffManager({ userRole, staffList, onNavigate, onRemove, onUpdate }) {
   };
 
   const handleSave = async (id) => {
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
-    setIsLoading(true);
+    setIsSaving(true);
     try {
-      await onUpdate(id, editData);
+      const updated = await authApi.updateUser(id, {
+        name: editData.name.trim(),
+        email: editData.email.trim(),
+        ...(editData.password.trim() ? { password: editData.password.trim() } : {})
+      });
+      setStaff(prev => prev.map(s => s.id === id ? { ...s, ...updated } : s));
       setEditingId(null);
       setErrors({});
-      setErrorDialog({ isOpen: false, message: '' });
-      setSuccessDialog({ 
-        isOpen: true, 
-        message: `Staff member ${editData.name} has been updated successfully.` 
-      });
+      showToast('success', 'User updated successfully.');
     } catch (error) {
-      // Extract error message from API response
-      const errorMessage = error.message || 'Failed to update staff member';
-      
-      // Check if error is about password field
-      if (errorMessage.toLowerCase().includes('password')) {
-        setErrors({ ...errors, password: errorMessage });
-      } else if (errorMessage.toLowerCase().includes('email')) {
-        setErrors({ ...errors, email: errorMessage });
-      } else if (errorMessage.toLowerCase().includes('name')) {
-        setErrors({ ...errors, name: errorMessage });
+      const msg = error.message || 'Failed to update staff member';
+      if (msg.toLowerCase().includes('password')) {
+        setErrors(prev => ({ ...prev, password: msg }));
+      } else if (msg.toLowerCase().includes('email')) {
+        setErrors(prev => ({ ...prev, email: msg }));
+      } else if (msg.toLowerCase().includes('name')) {
+        setErrors(prev => ({ ...prev, name: msg }));
       } else {
-        // Show generic error dialog for other errors
-        setErrorDialog({ 
-          isOpen: true, 
-          message: errorMessage
-        });
+        showToast('error', msg);
       }
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
+
+  if (initialLoading) {
+    return (
+      <div className="management-card">
+        <h3>Staff Management</h3>
+        <p style={{ opacity: 0.6, textAlign: 'center', padding: '2rem' }}>Loading staff...</p>
+      </div>
+    );
+  }
+
+  if (loadError && displayStaff.length === 0) {
+    return (
+      <div className="management-card">
+        <h3>Staff Management</h3>
+        <p style={{ color: '#ef4444', textAlign: 'center', padding: '1rem' }}>{loadError}</p>
+        <button onClick={loadStaff} className="btn-small" style={{ display: 'block', margin: '0 auto' }}>Retry</button>
+      </div>
+    );
+  }
 
   return (
     <div className="management-card">
@@ -126,138 +156,118 @@ function StaffManager({ userRole, staffList, onNavigate, onRemove, onUpdate }) {
         </div>
       </div>
 
-      <div className="data-list">
-        {staffList.slice(0, 5).map(s => (
-          <div key={s.id} className="list-item" style={{ 
-            flexDirection: editingId === s.id ? 'column' : 'row', 
-            alignItems: editingId === s.id ? 'stretch' : 'center', 
-            gap: '1rem',
-            flexWrap: 'wrap' 
-          }}>
-            {editingId === s.id ? (
-              <div className="mini-form" style={{ padding: 0, margin: 0, background: 'none', width: '100%' }}>
-                <div>
-                  <input 
-                    type="text" 
-                    value={editData.name} 
-                    onChange={e => setEditData({...editData, name: e.target.value})} 
-                    placeholder="Full Name"
-                    style={{ borderColor: errors.name ? '#ef4444' : undefined }}
-                  />
-                  {errors.name && <div style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '0.25rem' }}>{errors.name}</div>}
+      {displayStaff.length === 0 ? (
+        <p style={{ opacity: 0.5, textAlign: 'center', padding: '2rem' }}>No staff members found. Add one to get started.</p>
+      ) : (
+        <div className="data-list">
+          {displayStaff.slice(0, 5).map(s => (
+            <div key={s.id} className="list-item" style={{
+              flexDirection: editingId === s.id ? 'column' : 'row',
+              alignItems: editingId === s.id ? 'stretch' : 'center',
+              gap: '1rem',
+              flexWrap: 'wrap'
+            }}>
+              {editingId === s.id ? (
+                <div className="mini-form" style={{ padding: 0, margin: 0, background: 'none', width: '100%' }}>
+                  <div>
+                    <input
+                      type="text"
+                      value={editData.name}
+                      onChange={e => setEditData({...editData, name: e.target.value})}
+                      placeholder="Full Name"
+                      style={{ borderColor: errors.name ? '#ef4444' : undefined }}
+                    />
+                    {errors.name && <div style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '0.25rem' }}>{errors.name}</div>}
+                  </div>
+                  <div>
+                    <input
+                      type="email"
+                      value={editData.email}
+                      onChange={e => setEditData({...editData, email: e.target.value})}
+                      placeholder="Email"
+                      style={{ borderColor: errors.email ? '#ef4444' : undefined }}
+                    />
+                    {errors.email && <div style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '0.25rem' }}>{errors.email}</div>}
+                  </div>
+                  <div>
+                    <input
+                      type="password"
+                      value={editData.password}
+                      onChange={e => setEditData({...editData, password: e.target.value})}
+                      placeholder="New Password (leave blank to keep current)"
+                      style={{ borderColor: errors.password ? '#ef4444' : undefined }}
+                    />
+                    {errors.password ? (
+                      <div style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '0.25rem' }}>{errors.password}</div>
+                    ) : (
+                      <div style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.25rem', fontStyle: 'italic' }}>
+                        Leave blank if you don't want to change the password
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '1rem', justifyContent: 'flex-end' }}>
+                    <button
+                      onClick={() => handleSave(s.id)}
+                      className="btn-small"
+                      style={{ background: '#10b981', color: 'white', padding: '0.5rem 1rem', fontWeight: '500', cursor: 'pointer' }}
+                      disabled={isSaving}
+                    >
+                      {isSaving ? 'Saving...' : 'Save Changes'}
+                    </button>
+                    <button
+                      onClick={() => { setEditingId(null); setErrors({}); }}
+                      className="btn-small"
+                      style={{ background: '#e2e8f0', color: '#0f172a', padding: '0.5rem 1rem', fontWeight: '500', cursor: 'pointer' }}
+                      disabled={isSaving}
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <input 
-                    type="email" 
-                    value={editData.email} 
-                    onChange={e => setEditData({...editData, email: e.target.value})} 
-                    placeholder="Email"
-                    style={{ borderColor: errors.email ? '#ef4444' : undefined }}
-                  />
-                  {errors.email && <div style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '0.25rem' }}>{errors.email}</div>}
-                </div>
-                <div>
-                  <input 
-                    type="password" 
-                    value={editData.password} 
-                    onChange={e => setEditData({...editData, password: e.target.value})} 
-                    placeholder="New Password (leave blank to keep current)"
-                    style={{ borderColor: errors.password ? '#ef4444' : undefined }}
-                  />
-                  {errors.password ? (
-                    <div style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '0.25rem' }}>{errors.password}</div>
-                  ) : (
-                    <div style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.25rem', fontStyle: 'italic' }}>
-                      Leave blank if you don't want to change the password
-                    </div>
-                  )}
-                </div>
-                <div style={{ display: 'flex', gap: '8px', marginTop: '1rem', justifyContent: 'flex-end' }}>
-                  <button 
-                    onClick={() => handleSave(s.id)} 
-                    className="btn-small" 
-                    style={{ background: '#10b981', color: 'white', padding: '0.5rem 1rem', fontWeight: '500', cursor: 'pointer' }}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? 'Saving...' : 'Save Changes'}
-                  </button>
-                  <button 
-                    onClick={() => {
-                      setEditingId(null);
-                      setErrors({});
-                    }} 
-                    className="btn-small" 
-                    style={{ background: '#e2e8f0', color: '#0f172a', padding: '0.5rem 1rem', fontWeight: '500', cursor: 'pointer' }}
-                    disabled={isLoading}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div style={{ flex: '1', minWidth: '150px', overflow: 'hidden' }}>
-                  <strong style={{ display: 'block', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{s.name}</strong>
-                  <div style={{ fontSize: '0.8rem', opacity: 0.6, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{s.email}</div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  <span className="badge" style={{ fontSize: '0.65rem' }}>{s.role}</span>
-                  {isAdmin && (
-                    <>
-                      <button 
-                        onClick={() => startEdit(s)} 
-                        className="btn-small" 
-                        style={{ background: 'rgba(79, 70, 229, 0.1)', color: '#000000', border: '1px solid var(--primary)' }}
-                      >
-                        Edit
-                      </button>
-                      <button 
-                        onClick={() => handleRemoveClick(s.id)} 
-                        className="btn-small" 
-                        style={{ background: 'rgba(255, 68, 68, 0.1)', color: '#ff4444', border: '1px solid #ff4444' }}
-                      >
-                        Remove
-                      </button>
-                    </>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        ))}
-      </div>
+              ) : (
+                <>
+                  <div style={{ flex: '1', minWidth: '150px', overflow: 'hidden' }}>
+                    <strong style={{ display: 'block', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{s.name}</strong>
+                    <div style={{ fontSize: '0.8rem', opacity: 0.6, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{s.email}</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <span className="badge" style={{ fontSize: '0.65rem' }}>{s.role}</span>
+                    {isAdmin && (
+                      <>
+                        <button
+                          onClick={() => startEdit(s)}
+                          className="btn-small"
+                          style={{ background: 'rgba(79, 70, 229, 0.1)', color: '#000000', border: '1px solid var(--primary)' }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleRemoveClick(s.id)}
+                          className="btn-small"
+                          style={{ background: 'rgba(255, 68, 68, 0.1)', color: '#ff4444', border: '1px solid #ff4444' }}
+                        >
+                          Deactivate
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
-      {/* Remove Confirmation Dialog */}
       <Dialog
         isOpen={removeDialog.isOpen}
-        title="Remove Staff Member"
-        message={`Are you sure you want to remove ${removeDialog.staffName} from the system? This action cannot be undone.`}
+        title="Deactivate Staff Member"
+        message={`Are you sure you want to deactivate ${removeDialog.staffName}? They will no longer be able to access the system.`}
         type="confirm"
-        confirmText="Remove"
+        confirmText="Deactivate"
         cancelText="Cancel"
         onConfirm={handleConfirmRemove}
         onCancel={() => setRemoveDialog({ isOpen: false, staffId: null, staffName: '' })}
-        isLoading={isLoading}
-      />
-
-      {/* Success Dialog */}
-      <Dialog
-        isOpen={successDialog.isOpen}
-        title="Success"
-        message={successDialog.message}
-        type="success"
-        confirmText="Done"
-        onConfirm={() => setSuccessDialog({ isOpen: false, message: '' })}
-      />
-
-      {/* Error Dialog */}
-      <Dialog
-        isOpen={errorDialog.isOpen}
-        title="Error"
-        message={errorDialog.message}
-        type="error"
-        confirmText="Close"
-        onConfirm={() => setErrorDialog({ isOpen: false, message: '' })}
+        isLoading={isRemoving}
       />
     </div>
   );

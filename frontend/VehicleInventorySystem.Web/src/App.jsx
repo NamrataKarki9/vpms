@@ -1,211 +1,292 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Header from './components/Header';
 import Footer from './components/Footer';
-import CustomerVehicleForm from './components/management/CustomerVehicleForm';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { StaffDashboard } from './pages/StaffDashboard';
 import { CustomerDashboard } from './pages/CustomerDashboard';
 import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { VerifyOtpPage } from './pages/VerifyOtpPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import MainLayout from './layout/MainLayout';
 import VendorPage from './pages/vendors/VendorPage';
 import PartsPage from './pages/parts/PartsPage';
 import { useToast } from './context/ToastContext';
+import { apiFetch, authApi, clearStoredUser, getStoredUser, saveStoredUser } from './services/api';
 import './index.css';
 
 const ROLES = { ADMIN: 'Admin', STAFF: 'Staff', CUSTOMER: 'Customer' };
+const DASHBOARD_PATHS = {
+  [ROLES.ADMIN]: '/admin',
+  [ROLES.STAFF]: '/staff',
+  [ROLES.CUSTOMER]: '/customer',
+};
+const PUBLIC_PATHS = new Set(['/login', '/signup', '/forgot-password', '/verify-otp', '/reset-password']);
+
+const getDashboardPath = (role) => DASHBOARD_PATHS[role] || '/login';
 
 function App() {
   const showToast = useToast();
-  const [currentPath, setCurrentPath] = useState(() => window.location.pathname || '/');
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('vis_user');
-    return saved ? JSON.parse(saved) : null;
-  });
-  const [view, setView] = useState(() => {
-    const saved = localStorage.getItem('vis_user');
-    return saved ? 'dashboard' : 'login';
-  });
-  
+  const [currentPath, setCurrentPath] = useState(() => window.location.pathname || '/login');
+  const [user, setUser] = useState(() => getStoredUser());
   const [staffList, setStaffList] = useState([]);
   const [customerList, setCustomerList] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [salesHistory, setSalesHistory] = useState([]);
   const [staffView, setStaffView] = useState('main');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    const handlePopState = () => setCurrentPath(window.location.pathname || '/');
+    const handlePopState = () => setCurrentPath(window.location.pathname || '/login');
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const handleNavigate = (event, path) => {
-    event.preventDefault();
-    if (path === currentPath) {
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setUser(null);
+      setStaffList([]);
+      setCustomerList([]);
+      setInventory([]);
+      setSalesHistory([]);
+      window.history.pushState({}, '', '/login');
+      setCurrentPath('/login');
+      showToast('error', 'Your session has expired. Please log in again.');
+    };
+
+    const handleForbidden = (event) => {
+      showToast('error', event.detail?.message || 'You are not authorized to access this page.');
+    };
+
+    window.addEventListener('vis:unauthorized', handleUnauthorized);
+    window.addEventListener('vis:forbidden', handleForbidden);
+
+    return () => {
+      window.removeEventListener('vis:unauthorized', handleUnauthorized);
+      window.removeEventListener('vis:forbidden', handleForbidden);
+    };
+  }, [showToast]);
+
+  useEffect(() => {
+    if (!user) {
+      if (!PUBLIC_PATHS.has(currentPath)) {
+        window.history.replaceState({}, '', '/login');
+        setCurrentPath('/login');
+      }
       return;
     }
 
+    const dashboardPath = getDashboardPath(user.role);
+    if (currentPath === '/' || PUBLIC_PATHS.has(currentPath)) {
+      window.history.replaceState({}, '', dashboardPath);
+      setCurrentPath(dashboardPath);
+      return;
+    }
+
+    if ((currentPath === '/vendors' || currentPath === '/parts') && user.role !== ROLES.ADMIN) {
+      window.history.replaceState({}, '', dashboardPath);
+      setCurrentPath(dashboardPath);
+      showToast('error', 'You are not authorized to access this page.');
+      return;
+    }
+
+    if (Object.values(DASHBOARD_PATHS).includes(currentPath) && currentPath !== dashboardPath) {
+      window.history.replaceState({}, '', dashboardPath);
+      setCurrentPath(dashboardPath);
+    }
+  }, [currentPath, showToast, user]);
+
+  useEffect(() => {
+    if (user) {
+      loadAllData(user);
+    }
+  }, [user]);
+
+  const handleNavigate = (event, path) => {
+    event.preventDefault();
+    if (path === currentPath) return;
     window.history.pushState({}, '', path);
     setCurrentPath(path);
   };
 
-  useEffect(() => {
-    import('./services/api').then(({ apiFetch }) => {
-      const loadAllData = async () => {
-        try {
-          // Fetch Users Data
-          const usersRes = await apiFetch('/Users') || [];
-          setStaffList(usersRes.filter(u => u.role === 1 || u.role === 0).map(u => ({
-             ...u, role: u.role === 0 ? 'Admin' : 'Staff', password: u.passwordHash || ''
-          })));
-          
-          setCustomerList(usersRes.filter(u => u.role === 2).map(c => ({
-             ...c, plate: c.vehicles?.length > 0 ? c.vehicles[0].plateNumber : 'N/A', spend: 0, password: c.passwordHash || ''
-          })));
+  const loadAllData = async (activeUser = user) => {
+    if (!activeUser) {
+      return;
+    }
 
-          // Fetch Inventory Data
-          const partsRes = await apiFetch('/parts') || [];
-          setInventory(partsRes.map(p => ({
-             id: p.id || p.Id,
-             name: p.name || p.Name || '',
-             stock: p.stockLevel || p.StockLevel || 0,
-             price: p.price || p.Price || 0,
-             vendor: p.vendorName || p.VendorName || 'Unknown Vendor'
-          })));
+    setIsLoading(true);
+    try {
+      if (activeUser.role === ROLES.CUSTOMER) {
+        setStaffList([]);
+        setCustomerList([]);
+        setInventory([]);
+        setSalesHistory([]);
+        return;
+      }
 
-          // Fetch Transaction History
-          const salesRes = await apiFetch('/Transactions') || [];
-          setSalesHistory(salesRes.map(s => ({
-            id: s.id,
-            customerName: s.customerName,
-            total: s.totalAmount,
-            date: new Date(s.date).toLocaleDateString(),
-            discountApplied: false // Calculated on-the-fly if needed
-          })));
+      const [usersRes, partsRes, salesRes] = await Promise.all([
+        apiFetch('/users'),
+        apiFetch('/parts'),
+        apiFetch('/transactions')
+      ]);
 
-          setIsLoading(false);
-        } catch (error) {
-          console.error("Cloud DB Connection Error:", error);
-          showToast('error', 'Failed to connect to NEON Cloud API.');
-          setIsLoading(false);
-        }
-      };
-      loadAllData();
-    });
-  }, []);
+      const users = Array.isArray(usersRes) ? usersRes : [];
+      setStaffList(users.filter((u) => u.role === 'Admin' || u.role === 'Staff'));
+      setCustomerList(users.filter((u) => u.role === 'Customer').map((c) => ({
+        id: c.id,
+        name: c.name,
+        email: c.email || '',
+        phone: c.phoneNumber || '',
+        role: c.role,
+        isActive: c.isActive,
+        plate: c.vehicles?.length > 0 ? c.vehicles[0].plateNumber : 'N/A',
+        spend: 0
+      })));
 
-  const logout = () => { 
-    localStorage.removeItem('vis_user');
-    setUser(null); 
-    setView('login'); 
+      const parts = Array.isArray(partsRes) ? partsRes : [];
+      setInventory(parts.map((p) => ({
+        id: p.id,
+        name: p.name || '',
+        stock: p.stockLevel || 0,
+        price: p.price || 0,
+        vendor: p.vendorName || 'Unknown Vendor'
+      })));
+
+      const sales = Array.isArray(salesRes) ? salesRes : [];
+      setSalesHistory(sales.map((s) => ({
+        id: s.id,
+        customerName: s.customerName,
+        total: s.totalAmount,
+        date: new Date(s.date).toLocaleDateString(),
+        discountApplied: false
+      })));
+    } catch (error) {
+      console.error('Data load error:', error);
+      showToast('error', 'Some data failed to load. Please refresh if needed.');
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  const logout = () => {
+    clearStoredUser();
+    setUser(null);
+    setStaffList([]);
+    setCustomerList([]);
+    setInventory([]);
+    setSalesHistory([]);
+    window.history.pushState({}, '', '/login');
+    setCurrentPath('/login');
+  };
+
   const handleAddStaff = async (newStaff) => {
     try {
-      const { apiFetch } = await import('./services/api');
-      const savedStaff = await apiFetch('/Users/register/staff', {
-        method: 'POST',
-        body: JSON.stringify({ name: newStaff.name, email: newStaff.email, password: newStaff.password })
+      const savedStaff = await authApi.createStaff({
+        fullName: newStaff.fullName,
+        emailAddress: newStaff.emailAddress,
+        phoneNumber: newStaff.phoneNumber,
+        password: newStaff.password,
+        confirmPassword: newStaff.confirmPassword
       });
-      setStaffList([...staffList, { ...savedStaff, role: 'Staff', password: savedStaff.passwordHash || newStaff.password }]);
-      showToast('success', 'System staff successfully saved to NEON Cloud!');
-    } catch(err) {
-      showToast('error', err.message || 'Network Error saving to cloud.');
+      setStaffList((prev) => [...prev, { ...savedStaff }]);
+      showToast('success', 'Staff created successfully.');
+      return true;
+    } catch (err) {
+      showToast('error', err.message || 'Failed to create staff.');
+      return false;
     }
   };
+
   const handleRemoveStaff = async (id) => {
     try {
-      const { apiFetch } = await import('./services/api');
-      await apiFetch(`/Users/${id}`, {
-        method: 'DELETE'
-      });
-      setStaffList(staffList.filter(s => s.id !== id));
-    } catch(err) {
-      throw new Error(err.message || 'Failed to remove staff member');
+      await authApi.toggleUserStatus(id);
+      setStaffList((prev) => prev.filter((s) => s.id !== id));
+      showToast('success', 'Staff deactivated successfully.');
+    } catch (err) {
+      throw new Error(err.message || 'Failed to deactivate staff member');
     }
   };
+
   const handleUpdateStaff = async (id, updatedData) => {
     try {
-      const { apiFetch } = await import('./services/api');
-      const requestBody = { 
-        name: updatedData.name, 
+      const requestBody = {
+        name: updatedData.name,
         email: updatedData.email
       };
-      // Only include password if it's provided and not empty
       if (updatedData.password && updatedData.password.trim().length > 0) {
         requestBody.password = updatedData.password.trim();
       }
-      const response = await apiFetch(`/Users/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(requestBody)
-      });
-      
-      setStaffList(staffList.map(s => 
-        s.id === id 
-          ? { ...s, name: updatedData.name, email: updatedData.email, password: updatedData.password || s.password } 
-          : s
+      const response = await authApi.updateUser(id, requestBody);
+      setStaffList((prev) => prev.map((s) =>
+        s.id === id ? { ...s, ...response } : s
       ));
-    } catch(err) {
+      showToast('success', 'User updated successfully.');
+    } catch (err) {
       throw new Error(err.message || 'Failed to update staff credentials');
     }
   };
+
   const handleRegisterCustomer = async (customerData) => {
     try {
-      const { apiFetch } = await import('./services/api');
       let year = 2000;
       let model = 'Unknown';
       if (customerData.vehicle) {
         const parts = customerData.vehicle.split(' (');
         model = parts[0];
         if (parts.length > 1) {
-          year = parseInt(parts[1].replace(')', '')) || 2000;
+          year = parseInt(parts[1].replace(')', ''), 10) || 2000;
         }
       }
-      const savedCustomer = await apiFetch('/Users/register/customer', {
-        method: 'POST',
-        body: JSON.stringify({ 
-          name: customerData.name, 
-          email: customerData.email, 
-          password: customerData.password,
-          phoneNumber: customerData.phone,
-          vehicles: [{ plateNumber: customerData.plate, model: model, make: model.split(' ')[0] || 'Unknown', year: year }]
-        })
+
+      await authApi.registerCustomer({
+        name: customerData.name,
+        email: customerData.email,
+        password: customerData.password,
+        confirmPassword: customerData.password,
+        phoneNumber: customerData.phone,
+        vehicles: [{ plateNumber: customerData.plate, model, make: model.split(' ')[0] || 'Unknown', year }]
       });
-      setCustomerList(prev => [...prev, { ...savedCustomer, plate: customerData.plate, phone: customerData.phone, spend: 0 }]);
-      return savedCustomer;
-    } catch(err) {
-      console.error(err);
-      showToast('error', 'Network Error saving customer to cloud.');
+
+      const loginResponse = await authApi.login(customerData.email.trim(), customerData.password);
+      return {
+        id: loginResponse.id,
+        name: loginResponse.fullName,
+        email: loginResponse.emailAddress,
+        role: loginResponse.role,
+        token: loginResponse.token
+      };
+    } catch (err) {
+      showToast('error', err.message || 'Registration failed.');
       return false;
     }
   };
+
   const handleRemoveCustomer = async (id) => {
     try {
-      const { apiFetch } = await import('./services/api');
-      await apiFetch(`/Users/${id}`, {
-        method: 'DELETE'
-      });
-      setCustomerList(customerList.filter(c => c.id !== id));
-    } catch(err) {
+      await authApi.toggleUserStatus(id);
+      setCustomerList((prev) => prev.filter((c) => c.id !== id));
+    } catch (err) {
       throw new Error(err.message || 'Failed to remove customer');
     }
   };
-  const handleUpdateCustomer = (updatedCust) => setCustomerList(customerList.map(c => c.id === updatedCust.id ? updatedCust : c));
-  
+
+  const handleUpdateCustomer = (updatedCust) =>
+    setCustomerList((prev) => prev.map((c) => c.id === updatedCust.id ? updatedCust : c));
+
   const handleProcessSale = async (customerId, cartItems) => {
-    const customer = customerList.find(c => c.id === parseInt(customerId));
+    const customer = customerList.find((c) => c.id === parseInt(customerId, 10));
     if (!customer || cartItems.length === 0) return showToast('error', 'Please select a customer and at least one item.');
 
     try {
-      const { apiFetch } = await import('./services/api');
       const totalAmount = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-      
+
       const invoice = await apiFetch('/Transactions/sale', {
         method: 'POST',
         body: JSON.stringify({
-          customerId: parseInt(customerId),
-          totalAmount: totalAmount,
-          items: cartItems.map(item => ({
+          customerId: parseInt(customerId, 10),
+          totalAmount,
+          items: cartItems.map((item) => ({
             partId: item.id,
             quantity: item.quantity,
             unitPrice: item.price
@@ -215,34 +296,46 @@ function App() {
 
       const finalPrice = invoice.totalAmount;
       const isDiscounted = finalPrice < totalAmount;
-      
-      const newInvoice = { 
-        id: invoice.id, 
-        customerName: customer.name, 
-        total: finalPrice, 
-        date: new Date().toLocaleDateString(), 
-        discountApplied: isDiscounted 
+
+      const newInvoice = {
+        id: invoice.id,
+        customerName: customer.name,
+        total: finalPrice,
+        date: new Date().toLocaleDateString(),
+        discountApplied: isDiscounted
       };
 
-      setSalesHistory([newInvoice, ...salesHistory]);
-      setCustomerList(customerList.map(c => c.id === customer.id ? { ...c, spend: (c.spend ?? 0) + finalPrice } : c));
-      
-      // Update inventory for all items in cart
+      setSalesHistory((prev) => [newInvoice, ...prev]);
+      setCustomerList((prev) => prev.map((c) => c.id === customer.id ? { ...c, spend: (c.spend ?? 0) + finalPrice } : c));
+
       let updatedInv = [...inventory];
-      cartItems.forEach(item => {
-        updatedInv = updatedInv.map(p => p.id === item.id ? { ...p, stock: Math.max(0, p.stock - item.quantity) } : p);
+      cartItems.forEach((item) => {
+        updatedInv = updatedInv.map((p) => p.id === item.id ? { ...p, stock: Math.max(0, p.stock - item.quantity) } : p);
       });
       setInventory(updatedInv);
-      
+
       showToast('success', `Invoice generated. ${isDiscounted ? '10% Loyalty Discount Applied! ' : ''}Total: Rs. ${finalPrice.toFixed(2)}`);
-    } catch (e) {
+    } catch {
       showToast('error', 'Failed to process sale.');
     }
   };
 
   const handleUpdateInventory = (newParts) => setInventory(newParts);
 
+  const handleLogin = async (loggedInUser) => {
+    saveStoredUser(loggedInUser);
+    setUser(loggedInUser);
+    const dashboardPath = getDashboardPath(loggedInUser.role);
+    window.history.pushState({}, '', dashboardPath);
+    setCurrentPath(dashboardPath);
+    await loadAllData(loggedInUser);
+  };
+
   if (currentPath === '/parts') {
+    if (user?.role !== ROLES.ADMIN) {
+      return null;
+    }
+
     return (
       <MainLayout currentPath={currentPath} onNavigate={handleNavigate}>
         <PartsPage />
@@ -251,6 +344,10 @@ function App() {
   }
 
   if (currentPath === '/vendors') {
+    if (user?.role !== ROLES.ADMIN) {
+      return null;
+    }
+
     return (
       <MainLayout currentPath={currentPath} onNavigate={handleNavigate}>
         <VendorPage />
@@ -262,16 +359,94 @@ function App() {
     <div className="app-container">
       {user && <Header user={user} onLogout={logout} onNavigateStaff={setStaffView} />}
       <main className="main-content">
-        {isLoading && <div style={{ padding: '2rem', textAlign: 'center' }}>Connecting to NEON Cloud DB...</div>}
-        {!isLoading && view === 'login' && <LoginPage onLogin={(u) => { localStorage.setItem('vis_user', JSON.stringify(u)); setUser(u); setView('dashboard'); }} onSignUp={() => setView('signup')} staff={staffList} customers={customerList} />}
-        {!isLoading && view === 'signup' && <SignupPage onComplete={(u) => { localStorage.setItem('vis_user', JSON.stringify(u)); setUser(u); setView('dashboard'); }} onBack={() => setView('login')} onAddCustomer={handleRegisterCustomer} />}
-
-        {!isLoading && view === 'dashboard' && (
-          <Dashboard 
-            user={user} staffList={staffList} customerList={customerList} inventory={inventory} salesHistory={salesHistory}
-            onAddStaff={handleAddStaff} onRemoveStaff={handleRemoveStaff} onUpdateStaff={handleUpdateStaff} onProcessSale={handleProcessSale}
-            onUpdateInventory={handleUpdateInventory} onRemoveCustomer={handleRemoveCustomer} onUpdateCustomer={handleUpdateCustomer}
-            staffView={staffView} setStaffView={setStaffView} onOpenVendorManagement={() => { window.history.pushState({}, '', '/vendors'); setCurrentPath('/vendors'); }}
+        {currentPath === '/login' && (
+          <LoginPage
+            onLogin={handleLogin}
+            onSignUp={() => {
+              window.history.pushState({}, '', '/signup');
+              setCurrentPath('/signup');
+            }}
+            onForgotPassword={() => {
+              window.history.pushState({}, '', '/forgot-password');
+              setCurrentPath('/forgot-password');
+            }}
+          />
+        )}
+        {currentPath === '/forgot-password' && (
+          <ForgotPasswordPage
+            onContinue={() => {
+              window.history.pushState({}, '', '/verify-otp');
+              setCurrentPath('/verify-otp');
+            }}
+            onBack={() => {
+              window.history.pushState({}, '', '/login');
+              setCurrentPath('/login');
+            }}
+          />
+        )}
+        {currentPath === '/verify-otp' && (
+          <VerifyOtpPage
+            onContinue={() => {
+              window.history.pushState({}, '', '/reset-password');
+              setCurrentPath('/reset-password');
+            }}
+            onBack={() => {
+              window.history.pushState({}, '', '/forgot-password');
+              setCurrentPath('/forgot-password');
+            }}
+            onMissingEmail={() => {
+              window.history.replaceState({}, '', '/forgot-password');
+              setCurrentPath('/forgot-password');
+            }}
+          />
+        )}
+        {currentPath === '/reset-password' && (
+          <ResetPasswordPage
+            onComplete={() => {
+              window.history.pushState({}, '', '/login');
+              setCurrentPath('/login');
+            }}
+            onMissingOtp={() => {
+              window.history.replaceState({}, '', '/forgot-password');
+              setCurrentPath('/forgot-password');
+            }}
+            onBack={() => {
+              window.history.pushState({}, '', '/verify-otp');
+              setCurrentPath('/verify-otp');
+            }}
+          />
+        )}
+        {currentPath === '/signup' && (
+          <SignupPage
+            onComplete={handleLogin}
+            onBack={() => {
+              window.history.pushState({}, '', '/login');
+              setCurrentPath('/login');
+            }}
+            onAddCustomer={handleRegisterCustomer}
+          />
+        )}
+        {user && currentPath === getDashboardPath(user.role) && (
+          <Dashboard
+            user={user}
+            staffList={staffList}
+            customerList={customerList}
+            inventory={inventory}
+            salesHistory={salesHistory}
+            isLoading={isLoading}
+            onAddStaff={handleAddStaff}
+            onRemoveStaff={handleRemoveStaff}
+            onUpdateStaff={handleUpdateStaff}
+            onProcessSale={handleProcessSale}
+            onUpdateInventory={handleUpdateInventory}
+            onRemoveCustomer={handleRemoveCustomer}
+            onUpdateCustomer={handleUpdateCustomer}
+            staffView={staffView}
+            setStaffView={setStaffView}
+            onOpenVendorManagement={() => {
+              window.history.pushState({}, '', '/vendors');
+              setCurrentPath('/vendors');
+            }}
           />
         )}
       </main>
@@ -280,10 +455,11 @@ function App() {
   );
 }
 
-function Dashboard({ user, staffList, customerList, inventory, salesHistory, onAddStaff, onRemoveStaff, onUpdateStaff, onProcessSale, onUpdateInventory, onRemoveCustomer, onUpdateCustomer, staffView, setStaffView, onOpenVendorManagement }) {
+function Dashboard({ user, staffList, customerList, inventory, salesHistory, isLoading, onAddStaff, onRemoveStaff, onUpdateStaff, onProcessSale, onUpdateInventory, onRemoveCustomer, onUpdateCustomer, staffView, setStaffView, onOpenVendorManagement }) {
   return (
     <div>
       <h1>{user.role} Dashboard</h1>
+      {isLoading && <div style={{ padding: '1rem', textAlign: 'center', opacity: 0.6 }}>Loading data...</div>}
       {user.role === ROLES.ADMIN && (<AdminDashboard staffList={staffList} onAddStaff={onAddStaff} onRemoveStaff={onRemoveStaff} onUpdateStaff={onUpdateStaff} sales={salesHistory} inventory={inventory} onUpdateInventory={onUpdateInventory} customerList={customerList} onRemoveCustomer={onRemoveCustomer} onUpdateCustomer={onUpdateCustomer} onOpenVendorManagement={onOpenVendorManagement} />)}
       {user.role === ROLES.STAFF && (<StaffDashboard view={staffView} setView={setStaffView} customers={customerList} parts={inventory} sales={salesHistory} onProcessSale={onProcessSale} />)}
       {user.role === ROLES.CUSTOMER && (<CustomerDashboard user={user} sales={salesHistory} />)}
