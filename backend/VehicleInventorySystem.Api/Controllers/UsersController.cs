@@ -64,14 +64,20 @@ public class UsersController : ControllerBase
             }
             await _context.SaveChangesAsync();
         }
+
+        // Return the user with vehicles included
+        var userWithVehicles = await _context.Users
+            .Include(u => u.Vehicles)
+            .FirstOrDefaultAsync(u => u.Id == user.Id);
         
         return CreatedAtAction(nameof(GetUser), new { id = user.Id }, new 
         { 
-            id = user.Id,
-            name = user.Name, 
-            email = user.Email,
-            phoneNumber = user.PhoneNumber,
-            role = user.Role.ToString(),
+            id = userWithVehicles!.Id,
+            name = userWithVehicles.Name, 
+            email = userWithVehicles.Email,
+            phoneNumber = userWithVehicles.PhoneNumber,
+            role = userWithVehicles.Role.ToString(),
+            vehicles = userWithVehicles.Vehicles,
             message = "Customer registered successfully"
         });
     }

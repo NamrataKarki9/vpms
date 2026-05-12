@@ -163,7 +163,7 @@ function App() {
         })
       });
       setCustomerList(prev => [...prev, { ...savedCustomer, plate: customerData.plate, phone: customerData.phone, spend: 0 }]);
-      return savedCustomer.id;
+      return savedCustomer;
     } catch(err) {
       console.error(err);
       alert('Network Error saving customer to cloud.');
@@ -316,7 +316,7 @@ function Login({ onLogin, onSignUp, staff, customers }) {
     const customer = customers.find(c => c.email && c.email.toLowerCase() === email.toLowerCase());
     if (customer) {
       if (customer.password === password || (!customer.password && password === 'password')) {
-        onLogin({ id: customer.id, name: customer.name, role: ROLES.CUSTOMER });
+        onLogin({ ...customer, role: ROLES.CUSTOMER });
         return;
       }
       setLoginError('Access Denied: Incorrect password for Customer.');
@@ -366,8 +366,8 @@ function Login({ onLogin, onSignUp, staff, customers }) {
 
 
 function SignUp({ onComplete, onBack, onAddCustomer }) {
-  return <div style={{ maxWidth: '600px', margin: 'auto' }}><button onClick={onBack} className="btn-small">← Back</button><CustomerVehicleForm onRegister={async (data) => { const newId = await onAddCustomer(data); if(newId) onComplete({ id: newId, name: data.name, role: ROLES.CUSTOMER }); }} /></div>;
-}
+  return <div style={{ maxWidth: '600px', margin: 'auto' }}><button onClick={onBack} className="btn-small">← Back</button><CustomerVehicleForm onRegister={async (data) => { const savedCustomer = await onAddCustomer(data); if(savedCustomer) onComplete({ ...savedCustomer, role: ROLES.CUSTOMER }); }} /></div>;}
+
 
 function Dashboard({ user, staffList, customerList, inventory, salesHistory, onAddStaff, onRemoveStaff, onUpdateStaff, onProcessSale, onUpdateInventory, onRemoveCustomer, onUpdateCustomer, staffView, setStaffView, onOpenVendorManagement }) {
   return (
