@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-export function StaffView({ view, setView, customers, parts, sales, onProcessSale }) {
-  // Shared handlers/state could be moved here if they need to persist across view changes
-  // For now, we'll keep them inside the sub-components for modularity
+export function StaffDashboard({ view, setView, customers, parts, sales, onProcessSale }) {
 
   if (view === 'sales') return <ProcessSalePage customers={customers} parts={parts} onProcessSale={onProcessSale} onBack={() => setView('main')} />;
   if (view === 'invoices') return <InvoicesPage sales={sales} onBack={() => setView('main')} />;
@@ -171,7 +169,7 @@ function ProcessSalePage({ customers, parts, onProcessSale, onBack }) {
 function InvoicesPage({ sales, onBack }) {
   const handleEmailInvoice = async (invoiceId) => {
     try {
-      const { apiFetch } = await import('../../api');
+      const { apiFetch } = await import('../services/api');
       await apiFetch(`/Transactions/${invoiceId}/email`, { method: 'POST' });
       alert(`Invoice #${invoiceId} has been successfully emailed.`);
     } catch(err) { alert('Email failed.'); }
@@ -210,7 +208,7 @@ function CustomerSearchPage({ onBack }) {
   const handleSearch = async () => {
     if (!searchTerm) return;
     try {
-      const { apiFetch } = await import('../../api');
+      const { apiFetch } = await import('../services/api');
       const results = await apiFetch(`/Customers/search?query=${encodeURIComponent(searchTerm)}`);
       setSearchResults(results || []);
     } catch(err) { alert('Search failed.'); }
@@ -249,14 +247,14 @@ function ReportsPage({ onBack }) {
   const [reportData, setReportData] = useState([]);
 
   useEffect(() => {
-    import('../../api').then(({ apiFetch }) => {
+    import('../services/api').then(({ apiFetch }) => {
       apiFetch(`/Reports/customers/${reportType}`).then(res => res && setReportData(res));
     });
   }, [reportType]);
 
   const handleSendReminders = async () => {
     try {
-      const { apiFetch } = await import('../../api');
+      const { apiFetch } = await import('../services/api');
       const res = await apiFetch('/Reports/send-unpaid-reminders', { method: 'POST' });
       alert(res.message || 'Reminders sent.');
     } catch(err) { alert('Failed.'); }

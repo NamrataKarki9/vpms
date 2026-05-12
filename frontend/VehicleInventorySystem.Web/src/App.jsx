@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import CustomerVehicleForm from './components/management/CustomerVehicleForm';
-import { AdminView } from './components/views/AdminView';
-import { StaffView } from './components/views/StaffView';
-import { CustomerView } from './components/views/CustomerView';
+import { AdminDashboard } from './pages/AdminDashboard';
+import { StaffDashboard } from './pages/StaffDashboard';
+import { CustomerDashboard } from './pages/CustomerDashboard';
+import { LoginPage } from './pages/LoginPage';
+import { SignupPage } from './pages/SignupPage';
 import MainLayout from './layout/MainLayout';
 import VendorPage from './pages/vendors/VendorPage';
 import './index.css';
@@ -46,7 +48,7 @@ function App() {
   };
 
   useEffect(() => {
-    import('./api').then(({ apiFetch }) => {
+    import('./services/api').then(({ apiFetch }) => {
       const loadAllData = async () => {
         try {
           // Fetch Users Data
@@ -93,7 +95,7 @@ function App() {
   };
   const handleAddStaff = async (newStaff) => {
     try {
-      const { apiFetch } = await import('./api');
+      const { apiFetch } = await import('./services/api');
       const savedStaff = await apiFetch('/Users/register/staff', {
         method: 'POST',
         body: JSON.stringify({ name: newStaff.name, email: newStaff.email, passwordHash: newStaff.password })
@@ -106,7 +108,7 @@ function App() {
   };
   const handleRemoveStaff = async (id) => {
     try {
-      const { apiFetch } = await import('./api');
+      const { apiFetch } = await import('./services/api');
       await apiFetch(`/Users/${id}`, {
         method: 'DELETE'
       });
@@ -117,7 +119,7 @@ function App() {
   };
   const handleUpdateStaff = async (id, updatedData) => {
     try {
-      const { apiFetch } = await import('./api');
+      const { apiFetch } = await import('./services/api');
       const requestBody = { 
         name: updatedData.name, 
         email: updatedData.email
@@ -142,7 +144,7 @@ function App() {
   };
   const handleRegisterCustomer = async (customerData) => {
     try {
-      const { apiFetch } = await import('./api');
+      const { apiFetch } = await import('./services/api');
       let year = 2000;
       let model = 'Unknown';
       if (customerData.vehicle) {
@@ -172,7 +174,7 @@ function App() {
   };
   const handleRemoveCustomer = async (id) => {
     try {
-      const { apiFetch } = await import('./api');
+      const { apiFetch } = await import('./services/api');
       await apiFetch(`/Users/${id}`, {
         method: 'DELETE'
       });
@@ -188,7 +190,7 @@ function App() {
     if (!customer || cartItems.length === 0) return alert('Please select a customer and at least one item.');
 
     try {
-      const { apiFetch } = await import('./api');
+      const { apiFetch } = await import('./services/api');
       const totalAmount = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       
       const invoice = await apiFetch('/Transactions/sale', {
@@ -246,8 +248,8 @@ function App() {
       {user && <Header user={user} onLogout={logout} onNavigateStaff={setStaffView} />}
       <main className="main-content">
         {isLoading && <div style={{ padding: '2rem', textAlign: 'center' }}>Connecting to NEON Cloud DB...</div>}
-        {!isLoading && view === 'login' && <Login onLogin={(u) => { localStorage.setItem('vis_user', JSON.stringify(u)); setUser(u); setView('dashboard'); }} onSignUp={() => setView('signup')} staff={staffList} customers={customerList} />}
-        {!isLoading && view === 'signup' && <SignUp onComplete={(u) => { localStorage.setItem('vis_user', JSON.stringify(u)); setUser(u); setView('dashboard'); }} onBack={() => setView('login')} onAddCustomer={handleRegisterCustomer} />}
+        {!isLoading && view === 'login' && <LoginPage onLogin={(u) => { localStorage.setItem('vis_user', JSON.stringify(u)); setUser(u); setView('dashboard'); }} onSignUp={() => setView('signup')} staff={staffList} customers={customerList} />}
+        {!isLoading && view === 'signup' && <SignupPage onComplete={(u) => { localStorage.setItem('vis_user', JSON.stringify(u)); setUser(u); setView('dashboard'); }} onBack={() => setView('login')} onAddCustomer={handleRegisterCustomer} />}
 
         {!isLoading && view === 'dashboard' && (
           <Dashboard 
@@ -263,123 +265,15 @@ function App() {
   );
 }
 
-function Login({ onLogin, onSignUp, staff, customers }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [errors, setErrors] = useState({ email: '', password: '' });
-  const [loginError, setLoginError] = useState('');
-
-  const validateEmail = (emailVal) => {
-    if (!emailVal.trim()) return 'Email is required';
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(emailVal)) return 'Invalid email format';
-    return '';
-  };
-
-  const validatePassword = (passwordVal) => {
-    if (!passwordVal.trim()) return 'Password is required';
-    if (passwordVal.length < 1) return 'Password is required';
-    return '';
-  };
-
-  const handleLogin = () => {
-    const emailError = validateEmail(email);
-    const passwordError = validatePassword(password);
-    setErrors({ email: emailError, password: passwordError });
-    setLoginError('');
-
-    if (emailError || passwordError) return;
-
-    // 1. Admin Verification
-    if (email === 'np01cp4s230131@islingtoncollege.edu.np') {
-      if (password === '1234') {
-        onLogin({ name: 'System Admin', role: ROLES.ADMIN });
-        return;
-      }
-      setLoginError('Access Denied: Incorrect Admin password.');
-      return;
-    }
-
-    // 2. Staff Verification
-    const staffMember = staff.find(s => s.email.toLowerCase() === email.toLowerCase());
-    if (staffMember) {
-      if (staffMember.password === password || (!staffMember.password && password === 'password')) {
-        onLogin({ id: staffMember.id, name: staffMember.name || email.split('@')[0], role: ROLES.STAFF });
-        return;
-      }
-      setLoginError('Access Denied: Incorrect password for Staff.');
-      return;
-    }
-
-    // 3. Customer Verification
-    const customer = customers.find(c => c.email && c.email.toLowerCase() === email.toLowerCase());
-    if (customer) {
-      if (customer.password === password || (!customer.password && password === 'password')) {
-        onLogin({ ...customer, role: ROLES.CUSTOMER });
-        return;
-      }
-      setLoginError('Access Denied: Incorrect password for Customer.');
-      return;
-    }
-
-    setLoginError('Access Denied: Account not found. Please sign up or contact Admin.');
-  };
-
-  return (
-    <div className="card" style={{ maxWidth: '400px', margin: 'auto' }}>
-      <h2>Login</h2>
-      <div>
-        <input 
-          type="text" 
-          placeholder="Email" 
-          value={email} 
-          onChange={e => {
-            setEmail(e.target.value);
-            setErrors({...errors, email: validateEmail(e.target.value)});
-          }}
-          style={{ borderColor: errors.email ? '#ef4444' : '' }}
-        />
-        {errors.email && <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>{errors.email}</span>}
-      </div>
-      <div style={{ position: 'relative', width: '100%' }}>
-        <input 
-          type={showPassword ? "text" : "password"} 
-          placeholder="Password" 
-          value={password} 
-          onChange={e => {
-            setPassword(e.target.value);
-            setErrors({...errors, password: validatePassword(e.target.value)});
-          }}
-          style={{ width: '100%', marginBottom: '0.25rem', borderColor: errors.password ? '#ef4444' : '' }}
-        />
-        <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '10px', top: '12px', background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: 0, boxShadow: 'none' }}>
-          {showPassword ? 'Hide' : 'Show'}
-        </button>
-      </div>
-      {errors.password && <span style={{ fontSize: '0.75rem', color: '#ef4444', display: 'block', marginBottom: '1rem' }}>{errors.password}</span>}
-      <button onClick={handleLogin} disabled={!!errors.email || !!errors.password}>Enter System</button>
-      <p style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: '0.9rem' }}>New customer? <button onClick={onSignUp} className="btn-small">Sign Up Here</button></p>
-    </div>
-  );
-}
-
-
-function SignUp({ onComplete, onBack, onAddCustomer }) {
-  return <div style={{ maxWidth: '600px', margin: 'auto' }}><button onClick={onBack} className="btn-small">← Back</button><CustomerVehicleForm onRegister={async (data) => { const savedCustomer = await onAddCustomer(data); if(savedCustomer) onComplete({ ...savedCustomer, role: ROLES.CUSTOMER }); }} /></div>;}
-
-
 function Dashboard({ user, staffList, customerList, inventory, salesHistory, onAddStaff, onRemoveStaff, onUpdateStaff, onProcessSale, onUpdateInventory, onRemoveCustomer, onUpdateCustomer, staffView, setStaffView, onOpenVendorManagement }) {
   return (
     <div>
       <h1>{user.role} Dashboard</h1>
-      {user.role === ROLES.ADMIN && (<AdminView staffList={staffList} onAddStaff={onAddStaff} onRemoveStaff={onRemoveStaff} onUpdateStaff={onUpdateStaff} sales={salesHistory} inventory={inventory} onUpdateInventory={onUpdateInventory} customerList={customerList} onRemoveCustomer={onRemoveCustomer} onUpdateCustomer={onUpdateCustomer} onOpenVendorManagement={onOpenVendorManagement} />)}
-      {user.role === ROLES.STAFF && (<StaffView view={staffView} setView={setStaffView} customers={customerList} parts={inventory} sales={salesHistory} onProcessSale={onProcessSale} />)}
-      {user.role === ROLES.CUSTOMER && (<CustomerView user={user} sales={salesHistory} />)}
+      {user.role === ROLES.ADMIN && (<AdminDashboard staffList={staffList} onAddStaff={onAddStaff} onRemoveStaff={onRemoveStaff} onUpdateStaff={onUpdateStaff} sales={salesHistory} inventory={inventory} onUpdateInventory={onUpdateInventory} customerList={customerList} onRemoveCustomer={onRemoveCustomer} onUpdateCustomer={onUpdateCustomer} onOpenVendorManagement={onOpenVendorManagement} />)}
+      {user.role === ROLES.STAFF && (<StaffDashboard view={staffView} setView={setStaffView} customers={customerList} parts={inventory} sales={salesHistory} onProcessSale={onProcessSale} />)}
+      {user.role === ROLES.CUSTOMER && (<CustomerDashboard user={user} sales={salesHistory} />)}
     </div>
   );
 }
-
-// Views have been extracted to src/components/views/
 
 export default App;

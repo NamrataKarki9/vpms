@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { apiFetch } from '../../api.js';
+import { apiFetch } from '../services/api.js';
 
-export function CustomerView({ user }) {
+export function CustomerDashboard({ user }) {
   const [history, setHistory] = useState([]);
-  const [subView, setSubView] = useState('main'); // 'main', 'history', 'appointments', 'book', 'requests', 'new-request'
+  const [subView, setSubView] = useState('main');
   const [appointments, setAppointments] = useState([]);
   const [partRequests, setPartRequests] = useState([]);
 
@@ -20,12 +20,9 @@ export function CustomerView({ user }) {
   }, [user]);
 
   const loadData = async () => {
-    const { apiFetch } = await import('../../api');
+    const { apiFetch } = await import('../services/api');
     const h = await apiFetch(`/Customers/${user.id}/history`);
     if (h) setHistory(h);
-    
-    // In a real app, we'd have endpoints for these. For now we simulate/use dummy lists
-    // if the user had some.
   };
 
   const handleDeleteAppointment = async (id) => {
@@ -306,7 +303,7 @@ function AppointmentsPage({ list, onDelete, onUpdate, onBack, onNew }) {
         {list.length === 0 && <p style={{textAlign: 'center', padding: '3rem', opacity: 0.5}}>No upcoming appointments.</p>}
       </div>
 
-      {/* Cancel Confirmation Dialog */}
+      {/* Cancel Dialog */}
       {cancelDialog.isOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ background: '#fff', padding: '2rem', borderRadius: '12px', maxWidth: '400px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
@@ -366,7 +363,6 @@ function BookingPage({ onComplete, onBack, user, list = [] }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successDialog, setSuccessDialog] = useState(false);
 
-  // Auto-select first vehicle if available and not already set
   React.useEffect(() => {
     if (user?.vehicles && user.vehicles.length > 0 && !form.vehicleId) {
       setForm(prev => ({ ...prev, vehicleId: user.vehicles[0].id }));
@@ -401,7 +397,6 @@ function BookingPage({ onComplete, onBack, user, list = [] }) {
       return false;
     }
 
-    // Check for same-day duplicate booking
     const sameDay = list.some(a => a.date === form.date && a.status !== 'cancelled');
     if (sameDay) {
       setError('An appointment for this vehicle is already booked for the selected date.');
@@ -425,18 +420,15 @@ function BookingPage({ onComplete, onBack, user, list = [] }) {
         description: form.description
       };
 
-      // Call API to save appointment
       const response = await apiFetch('/Service/appointments', {
         method: 'POST',
         body: JSON.stringify(appointmentData)
       });
 
       if (response && response.id) {
-        // Success - show success dialog then navigate
         setSuccessDialog(true);
         setForm({ date: '', serviceType: '', description: '', vehicleId: user?.vehicles?.[0]?.id || '' });
         
-        // Wait 2 seconds then navigate
         setTimeout(() => {
           onComplete(response);
         }, 2000);
@@ -630,7 +622,7 @@ function RequestsPage({ list, onDelete, onUpdate, onBack, onNew }) {
         {list.length === 0 && <p style={{textAlign: 'center', padding: '3rem', opacity: 0.5}}>No active requests.</p>}
       </div>
 
-      {/* Cancel Confirmation Dialog */}
+      {/* Cancel Dialog */}
       {cancelDialog.isOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ background: '#fff', padding: '2rem', borderRadius: '12px', maxWidth: '400px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
@@ -678,18 +670,15 @@ function NewRequestPage({ user, onComplete, onBack }) {
         customerId: user?.id
       };
 
-      // Call API to save special order request
       const response = await apiFetch('/Service/part-requests', {
         method: 'POST',
         body: JSON.stringify(requestData)
       });
 
       if (response && response.id) {
-        // Success - show success dialog then navigate
         setSuccessDialog(true);
         setForm({ partName: '', vehicleDetails: '' });
         
-        // Wait 2 seconds then navigate
         setTimeout(() => {
           onComplete(response);
         }, 2000);

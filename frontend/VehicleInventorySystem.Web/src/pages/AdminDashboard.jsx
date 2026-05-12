@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import StaffManager from '../management/StaffManager';
-import InventoryManager from '../management/InventoryManager';
-import CustomerManager from '../management/CustomerManager';
-import Dialog from '../Dialog';
-import { vendorService } from '../../services/vendorService';
+import StaffManager from '../components/management/StaffManager';
+import InventoryManager from '../components/management/InventoryManager';
+import CustomerManager from '../components/management/CustomerManager';
+import Dialog from '../components/Dialog';
+import { vendorService } from '../services/vendorService';
 
-export function AdminView({ staffList, onAddStaff, onRemoveStaff, onUpdateStaff, sales, inventory, onUpdateInventory, customerList, onRemoveCustomer, onUpdateCustomer, onOpenVendorManagement }) {
+export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateStaff, sales, inventory, onUpdateInventory, customerList, onRemoveCustomer, onUpdateCustomer, onOpenVendorManagement }) {
   const [viewType, setViewType] = useState('daily');
   const [adminRoute, setAdminRoute] = useState('main');
   const [report, setReport] = useState({ TotalRevenue: 0, InvoiceCount: 0 });
@@ -13,7 +13,7 @@ export function AdminView({ staffList, onAddStaff, onRemoveStaff, onUpdateStaff,
   const [isSeeding, setIsSeeding] = useState(false);
 
   useEffect(() => {
-    import('../../api').then(({ apiFetch }) => {
+    import('../services/api').then(({ apiFetch }) => {
       apiFetch(`/Reports/revenue?period=${viewType}`).then(res => {
         if (res) {
           setReport({
@@ -37,7 +37,7 @@ export function AdminView({ staffList, onAddStaff, onRemoveStaff, onUpdateStaff,
     if (!window.confirm('This will add 50 realistic items (10 Vendors, 40 Parts) to your database. Continue?')) return;
     setIsSeeding(true);
     try {
-      const { apiFetch } = await import('../../api');
+      const { apiFetch } = await import('../services/api');
       const seedVendors = [
         { name: 'Global Auto Parts', email: 'sales@globalauto.com', contactPerson: 'John Global', phone: '9841000111', address: 'Kathmandu' },
         { name: 'Elite Tires Nepal', email: 'info@elitetires.com', contactPerson: 'Sita Ram', phone: '9841000222', address: 'Pokhara' },
@@ -112,7 +112,6 @@ export function AdminView({ staffList, onAddStaff, onRemoveStaff, onUpdateStaff,
 
   return (
     <div style={{ position: 'relative', minHeight: '100vh' }}>
-      {/* Faded Background Icon - Exact Blue Professional Icon */}
       <div style={{ 
         position: 'fixed', 
         top: '50%', 
@@ -201,13 +200,13 @@ function AddStaffPage({ onAdd, onBack }) {
 function InventoryPurchasePage({ inventory, onUpdate, onBack }) {
   const [purchaseData, setPurchaseData] = useState({ partId: '', quantity: '', vendorId: '' });
   const [vendors, setVendors] = useState([]);
-  useEffect(() => { import('../../api').then(({ apiFetch }) => apiFetch('/Inventory/vendors').then(res => res && setVendors(res))); }, []);
+  useEffect(() => { import('../services/api').then(({ apiFetch }) => apiFetch('/Inventory/vendors').then(res => res && setVendors(res))); }, []);
   const handlePurchase = async (e) => {
     e.preventDefault();
     const part = inventory.find(p => p.id === parseInt(purchaseData.partId));
     if (!part) return;
     try {
-      const { apiFetch } = await import('../../api');
+      const { apiFetch } = await import('../services/api');
       await apiFetch('/Transactions/purchase', {
         method: 'POST',
         body: JSON.stringify({
@@ -283,7 +282,7 @@ function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
 
     setIsSaving(true);
     try {
-      const { apiFetch } = await import('../../api');
+      const { apiFetch } = await import('../services/api');
       await apiFetch(`/Users/${id}`, {
         method: 'PUT',
         body: JSON.stringify({ 
@@ -293,7 +292,6 @@ function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
         })
       });
       
-      // Find the original customer to preserve all properties
       const originalCustomer = customers.find(c => c.id === id);
       const updatedCustomer = { 
         ...originalCustomer,
@@ -437,7 +435,7 @@ function AddPartPage({ inventory, vendors, onUpdate, onBack }) {
   const handleSave = async (e) => {
     e.preventDefault();
     try {
-      const { apiFetch } = await import('../../api');
+      const { apiFetch } = await import('../services/api');
       const newPart = await apiFetch('/Inventory/parts', {
         method: 'POST',
         body: JSON.stringify({ name: partData.name, partCode: partData.code, description: partData.description, price: parseFloat(partData.price), stockLevel: parseInt(partData.initialStock), vendorId: parseInt(partData.vendorId) })
@@ -463,29 +461,6 @@ function AddPartPage({ inventory, vendors, onUpdate, onBack }) {
   );
 }
 
-function AddVendorPage({ onBack, onVendorAdded }) {
-  const [vendorData, setVendorData] = useState({ name: '', email: '' });
-  const handleSave = async (e) => {
-    e.preventDefault();
-    try {
-      const { apiFetch } = await import('../../api');
-      const savedVendor = await apiFetch('/Inventory/vendors', { method: 'POST', body: JSON.stringify(vendorData) });
-      alert('Vendor saved!'); onVendorAdded(savedVendor);
-    } catch(err) { alert('Error.'); }
-  };
-  return (
-    <div className="card" style={{ maxWidth: '600px', margin: 'auto' }}>
-      <button onClick={onBack} className="btn-small" style={{ marginBottom: '1rem', background: '#cbd5e1', color: '#0f172a' }}>← Back</button>
-      <h2>New Vendor</h2>
-      <form onSubmit={handleSave} className="mini-form">
-        <input placeholder="Name" required value={vendorData.name} onChange={e => setVendorData({...vendorData, name: e.target.value})} />
-        <input placeholder="Email" required value={vendorData.email} onChange={e => setVendorData({...vendorData, email: e.target.value})} />
-        <button type="submit">Save</button>
-      </form>
-    </div>
-  );
-}
-
 function FullInventoryPage({ inventory, onBack }) {
   return (
     <div className="card" style={{ maxWidth: '900px', margin: 'auto' }}>
@@ -503,27 +478,10 @@ function FullInventoryPage({ inventory, onBack }) {
   );
 }
 
-function FullVendorsPage({ vendors, onBack }) {
-  return (
-    <div className="card" style={{ maxWidth: '900px', margin: 'auto' }}>
-      <button onClick={onBack} className="btn-small" style={{ marginBottom: '1rem', background: '#cbd5e1', color: '#0f172a' }}>← Back</button>
-      <h2>All Vendors</h2>
-      <div className="data-list">
-        {vendors.map(v => (
-          <div key={v.id} className="list-item">
-            <div><strong>{v.name}</strong><br/>{v.email}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-
 function FullStaffPage({ staffList, onBack }) {
   return (
     <div className="card" style={{ maxWidth: "900px", margin: "auto" }}>
-      <button onClick={onBack} className="btn-small" style={{ marginBottom: "1rem", background: "#cbd5e1", color: "#0f172a" }}>? Back to Dashboard</button>
+      <button onClick={onBack} className="btn-small" style={{ marginBottom: "1rem", background: "#cbd5e1", color: "#0f172a" }}>← Back to Dashboard</button>
       <h2>System Staff Directory</h2>
       <div className="data-list" style={{ marginTop: "2rem" }}>
         {staffList.map(s => (
