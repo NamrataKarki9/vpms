@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Mail;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace VehicleInventorySystem.Api.Services;
 
@@ -12,43 +13,42 @@ public interface IEmailService
 public class EmailService : IEmailService
 {
     private readonly ILogger<EmailService> _logger;
-    /*
-    private readonly string _smtpServer = "smtp.gmail.com";
-    private readonly int _smtpPort = 587;
-    private readonly string _fromEmail = "noreply@vehicleinventory.com";
-    */
-    // For a real app, use User Secrets or appsettings.json.
-    // For this demonstration, we are mocking the actual send to prevent crashes from invalid credentials,
-    // but the architecture is fully production-ready.
+    private readonly SmtpSettings _settings;
 
-    public EmailService(ILogger<EmailService> logger)
+    public EmailService(ILogger<EmailService> logger, IOptions<SmtpSettings> settings)
     {
         _logger = logger;
+        _settings = settings.Value;
     }
 
-    public Task SendEmailAsync(string toEmail, string subject, string body)
+    public async Task SendEmailAsync(string toEmail, string subject, string body)
     {
-        // Demonstration logging for grading purposes
         _logger.LogInformation("=============================================");
-        _logger.LogInformation($"[EMAIL SENT TO]: {toEmail}");
+        _logger.LogInformation($"[EMAIL TO]: {toEmail}");
         _logger.LogInformation($"[SUBJECT]: {subject}");
-        _logger.LogInformation($"[BODY]:\n{body}");
         _logger.LogInformation("=============================================");
-        
-        // Uncomment below for actual SMTP sending if valid credentials are provided
-        /*
-        using var client = new SmtpClient(_smtpServer, _smtpPort)
-        {
-            Credentials = new NetworkCredential("your-email@gmail.com", "your-app-password"),
-            EnableSsl = true
-        };
-        var mailMessage = new MailMessage(_fromEmail, toEmail, subject, body)
-        {
-            IsBodyHtml = true
-        };
-        await client.SendMailAsync(mailMessage);
-        */
 
-        return Task.CompletedTask;
+        if (!string.IsNullOrEmpty(_settings.Username) && !string.IsNullOrEmpty(_settings.Password))
+        {
+            using var client = new SmtpClient(_settings.Host, _settings.Port)
+            {
+                Credentials = new NetworkCredential(_settings.Username, _settings.Password),
+                EnableSsl = _settings.EnableSsl
+            };
+            var mailMessage = new MailMessage(
+                new MailAddress(_settings.FromEmail, _settings.FromName),
+                new MailAddress(toEmail)
+            )
+            {
+                Subject = subject,
+                Body = body,
+                IsBodyHtml = body.TrimStart().StartsWith("<")
+            };
+            await client.SendMailAsync(mailMessage);
+        }
+        else
+        {
+            _logger.LogInformation($"[EMAIL BODY]:\n{body}");
+        }
     }
 }

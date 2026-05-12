@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import CustomerVehicleForm from '../components/management/CustomerVehicleForm';
 
 export function StaffDashboard({ view, setView, customers, parts, sales, onProcessSale, onRegisterCustomer }) {
+  const [selectedCustomerId, setSelectedCustomerId] = useState(null);
 
   if (view === 'sales') return <ProcessSalePage customers={customers} parts={parts} onProcessSale={onProcessSale} onBack={() => setView('main')} />;
   if (view === 'invoices') return <InvoicesPage sales={sales} onBack={() => setView('main')} />;
-  if (view === 'customers') return <CustomerSearchPage onBack={() => setView('main')} />;
+  if (view === 'customers') return <CustomerManagementPage onSelectCustomer={(id) => { setSelectedCustomerId(id); setView('customer-details'); }} onBack={() => setView('main')} />;
+  if (view === 'customer-details') return <CustomerDetailPage customerId={selectedCustomerId} onBack={() => setView('customers')} />;
   if (view === 'reports') return <ReportsPage onBack={() => setView('main')} />;
   if (view === 'orders') return <OrdersPage onBack={() => setView('main')} />;
   if (view === 'register-customer') return <RegisterCustomerPage onRegister={onRegisterCustomer} onBack={() => setView('main')} />;
@@ -228,18 +230,40 @@ function ProcessSalePage({ customers, parts, onProcessSale, onBack }) {
 }
 
 function InvoicesPage({ sales, onBack }) {
+  const [emailingId, setEmailingId] = useState(null);
+  const [emailStatus, setEmailStatus] = useState(null);
+
   const handleEmailInvoice = async (invoiceId) => {
+    setEmailingId(invoiceId);
+    setEmailStatus(null);
     try {
       const { apiFetch } = await import('../services/api');
-      await apiFetch(`/Transactions/${invoiceId}/email`, { method: 'POST' });
-      alert(`Invoice #${invoiceId} has been successfully emailed.`);
-    } catch(err) { alert('Email failed.'); }
+      const res = await apiFetch(`/Transactions/${invoiceId}/email`, { method: 'POST' });
+      setEmailStatus({ type: 'success', message: res.message || `Invoice #${invoiceId} emailed.` });
+    } catch(err) {
+      setEmailStatus({ type: 'error', message: err.message || 'Email failed.' });
+    } finally {
+      setEmailingId(null);
+    }
   };
 
   return (
     <div className="card" style={{ maxWidth: '900px', margin: 'auto' }}>
       <button onClick={onBack} className="btn-small" style={{ marginBottom: '1rem', background: '#cbd5e1', color: '#0f172a' }}>← Back</button>
       <h2>Full Invoice History</h2>
+
+      {emailStatus && (
+        <div style={{
+          padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.9rem',
+          background: emailStatus.type === 'success' ? '#dcfce7' : '#fee2e2',
+          color: emailStatus.type === 'success' ? '#15803d' : '#991b1b',
+          border: `1px solid ${emailStatus.type === 'success' ? '#bbf7d0' : '#fecaca'}`
+        }}>
+          {emailStatus.message}
+          <button onClick={() => setEmailStatus(null)} style={{ float: 'right', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, color: 'inherit', padding: 0 }}>×</button>
+        </div>
+      )}
+
       <div className="data-list" style={{ marginTop: '2rem' }}>
         {sales.map(s => (
           <div key={s.id} className="list-item">
@@ -252,7 +276,14 @@ function InvoicesPage({ sales, onBack }) {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
                <span className="badge">Rs. {s.total.toFixed(2)}</span>
-               <button onClick={() => handleEmailInvoice(s.id)} className="btn-small">Email PDF</button>
+               <button
+                 onClick={() => handleEmailInvoice(s.id)}
+                 className="btn-small"
+                 disabled={emailingId === s.id}
+                 style={{ background: emailingId === s.id ? '#cbd5e1' : '#dbeafe', color: '#1d4ed8', opacity: emailingId === s.id ? 0.6 : 1, cursor: emailingId === s.id ? 'not-allowed' : 'pointer' }}
+               >
+                 {emailingId === s.id ? 'Sending...' : 'Email Invoice'}
+               </button>
             </div>
           </div>
         ))}
@@ -262,43 +293,171 @@ function InvoicesPage({ sales, onBack }) {
   );
 }
 
-function CustomerSearchPage({ onBack }) {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [searchResults, setSearchResults] = useState(null);
+function CustomerManagementPage({ onSelectCustomer, onBack }) {
+  const [searchInput, setSearchInput] = useState('');
+  const [submittedSearch, setSubmittedSearch] = useState('');
+  const [customers, setCustomers] = useState([]);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [hasPreviousPage, setHasPreviousPage] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleSearch = async () => {
-    if (!searchTerm) return;
+  const loadCustomers = async () => {
+    setIsLoading(true);
     try {
       const { apiFetch } = await import('../services/api');
-      const results = await apiFetch(`/Customers/search?query=${encodeURIComponent(searchTerm)}`);
-      setSearchResults(results || []);
-    } catch(err) { alert('Search failed.'); }
+      const params = new URLSearchParams({ pageNumber, pageSize });
+      if (submittedSearch) params.append('search', submittedSearch);
+      const res = await apiFetch(`/Customers?${params}`);
+      if (res) {
+        setCustomers(res.items || []);
+        setTotalItems(res.totalItems ?? 0);
+        setTotalPages(res.totalPages ?? 1);
+        setHasNextPage(Boolean(res.hasNextPage));
+        setHasPreviousPage(Boolean(res.hasPreviousPage));
+      }
+    } catch { /* ignore */ } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => { loadCustomers(); }, [pageNumber, pageSize, submittedSearch]);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setSubmittedSearch(searchInput.trim());
+    setPageNumber(1);
+  };
+
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    setSearchInput(value);
+    if (!value.trim() && submittedSearch) {
+      setSubmittedSearch('');
+      setPageNumber(1);
+    }
+  };
+
+  const handleClear = (e) => {
+    e.preventDefault();
+    setSearchInput('');
+    setSubmittedSearch('');
+    setPageNumber(1);
   };
 
   return (
-    <div className="card" style={{ maxWidth: '800px', margin: 'auto' }}>
-      <button onClick={onBack} className="btn-small" style={{ marginBottom: '1rem', background: '#cbd5e1', color: '#0f172a' }}>← Back</button>
-      <h2>Customer Analytics & Global Search</h2>
-      <div className="mini-form" style={{ flexDirection: 'row', marginTop: '2rem' }}>
-        <input type="text" placeholder="Search by Plate, Phone, or Name..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ marginBottom: 0 }} />
-        <button onClick={handleSearch} style={{ whiteSpace: 'nowrap' }}>Execute Search</button>
-      </div>
-      
-      {searchResults && (
-        <div className="data-list" style={{ marginTop: '2rem' }}>
-          <h3>Search Results ({searchResults.length})</h3>
-          {searchResults.map(c => (
-            <div key={c.id} className="list-item">
-              <div>
-                <strong>{c.name}</strong>
-                <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>{c.email}</div>
-              </div>
-              <span className="badge">{c.vehicles && c.vehicles.length > 0 ? c.vehicles[0].plateNumber : 'No Vehicle'}</span>
-            </div>
-          ))}
-          {searchResults.length === 0 && <p style={{opacity: 0.5}}>No matching customer found.</p>}
+    <div style={{ maxWidth: '1000px', margin: 'auto' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <div>
+          <button onClick={onBack} className="btn-small" style={{ background: '#cbd5e1', color: '#0f172a' }}>← Back to Dashboard</button>
+          <h2 style={{ marginTop: '1rem', marginBottom: '0.25rem' }}>Customer Directory</h2>
+          <p style={{ opacity: 0.6, fontSize: '0.85rem', margin: 0 }}>Search and browse registered customers.</p>
         </div>
-      )}
+      </div>
+
+      <div className="card" style={{ padding: '1rem' }}>
+        <form onSubmit={handleSearch} style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
+          <input
+            type="text"
+            placeholder="Search by name or plate number..."
+            value={searchInput}
+            onChange={handleInputChange}
+            style={{ marginBottom: 0, flex: 1 }}
+          />
+          <button type="submit" style={{ whiteSpace: 'nowrap' }}>Search</button>
+          {submittedSearch && (
+            <button type="button" className="btn-small" onClick={handleClear} style={{ background: '#e2e8f0', color: '#0f172a', whiteSpace: 'nowrap' }}>Clear</button>
+          )}
+        </form>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+          <span style={{ fontSize: '0.85rem', opacity: 0.6 }}>
+            {isLoading ? 'Loading...' : `${customers.length} of ${totalItems} customer${totalItems === 1 ? '' : 's'}`}
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <label htmlFor="cust-page-size" style={{ fontSize: '0.85rem', opacity: 0.6 }}>Page size</label>
+            <select id="cust-page-size" value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPageNumber(1); }} style={{ width: 'auto', marginBottom: 0, padding: '0.3rem' }}>
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={15}>15</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="vendor-table-card card" style={{ padding: 0, margin: 0 }}>
+          <div className="vendor-table-wrap">
+            <table className="vendor-table">
+              <thead>
+                <tr>
+                  <th>Customer Name</th>
+                  <th>Email</th>
+                  <th>Phone</th>
+                  <th>Vehicles</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {customers.map((c) => (
+                  <tr key={c.id}>
+                    <td>
+                      <div className="vendor-name-cell">
+                        <div className="vendor-name-badge">{String(c.name || '').slice(0, 1).toUpperCase()}</div>
+                        <div>
+                          <div className="vendor-name-text">{c.name}</div>
+                          <div className="vendor-id-text">ID: {c.id}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>{c.email || '-'}</td>
+                    <td>{c.phoneNumber || '-'}</td>
+                    <td>
+                      {c.vehicles && c.vehicles.length > 0
+                        ? <span className="badge">{c.vehicles.length} vehicle{c.vehicles.length > 1 ? 's' : ''}</span>
+                        : <span style={{ opacity: 0.5 }}>None</span>}
+                    </td>
+                    <td>
+                      <span className={`vendor-status-badge ${c.isActive ? 'is-active' : 'is-inactive'}`}>
+                        {c.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td>
+                      <button type="button" className="btn-small" onClick={() => onSelectCustomer(c.id)} style={{ background: '#dbeafe', color: '#1d4ed8' }}>
+                        View Details
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!isLoading && customers.length === 0 && (
+              <div className="vendor-empty-state">
+                <h3>No customers found</h3>
+                <p>Try adjusting your search query.</p>
+              </div>
+            )}
+            {isLoading && (
+              <div style={{ textAlign: 'center', padding: '3rem', opacity: 0.5 }}>Loading customer records...</div>
+            )}
+          </div>
+        </div>
+
+        {!isLoading && customers.length > 0 && (
+          <div className="vendor-pagination" style={{ marginTop: '1rem' }}>
+            <div className="vendor-pagination-meta">
+              <span className="vendor-pagination-count">Total customers: {totalItems}</span>
+              <span className="vendor-pagination-summary">Page {pageNumber} of {totalPages}</span>
+            </div>
+            <div className="vendor-pagination-actions">
+              <button type="button" className="btn-secondary vendor-pagination-button vendor-pagination-button-previous" onClick={() => setPageNumber((p) => Math.max(1, p - 1))} disabled={!hasPreviousPage}>Previous</button>
+              <button type="button" className="btn-secondary vendor-pagination-button vendor-pagination-button-next" onClick={() => setPageNumber((p) => p + 1)} disabled={!hasNextPage}>Next</button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -414,6 +573,177 @@ function ReportsPage({ onBack }) {
           <button onClick={handleSendReminders} style={{ background: 'var(--error)' }}>Send All Unpaid Reminders</button>
         </div>
       )}
+    </div>
+  );
+}
+
+function CustomerDetailPage({ customerId, onBack }) {
+  const [customer, setCustomer] = useState(null);
+  const [vehicles, setVehicles] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [emailingId, setEmailingId] = useState(null);
+
+  const handleEmailInvoice = async (invoiceId) => {
+    setEmailingId(invoiceId);
+    try {
+      const { apiFetch } = await import('../services/api');
+      await apiFetch(`/Transactions/${invoiceId}/email`, { method: 'POST' });
+    } catch {}
+    setEmailingId(null);
+  };
+
+  useEffect(() => {
+    if (!customerId) return;
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      try {
+        const { apiFetch } = await import('../services/api');
+        const [custRes, vehiclesRes, historyRes] = await Promise.all([
+          apiFetch(`/Customers/${customerId}`),
+          apiFetch(`/Customers/${customerId}/vehicles`),
+          apiFetch(`/Customers/${customerId}/history`),
+        ]);
+        if (cancelled) return;
+        if (custRes) setCustomer(custRes);
+        if (vehiclesRes) setVehicles(vehiclesRes);
+        if (historyRes) setHistory(historyRes);
+      } catch {}
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [customerId]);
+
+  if (loading) return (
+    <div className="card" style={{ maxWidth: '900px', margin: 'auto', textAlign: 'center', padding: '3rem' }}>
+      <p style={{ opacity: 0.5 }}>Loading customer details...</p>
+    </div>
+  );
+
+  if (!customer) return (
+    <div className="card" style={{ maxWidth: '900px', margin: 'auto', textAlign: 'center', padding: '3rem' }}>
+      <button onClick={onBack} className="btn-small" style={{ marginBottom: '1rem', background: '#cbd5e1', color: '#0f172a' }}>← Back to Customer List</button>
+      <p style={{ opacity: 0.5 }}>Customer not found.</p>
+    </div>
+  );
+
+  return (
+    <div style={{ maxWidth: '900px', margin: 'auto' }}>
+      <button onClick={onBack} className="btn-small" style={{ marginBottom: '1rem', background: '#cbd5e1', color: '#0f172a' }}>← Back to Customer List</button>
+
+      {/* Customer Info Card */}
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div className="vendor-name-badge" style={{ width: '48px', height: '48px', fontSize: '1.25rem' }}>
+              {String(customer.name || '').slice(0, 1).toUpperCase()}
+            </div>
+            <div>
+              <h2 style={{ margin: 0 }}>{customer.name}</h2>
+              <p style={{ margin: '0.25rem 0 0', opacity: 0.6, fontSize: '0.85rem' }}>
+                {customer.email} {customer.phoneNumber ? `| ${customer.phoneNumber}` : ''}
+              </p>
+            </div>
+          </div>
+          <span className={`vendor-status-badge ${customer.isActive !== false ? 'is-active' : 'is-inactive'}`}>
+            {customer.isActive !== false ? 'Active' : 'Inactive'}
+          </span>
+        </div>
+      </div>
+
+      {/* Vehicles Section */}
+      <div className="card" style={{ marginTop: '1.5rem' }}>
+        <h3 style={{ marginTop: 0 }}>Vehicles ({vehicles.length})</h3>
+        {vehicles.length > 0 ? (
+          <div className="vendor-table-card card" style={{ padding: 0, margin: 0 }}>
+            <div className="vendor-table-wrap">
+              <table className="vendor-table">
+                <thead>
+                  <tr>
+                    <th>Plate Number</th>
+                    <th>Make</th>
+                    <th>Model</th>
+                    <th>Year</th>
+                    <th>Fuel Type</th>
+                    <th>Mileage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vehicles.map((v) => (
+                    <tr key={v.id}>
+                      <td><strong>{v.plateNumber}</strong></td>
+                      <td>{v.make || '-'}</td>
+                      <td>{v.model || '-'}</td>
+                      <td>{v.year || '-'}</td>
+                      <td>{v.fuelType || '-'}</td>
+                      <td>{v.mileage != null ? `${v.mileage} km` : '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <p style={{ opacity: 0.5 }}>No vehicles registered.</p>
+        )}
+      </div>
+
+      {/* Purchase History Section */}
+      <div className="card" style={{ marginTop: '1.5rem' }}>
+        <h3 style={{ marginTop: 0 }}>Purchase History ({history.length})</h3>
+        {history.length > 0 ? (
+          <div className="vendor-table-card card" style={{ padding: 0, margin: 0 }}>
+            <div className="vendor-table-wrap">
+              <table className="vendor-table">
+                <thead>
+                  <tr>
+                    <th>Invoice #</th>
+                    <th>Date</th>
+                    <th>Items</th>
+                    <th>Total</th>
+                    <th>Payment</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((inv) => (
+                    <tr key={inv.id}>
+                      <td><strong>#{inv.id}</strong></td>
+                      <td>{inv.date ? new Date(inv.date).toLocaleDateString() : '-'}</td>
+                      <td>
+                        {inv.items && inv.items.length > 0
+                          ? inv.items.map((item) => `${item.part?.name || `Part #${item.partId}`} x${item.quantity}`).join(', ')
+                          : '-'}
+                      </td>
+                      <td>Rs. {(inv.totalAmount ?? 0).toFixed(2)}</td>
+                      <td>
+                        <span className={`vendor-status-badge ${inv.isPaid ? 'is-active' : 'is-inactive'}`}>
+                          {inv.paymentStatus === 'half-payment' ? 'Half Paid' :
+                           inv.paymentStatus === 'partial-payment' ? 'Partial' :
+                           inv.isPaid ? 'Paid' : 'Unpaid'}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          onClick={() => handleEmailInvoice(inv.id)}
+                          className="btn-small"
+                          disabled={emailingId === inv.id}
+                          style={{ background: '#dbeafe', color: '#1d4ed8', padding: '4px 10px', fontSize: '0.8rem', opacity: emailingId === inv.id ? 0.6 : 1, cursor: emailingId === inv.id ? 'not-allowed' : 'pointer' }}
+                        >
+                          {emailingId === inv.id ? '...' : 'Email'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <p style={{ opacity: 0.5 }}>No purchase history.</p>
+        )}
+      </div>
     </div>
   );
 }

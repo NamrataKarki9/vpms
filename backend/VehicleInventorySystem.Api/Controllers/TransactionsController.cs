@@ -111,17 +111,82 @@ public class TransactionsController : ControllerBase
             .ThenInclude(ii => ii.Part)
             .FirstOrDefaultAsync(i => i.Id == invoiceId);
 
-        if (invoice == null) return NotFound("Invoice not found.");
-        
+        if (invoice == null)
+            return NotFound(new { message = "Invoice not found." });
+
+        if (invoice.Type != InvoiceType.Sale)
+            return BadRequest(new { message = "Only sale invoices can be emailed." });
+
         var customer = await _context.Users.FindAsync(invoice.CustomerId);
-        if (customer == null || string.IsNullOrEmpty(customer.Email)) return BadRequest("Customer email not found.");
+        if (customer == null)
+            return BadRequest(new { message = "Customer not found for this invoice." });
 
-        string itemsHtml = string.Join("\n", invoice.Items.Select(i => $"- {i.Part?.Name}: {i.Quantity} x Rs. {i.UnitPrice}"));
-        string body = $"Dear {customer.Name},\n\nThank you for your business. Here are your invoice details:\nInvoice ID: {invoice.Id}\nDate: {invoice.Date.ToShortDateString()}\n\nItems:\n{itemsHtml}\n\nTotal Amount: Rs. {invoice.TotalAmount}\n\nBest Regards,\nVehicle Inventory Staff";
+        if (string.IsNullOrEmpty(customer.Email))
+            return BadRequest(new { message = $"Customer '{customer.Name}' has no email address on file." });
 
-        await _emailService.SendEmailAsync(customer.Email, $"Your Invoice #{invoice.Id}", body);
+        var paymentLabel = invoice.PaymentStatus switch
+        {
+            "full-payment" => "Full Payment",
+            "half-payment" => "Half Payment (50%)",
+            "partial-payment" => "Partial Payment (10%)",
+            _ => invoice.IsPaid ? "Paid" : "Unpaid"
+        };
 
-        return Ok("Invoice emailed successfully.");
+        var itemsRows = string.Join("\n", invoice.Items.Select(i => $@"
+          <tr>
+            <td style='padding:8px 12px;border-bottom:1px solid #e2e8f0'>{i.Part?.Name ?? $"Part #{i.PartId}"}</td>
+            <td style='padding:8px 12px;border-bottom:1px solid #e2e8f0;text-align:center'>{i.Quantity}</td>
+            <td style='padding:8px 12px;border-bottom:1px solid #e2e8f0;text-align:right'>Rs. {i.UnitPrice:N2}</td>
+            <td style='padding:8px 12px;border-bottom:1px solid #e2e8f0;text-align:right'>Rs. {(i.Quantity * i.UnitPrice):N2}</td>
+          </tr>"));
+
+        string body = $@"
+<!DOCTYPE html>
+<html>
+<head><meta charset='utf-8'></head>
+<body style='margin:0;padding:0;font-family:Arial,sans-serif;background:#f1f5f9'>
+  <table style='max-width:600px;margin:auto;margin-top:24px;background:#fff;border-radius:12px;overflow:hidden'>
+    <tr><td style='background:#1e3a5f;padding:24px;text-align:center;color:#fff'>
+      <h1 style='margin:0;font-size:20px'>Vehicle Inventory System</h1>
+      <p style='margin:8px 0 0;opacity:0.8'>Invoice #{invoice.Id}</p>
+    </td></tr>
+    <tr><td style='padding:24px'>
+      <p style='margin:0 0 4px'>Dear <strong>{customer.Name}</strong>,</p>
+      <p style='margin:0 0 16px;color:#475569'>Thank you for your business. Here are the details of your invoice.</p>
+
+      <table style='width:100%;margin-bottom:16px;font-size:14px'>
+        <tr><td style='color:#64748b;padding:4px 0'>Invoice Date</td><td style='text-align:right'>{invoice.Date.ToShortDateString()}</td></tr>
+        <tr><td style='color:#64748b;padding:4px 0'>Payment Status</td><td style='text-align:right'>{paymentLabel}</td></tr>
+      </table>
+
+      <table style='width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px'>
+        <thead>
+          <tr style='background:#f8fafc'>
+            <th style='padding:8px 12px;text-align:left;border-bottom:2px solid #e2e8f0'>Item</th>
+            <th style='padding:8px 12px;text-align:center;border-bottom:2px solid #e2e8f0'>Qty</th>
+            <th style='padding:8px 12px;text-align:right;border-bottom:2px solid #e2e8f0'>Unit Price</th>
+            <th style='padding:8px 12px;text-align:right;border-bottom:2px solid #e2e8f0'>Total</th>
+          </tr>
+        </thead>
+        <tbody>{itemsRows}</tbody>
+      </table>
+
+      <div style='background:#f8fafc;padding:16px;border-radius:8px;text-align:right;font-size:16px;font-weight:700'>
+        Total Amount: Rs. {invoice.TotalAmount:N2}
+      </div>
+
+      <p style='margin-top:24px;font-size:13px;color:#64748b;text-align:center'>
+        <strong>Vehicle Inventory System</strong><br>
+        Thank you for choosing us.
+      </p>
+    </td></tr>
+  </table>
+</body>
+</html>";
+
+        await _emailService.SendEmailAsync(customer.Email, $"Invoice #{invoice.Id} — Vehicle Inventory System", body);
+
+        return Ok(new { message = $"Invoice #{invoiceId} emailed to {customer.Email}." });
     }
 
     // F12: Get full history for dashboard

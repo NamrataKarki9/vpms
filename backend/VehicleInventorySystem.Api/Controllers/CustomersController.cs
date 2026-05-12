@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using VehicleInventorySystem.Api.Data;
 using VehicleInventorySystem.Api.Models;
 using VehicleInventorySystem.Api.DTOs.Request;
+using VehicleInventorySystem.Api.DTOs.Response;
 
 namespace VehicleInventorySystem.Api.Controllers;
 
@@ -15,6 +16,81 @@ public class CustomersController : ControllerBase
     public CustomersController(AppDbContext context)
     {
         _context = context;
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<PaginatedResponse<object>>> GetCustomers(
+        [FromQuery] string? search,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10)
+    {
+        var query = _context.Users
+            .Include(u => u.Vehicles)
+            .Where(u => u.Role == UserRole.Customer);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var pattern = $"%{search}%";
+            query = query.Where(u =>
+                EF.Functions.ILike(u.Name, pattern) ||
+                (u.Vehicles != null && u.Vehicles.Any(v => EF.Functions.ILike(v.PlateNumber, pattern))));
+        }
+
+        var totalItems = await query.CountAsync();
+        var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+
+        var items = await query
+            .OrderBy(u => u.Name)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(u => new {
+                u.Id,
+                u.Name,
+                u.Email,
+                u.PhoneNumber,
+                u.IsActive,
+                u.CreatedAt,
+                Vehicles = u.Vehicles!.Select(v => new {
+                    v.Id, v.PlateNumber, v.Model, v.Make, v.Year, v.FuelType, v.Mileage
+                })
+            })
+            .ToListAsync();
+
+        return Ok(new PaginatedResponse<object> {
+            Items = items.Select(i => (object)i).ToList(),
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalItems = totalItems,
+            TotalPages = totalPages,
+            HasNextPage = pageNumber < totalPages,
+            HasPreviousPage = pageNumber > 1
+        });
+    }
+
+    // Get a single customer by ID
+    [HttpGet("{customerId}")]
+    public async Task<ActionResult> GetCustomer(int customerId)
+    {
+        var customer = await _context.Users
+            .Include(u => u.Vehicles)
+            .Where(u => u.Role == UserRole.Customer && u.Id == customerId)
+            .Select(u => new {
+                u.Id,
+                u.Name,
+                u.Email,
+                u.PhoneNumber,
+                u.IsActive,
+                u.CreatedAt,
+                Vehicles = u.Vehicles!.Select(v => new {
+                    v.Id, v.PlateNumber, v.Model, v.Make, v.Year, v.FuelType, v.Mileage
+                })
+            })
+            .FirstOrDefaultAsync();
+
+        if (customer == null)
+            return NotFound(new { message = "Customer not found" });
+
+        return Ok(customer);
     }
 
     // F12: Customers - Add vehicle to profile
