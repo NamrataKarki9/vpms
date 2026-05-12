@@ -14,6 +14,7 @@ public class Appointment
     public int CustomerId { get; set; }
     public int VehicleId { get; set; }
     public DateTime AppointmentDate { get; set; }
+    public TimeSpan AppointmentTime { get; set; } // Preferred time of appointment
     public string ServiceType { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public AppointmentStatus Status { get; set; } = AppointmentStatus.Pending;

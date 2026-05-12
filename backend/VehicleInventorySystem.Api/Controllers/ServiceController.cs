@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VehicleInventorySystem.Api.Data;
 using VehicleInventorySystem.Api.Models;
+using VehicleInventorySystem.Api.DTOs.Request;
 
 namespace VehicleInventorySystem.Api.Controllers;
 
@@ -17,12 +18,40 @@ public class ServiceController : ControllerBase
     }
 
     [HttpPost("appointments")]
-    public async Task<ActionResult<Appointment>> BookAppointment(Appointment appointment)
+    public async Task<ActionResult<Appointment>> BookAppointment([FromBody] BookAppointmentRequest request)
     {
-        appointment.Status = AppointmentStatus.Pending;
+        if (!ModelState.IsValid)
+            return BadRequest(new { message = "Invalid appointment data", errors = ModelState });
+
+        // Verify customer exists
+        var customer = await _context.Users.FindAsync(request.CustomerId);
+        if (customer == null)
+            return NotFound(new { message = "Customer not found" });
+
+        // Verify vehicle exists and belongs to customer
+        var vehicle = await _context.Vehicles.FindAsync(request.VehicleId);
+        if (vehicle == null || vehicle.CustomerId != request.CustomerId)
+            return BadRequest(new { message = "Vehicle not found or doesn't belong to this customer" });
+
+        // Validate appointment date is in future
+        if (request.AppointmentDate.Date <= DateTime.UtcNow.Date)
+            return BadRequest(new { message = "Appointment date must be in the future" });
+
+        var appointment = new Appointment
+        {
+            CustomerId = request.CustomerId,
+            VehicleId = request.VehicleId,
+            AppointmentDate = request.AppointmentDate,
+            AppointmentTime = request.AppointmentTime,
+            ServiceType = request.ServiceType.Trim(),
+            Description = request.Description?.Trim() ?? string.Empty,
+            Status = AppointmentStatus.Pending,
+            RescheduleCount = 0
+        };
+
         _context.Appointments.Add(appointment);
         await _context.SaveChangesAsync();
-        return Ok(appointment);
+        return Ok(new { message = "Appointment booked successfully", appointment });
     }
 
     [HttpGet("appointments")]

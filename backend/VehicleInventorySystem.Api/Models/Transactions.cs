@@ -7,6 +7,8 @@ public class Vehicle
     public string Model { get; set; } = string.Empty;
     public string Make { get; set; } = string.Empty;
     public int Year { get; set; }
+    public string? FuelType { get; set; } // Petrol, Diesel, Hybrid, Electric, etc.
+    public int Mileage { get; set; } = 0; // in kilometers
     
     public int CustomerId { get; set; }
     public User? Customer { get; set; }
