@@ -35,21 +35,28 @@ public class ServiceController : ControllerBase
         return Ok(new { message = "Appointment booked successfully", appointment });
     }
 
-    [Authorize(Roles = "Customer")]
+    [Authorize(Roles = "Admin,Staff,Customer")]
     [HttpGet("appointments")]
     public async Task<ActionResult<IEnumerable<Appointment>>> GetAppointments([FromQuery] int? customerId)
     {
-        var currentUserId = GetCurrentUserId();
-        if (currentUserId == null)
+        var role = User.FindFirstValue(ClaimTypes.Role);
+        
+        if (role == "Customer")
         {
-            return Forbid();
+            var currentUserId = GetCurrentUserId();
+            customerId = currentUserId;
         }
 
-        customerId = currentUserId;
+        var query = _context.Appointments.AsQueryable();
+        
+        if (customerId.HasValue)
+        {
+            query = query.Where(a => a.CustomerId == customerId.Value);
+        }
 
-        return await _context.Appointments
-            .Where(a => a.CustomerId == customerId)
+        return await query
             .Include(a => a.Vehicle)
+            .Include(a => a.Customer)
             .ToListAsync();
     }
 
@@ -87,6 +94,19 @@ public class ServiceController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "Admin,Staff")]
+    [HttpPatch("appointments/{id}/status")]
+    public async Task<ActionResult> UpdateAppointmentStatus(int id, [FromBody] AppointmentStatus status)
+    {
+        var appointment = await _context.Appointments.FindAsync(id);
+        if (appointment == null)
+            return NotFound();
+
+        appointment.Status = status;
+        await _context.SaveChangesAsync();
+        return Ok(new { message = "Appointment status updated", appointment });
+    }
+
     [Authorize(Roles = "Customer")]
     [HttpDelete("appointments/{id}")]
     public async Task<IActionResult> DeleteAppointment(int id)
@@ -121,20 +141,27 @@ public class ServiceController : ControllerBase
         return Ok(request);
     }
 
-    [Authorize(Roles = "Customer")]
+    [Authorize(Roles = "Admin,Staff,Customer")]
     [HttpGet("part-requests")]
     public async Task<ActionResult<IEnumerable<PartRequest>>> GetPartRequests([FromQuery] int? customerId)
     {
-        var currentUserId = GetCurrentUserId();
-        if (currentUserId == null)
+        var role = User.FindFirstValue(ClaimTypes.Role);
+        
+        if (role == "Customer")
         {
-            return Forbid();
+            var currentUserId = GetCurrentUserId();
+            customerId = currentUserId;
         }
 
-        customerId = currentUserId;
+        var query = _context.PartRequests.AsQueryable();
+        
+        if (customerId.HasValue)
+        {
+            query = query.Where(pr => pr.CustomerId == customerId.Value);
+        }
 
-        return await _context.PartRequests
-            .Where(pr => pr.CustomerId == customerId)
+        return await query
+            .Include(pr => pr.Customer)
             .ToListAsync();
     }
 
@@ -170,6 +197,19 @@ public class ServiceController : ControllerBase
                 return NotFound();
             throw;
         }
+    }
+
+    [Authorize(Roles = "Admin,Staff")]
+    [HttpPatch("part-requests/{id}/status")]
+    public async Task<ActionResult> UpdatePartRequestStatus(int id, [FromBody] bool isFulfilled)
+    {
+        var request = await _context.PartRequests.FindAsync(id);
+        if (request == null)
+            return NotFound();
+
+        request.IsFulfilled = isFulfilled;
+        await _context.SaveChangesAsync();
+        return Ok(new { message = "Part request status updated", request });
     }
 
     [Authorize(Roles = "Customer")]

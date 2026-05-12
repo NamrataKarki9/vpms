@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../context/ToastContext';
 import CustomerVehicleForm from '../components/management/CustomerVehicleForm';
+import VehicleForm from '../components/management/VehicleForm';
+import Dialog from '../components/Dialog';
 
 export function StaffDashboard({ view, setView, customers, parts, sales, onProcessSale, onRegisterCustomer }) {
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
@@ -619,6 +621,36 @@ function CustomerDetailPage({ customerId, onBack }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [emailingId, setEmailingId] = useState(null);
+  const [isAddingVehicle, setIsAddingVehicle] = useState(false);
+  const [isSavingVehicle, setIsSavingVehicle] = useState(false);
+
+  const loadData = async () => {
+    try {
+      const { apiFetch } = await import('../services/api');
+      const [custRes, vehiclesRes, historyRes] = await Promise.all([
+        apiFetch(`/Customers/${customerId}`),
+        apiFetch(`/Customers/${customerId}/vehicles`),
+        apiFetch(`/Customers/${customerId}/history`),
+      ]);
+      if (custRes) setCustomer(custRes);
+      if (vehiclesRes) setVehicles(vehiclesRes);
+      if (historyRes) setHistory(historyRes);
+    } catch {}
+  };
+
+  const handleAddVehicle = async (vehicleData) => {
+    setIsSavingVehicle(true);
+    try {
+      const { apiFetch } = await import('../services/api');
+      await apiFetch(`/Customers/${customerId}/vehicles`, {
+        method: 'POST',
+        body: JSON.stringify(vehicleData)
+      });
+      await loadData();
+      setIsAddingVehicle(false);
+    } catch {}
+    setIsSavingVehicle(false);
+  };
 
   const handleEmailInvoice = async (invoiceId) => {
     setEmailingId(invoiceId);
@@ -635,16 +667,7 @@ function CustomerDetailPage({ customerId, onBack }) {
     setLoading(true);
     (async () => {
       try {
-        const { apiFetch } = await import('../services/api');
-        const [custRes, vehiclesRes, historyRes] = await Promise.all([
-          apiFetch(`/Customers/${customerId}`),
-          apiFetch(`/Customers/${customerId}/vehicles`),
-          apiFetch(`/Customers/${customerId}/history`),
-        ]);
-        if (cancelled) return;
-        if (custRes) setCustomer(custRes);
-        if (vehiclesRes) setVehicles(vehiclesRes);
-        if (historyRes) setHistory(historyRes);
+        await loadData();
       } catch {}
       if (!cancelled) setLoading(false);
     })();
@@ -690,7 +713,10 @@ function CustomerDetailPage({ customerId, onBack }) {
 
       {/* Vehicles Section */}
       <div className="card" style={{ marginTop: '1.5rem' }}>
-        <h3 style={{ marginTop: 0 }}>Vehicles ({vehicles.length})</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <h3 style={{ margin: 0 }}>Vehicles ({vehicles.length})</h3>
+          <button className="btn-small" onClick={() => setIsAddingVehicle(true)}>+ Add Vehicle</button>
+        </div>
         {vehicles.length > 0 ? (
           <div className="vendor-table-card card" style={{ padding: 0, margin: 0 }}>
             <div className="vendor-table-wrap">
@@ -761,14 +787,15 @@ function CustomerDetailPage({ customerId, onBack }) {
                         </span>
                       </td>
                       <td>
-                        <button
-                          onClick={() => handleEmailInvoice(inv.id)}
-                          className="btn-small"
-                          disabled={emailingId === inv.id}
-                          style={{ background: '#dbeafe', color: '#1d4ed8', padding: '4px 10px', fontSize: '0.8rem', opacity: emailingId === inv.id ? 0.6 : 1, cursor: emailingId === inv.id ? 'not-allowed' : 'pointer' }}
-                        >
-                          {emailingId === inv.id ? '...' : 'Email'}
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button 
+                            className="btn-small" 
+                            onClick={() => handleEmailInvoice(inv.id)}
+                            disabled={emailingId === inv.id}
+                          >
+                            {emailingId === inv.id ? 'Sending...' : 'Email Receipt'}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -780,19 +807,210 @@ function CustomerDetailPage({ customerId, onBack }) {
           <p style={{ opacity: 0.5 }}>No purchase history.</p>
         )}
       </div>
+
+      <Dialog 
+        isOpen={isAddingVehicle} 
+        onClose={() => setIsAddingVehicle(false)} 
+        title={`Add Vehicle for ${customer.name}`}
+      >
+        <VehicleForm 
+          onSubmit={handleAddVehicle} 
+          onCancel={() => setIsAddingVehicle(false)} 
+          isSaving={isSavingVehicle} 
+        />
+      </Dialog>
     </div>
   );
 }
 
 function OrdersPage({ onBack }) {
+  const [appointments, setAppointments] = useState([]);
+  const [partRequests, setPartRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('appointments');
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const { apiFetch } = await import('../services/api');
+      const [appts, reqs] = await Promise.all([
+        apiFetch('/Service/appointments'),
+        apiFetch('/Service/part-requests')
+      ]);
+      setAppointments(appts || []);
+      setPartRequests(reqs || []);
+    } catch (err) {
+      console.error('Failed to fetch service data:', err);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleUpdateAppointmentStatus = async (id, status) => {
+    try {
+      const { apiFetch } = await import('../services/api');
+      await apiFetch(`/Service/appointments/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify(status)
+      });
+      fetchData();
+    } catch {}
+  };
+
+  const handleUpdatePartRequestStatus = async (id, isFulfilled) => {
+    try {
+      const { apiFetch } = await import('../services/api');
+      await apiFetch(`/Service/part-requests/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify(isFulfilled)
+      });
+      fetchData();
+    } catch {}
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 0: return { bg: '#fee2e2', text: '#991b1b', label: 'Pending' };
+      case 1: return { bg: '#dcfce7', text: '#166534', label: 'Confirmed' };
+      case 2: return { bg: '#dbeafe', text: '#1e40af', label: 'Completed' };
+      case 3: return { bg: '#f1f5f9', text: '#475569', label: 'Cancelled' };
+      default: return { bg: '#f1f5f9', text: '#475569', label: 'Unknown' };
+    }
+  };
+
   return (
-    <div className="card" style={{ maxWidth: '800px', margin: 'auto' }}>
-      <button onClick={onBack} className="btn-small" style={{ marginBottom: '1rem', background: '#cbd5e1', color: '#0f172a' }}>← Back</button>
-      <h2>Inventory & Pending Orders</h2>
-      <div style={{ padding: '4rem', textAlign: 'center' }}>
-        <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📦</div>
-        <p style={{ opacity: 0.5 }}>The order management module is initializing...</p>
-        <button className="btn-small" style={{ marginTop: '1rem' }} disabled>Fetch Latest Updates</button>
+    <div style={{ maxWidth: '1000px', margin: 'auto' }}>
+      <button onClick={onBack} className="btn-small" style={{ marginBottom: '1rem', background: '#cbd5e1', color: '#0f172a' }}>← Back to Dashboard</button>
+      
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+          <h2 style={{ margin: 0 }}>Service & Order Management</h2>
+          <div className="tab-group" style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
+            <button 
+              className={`btn-small ${activeTab === 'appointments' ? 'active' : ''}`}
+              onClick={() => setActiveTab('appointments')}
+              style={{ background: activeTab === 'appointments' ? '#fff' : 'transparent', color: '#0f172a', border: 'none', boxShadow: activeTab === 'appointments' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none' }}
+            >
+              Appointments ({appointments.length})
+            </button>
+            <button 
+              className={`btn-small ${activeTab === 'requests' ? 'active' : ''}`}
+              onClick={() => setActiveTab('requests')}
+              style={{ background: activeTab === 'requests' ? '#fff' : 'transparent', color: '#0f172a', border: 'none', boxShadow: activeTab === 'requests' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none' }}
+            >
+              Part Requests ({partRequests.length})
+            </button>
+          </div>
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '3rem' }}>
+            <p style={{ opacity: 0.5 }}>Loading data...</p>
+          </div>
+        ) : activeTab === 'appointments' ? (
+          <div className="vendor-table-card card" style={{ padding: 0, margin: 0 }}>
+            <div className="vendor-table-wrap">
+              <table className="vendor-table">
+                <thead>
+                  <tr>
+                    <th>Customer</th>
+                    <th>Vehicle</th>
+                    <th>Service Type</th>
+                    <th>Date/Time</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {appointments.map((a) => {
+                    const status = getStatusColor(a.status);
+                    return (
+                      <tr key={a.id}>
+                        <td><strong>{a.customer?.name || 'Unknown'}</strong></td>
+                        <td>
+                          {a.vehicle ? (
+                            <div style={{ fontSize: '0.85rem' }}>
+                              <strong>{a.vehicle.make} {a.vehicle.model}</strong>
+                              <div style={{ opacity: 0.6 }}>{a.vehicle.plateNumber}</div>
+                            </div>
+                          ) : 'N/A'}
+                        </td>
+                        <td>{a.serviceType}</td>
+                        <td>
+                          <div style={{ fontSize: '0.85rem' }}>
+                            {new Date(a.appointmentDate).toLocaleDateString()}
+                            <div style={{ opacity: 0.6 }}>{a.appointmentTime}</div>
+                          </div>
+                        </td>
+                        <td>
+                          <span className="vendor-status-badge" style={{ background: status.bg, color: status.text }}>
+                            {status.label}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            {a.status === 0 && (
+                              <button className="btn-small" onClick={() => handleUpdateAppointmentStatus(a.id, 1)} style={{ background: '#dcfce7', color: '#166534' }}>Confirm</button>
+                            )}
+                            {a.status === 1 && (
+                              <button className="btn-small" onClick={() => handleUpdateAppointmentStatus(a.id, 2)} style={{ background: '#dbeafe', color: '#1e40af' }}>Complete</button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {appointments.length === 0 && (
+                    <tr><td colSpan="6" style={{ textAlign: 'center', opacity: 0.5 }}>No appointments found.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <div className="vendor-table-card card" style={{ padding: 0, margin: 0 }}>
+            <div className="vendor-table-wrap">
+              <table className="vendor-table">
+                <thead>
+                  <tr>
+                    <th>Customer</th>
+                    <th>Part Name</th>
+                    <th>Vehicle Details</th>
+                    <th>Request Date</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {partRequests.map((r) => (
+                    <tr key={r.id}>
+                      <td><strong>{r.customer?.name || 'Unknown'}</strong></td>
+                      <td>{r.partName}</td>
+                      <td>{r.vehicleDetails}</td>
+                      <td>{new Date(r.requestDate).toLocaleDateString()}</td>
+                      <td>
+                        <span className={`vendor-status-badge ${r.isFulfilled ? 'is-active' : 'is-inactive'}`}>
+                          {r.isFulfilled ? 'Fulfilled' : 'Pending'}
+                        </span>
+                      </td>
+                      <td>
+                        {!r.isFulfilled && (
+                          <button className="btn-small" onClick={() => handleUpdatePartRequestStatus(r.id, true)}>Mark Fulfilled</button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {partRequests.length === 0 && (
+                    <tr><td colSpan="6" style={{ textAlign: 'center', opacity: 0.5 }}>No part requests found.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
