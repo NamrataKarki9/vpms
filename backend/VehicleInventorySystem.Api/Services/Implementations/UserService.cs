@@ -114,7 +114,9 @@ public class UserService : IUserService
                     PlateNumber = vehicleDto.PlateNumber ?? string.Empty,
                     Model = vehicleDto.Model ?? string.Empty,
                     Make = vehicleDto.Make ?? string.Empty,
-                    Year = vehicleDto.Year
+                    Year = vehicleDto.Year,
+                    FuelType = vehicleDto.FuelType?.Trim(),
+                    Mileage = vehicleDto.Mileage
                 };
                 _context.Vehicles.Add(vehicle);
             }
