@@ -67,7 +67,7 @@ export const apiFetch = async (endpoint, options = {}) => {
       clearStoredUser();
       window.dispatchEvent(new CustomEvent('vis:unauthorized', { detail: { message: errorMessage } }));
     } else if (response.status === 403) {
-      window.dispatchEvent(new CustomEvent('vis:forbidden', { detail: { message: 'You are not authorized to access this page.' } }));
+      window.dispatchEvent(new CustomEvent('vis:forbidden', { detail: { message: 'You are not authorized to access this resource.' } }));
     }
 
     throw new Error(errorMessage);
@@ -143,5 +143,11 @@ export const authApi = {
     return apiFetch(`/users/${id}/status`, {
       method: 'PATCH'
     });
+  }
+};
+
+export const transactionsApi = {
+  getSales: async () => {
+    return apiFetch('/Transactions/sales');
   }
 };

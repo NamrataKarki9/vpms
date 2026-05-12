@@ -23,7 +23,17 @@ function CustomerManager({ customers, onNavigate }) {
               <div>
                 <strong style={{ fontSize: '1.1rem', color: 'var(--primary)' }}>{c.name}</strong>
                 <div style={{ fontSize: '0.85rem' }}>
-                  <span style={{ opacity: 0.6 }}>Vehicle: </span>{c.plate}
+                  <span style={{ opacity: 0.6 }}>Vehicle: </span>
+                  {c.vehicleInfo ? (
+                    <span style={{ fontWeight: 600 }}>
+                      {c.vehicleInfo.make?.toLowerCase().includes(c.vehicleInfo.model?.toLowerCase()) || c.vehicleInfo.model?.toLowerCase().includes(c.vehicleInfo.make?.toLowerCase()) 
+                        ? c.vehicleInfo.make 
+                        : `${c.vehicleInfo.make} ${c.vehicleInfo.model}`} ({c.vehicleInfo.year}) | Plate: {c.vehicleInfo.plateNumber}
+                    </span>
+                  ) : (
+                    <span style={{ opacity: 0.5 }}>No vehicle added</span>
+                  )}
+                  {c.vehicleCount > 1 && <span className="badge" style={{ marginLeft: '5px', fontSize: '0.65rem' }}>+{c.vehicleCount - 1} more</span>}
                 </div>
                 <div style={{ fontSize: '0.85rem' }}>
                   <span style={{ opacity: 0.6 }}>Total Spend: </span>Rs. {c.spend?.toFixed(2) || '0.00'}

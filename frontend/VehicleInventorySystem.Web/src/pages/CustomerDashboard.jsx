@@ -155,7 +155,7 @@ export function CustomerDashboard({ user }) {
           <div style={{ marginTop: '1rem' }}>
             {vehicles.slice(0, 2).map(v => (
               <div key={v.id} className="list-item" style={{ fontSize: '0.9rem' }}>
-                <span><strong>{v.make}</strong> {v.model}</span>
+                <span><strong>{v.make?.toLowerCase().includes(v.model?.toLowerCase()) || v.model?.toLowerCase().includes(v.make?.toLowerCase()) ? v.make : `${v.make} ${v.model}`}</strong></span>
                 <span style={{ opacity: 0.7 }}>{v.plateNumber}</span>
               </div>
             ))}
@@ -372,7 +372,7 @@ function VehiclesPage({ vehicles, onAddVehicle, onDeleteVehicle, onBack }) {
         {vehicles.map(v => (
           <div key={v.id} className="list-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '1rem' }}>
             <div style={{ flex: 1 }}>
-              <strong>{v.make} {v.model}</strong>
+              <strong>{v.make?.toLowerCase().includes(v.model?.toLowerCase()) || v.model?.toLowerCase().includes(v.make?.toLowerCase()) ? v.make : `${v.make} ${v.model}`}</strong>
               <div style={{ fontSize: '0.85rem', opacity: 0.7, marginTop: '0.25rem' }}>
                 <div>Plate: {v.plateNumber}</div>
                 <div>Year: {v.year}</div>
@@ -399,13 +399,7 @@ function VehiclesPage({ vehicles, onAddVehicle, onDeleteVehicle, onBack }) {
   );
 }
 
-function AppointmentsPage({ list, vehicles, onDelete, onBack, onNew }) {
-  const [cancelDialog, setCancelDialog] = useState({ isOpen: false, id: null, name: '' });
-  const [successDialog, setSuccessDialog] = useState({ isOpen: false, message: '' });
-
-  const handleCancelClick = (id, serviceType) => {
-    setCancelDialog({ isOpen: true, id, name: serviceType });
-function AppointmentsPage({ list, onDelete, onUpdate, onBack, onNew }) {
+function AppointmentsPage({ list, vehicles, onDelete, onUpdate, onBack, onNew }) {
   const showToast = useToast();
   const [cancelDialog, setCancelDialog] = useState({ isOpen: false, id: null, type: '', name: '' });
   const [rescheduleDialog, setRescheduleDialog] = useState({ isOpen: false, id: null, newDate: '' });
@@ -447,6 +441,8 @@ function AppointmentsPage({ list, onDelete, onUpdate, onBack, onNew }) {
 
   const getVehicleInfo = (vehicleId) => {
     return vehicles.find(v => v.id === vehicleId);
+  };
+
   const validateReschedule = (appointment, newDate) => {
     const appointmentDate = new Date(appointment.date);
     const now = new Date();
@@ -775,10 +771,11 @@ function BookingPage({ user, vehicles, onComplete, onBack }) {
   );
 }
 
-function RequestsPage({ list, onDelete, onBack, onNew }) {
 function RequestsPage({ list, onDelete, onUpdate, onBack, onNew }) {
   const showToast = useToast();
   const [cancelDialog, setCancelDialog] = useState({ isOpen: false, id: null, name: '' });
+  const [editingId, setEditingId] = useState(null);
+  const [editData, setEditData] = useState({ partName: '', vehicleDetails: '' });
   const [successDialog, setSuccessDialog] = useState({ isOpen: false, message: '' });
 
   const handleCancelClick = (id, partName) => {
@@ -901,10 +898,9 @@ function NewRequestPage({ user, onComplete, onBack }) {
       } else {
         showToast('error', 'Failed to submit request. Please try again.');
       }
-    } catch (err) {
-      setError(err.message || 'Failed to submit request');
     } catch (error) {
       console.error('Error submitting request:', error);
+      setError(error.message || 'Failed to submit request');
       showToast('error', 'Error submitting request: ' + error.message);
     } finally {
       setIsSubmitting(false);

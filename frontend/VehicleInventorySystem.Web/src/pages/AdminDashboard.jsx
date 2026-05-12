@@ -607,7 +607,23 @@ function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
               </div>
             ) : (
               <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-                <div><strong>{c.name}</strong><br/>{c.plate}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <strong>{c.name}</strong>
+                  {c.vehicleInfo ? (
+                    <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>
+                      <span style={{ fontWeight: 600 }}>
+                        {c.vehicleInfo.make?.toLowerCase().includes(c.vehicleInfo.model?.toLowerCase()) || c.vehicleInfo.model?.toLowerCase().includes(c.vehicleInfo.make?.toLowerCase()) 
+                          ? c.vehicleInfo.make 
+                          : `${c.vehicleInfo.make} ${c.vehicleInfo.model}`} ({c.vehicleInfo.year})
+                      </span>
+                      <br />
+                      Plate: {c.vehicleInfo.plateNumber}
+                      {c.vehicleCount > 1 && <span className="badge" style={{ marginLeft: '5px', fontSize: '0.6rem', padding: '1px 4px' }}>+{c.vehicleCount - 1} more</span>}
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>No vehicle added</span>
+                  )}
+                </div>
                 <div><button onClick={() => startEdit(c)} className="btn-small">Edit</button><button onClick={() => handleRemoveClick(c.id, c.name)} className="btn-small">Remove</button></div>
               </div>
             )}

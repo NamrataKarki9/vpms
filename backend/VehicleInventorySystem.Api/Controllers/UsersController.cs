@@ -8,7 +8,7 @@ namespace VehicleInventorySystem.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Admin")]
+[Authorize]
 public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
@@ -18,24 +18,35 @@ public class UsersController : ControllerBase
         _userService = userService;
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] UserRole? role)
     {
         return await ExecuteAsync(() => _userService.GetAllUsersAsync(role));
     }
 
+    [Authorize(Roles = "Admin,Staff")]
+    [HttpGet("customers")]
+    public async Task<IActionResult> GetCustomers()
+    {
+        return await ExecuteAsync(() => _userService.GetAllUsersAsync(UserRole.Customer));
+    }
+
+    [Authorize(Roles = "Admin")]
     [HttpGet("staff")]
     public async Task<IActionResult> GetAllStaff()
     {
         return await ExecuteAsync(() => _userService.GetAllStaffAsync());
     }
 
+    [Authorize]
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetUser(int id)
     {
         return await ExecuteAsync(() => _userService.GetUserByIdAsync(id));
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost("staff")]
     [HttpPost("register/staff")]
     public async Task<IActionResult> CreateStaff([FromBody] CreateStaffRequest request)

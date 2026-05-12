@@ -125,42 +125,86 @@ function App() {
         return;
       }
 
-      const [usersRes, partsRes, salesRes] = await Promise.all([
-        apiFetch('/users'),
-        apiFetch('/parts'),
-        apiFetch('/transactions')
-      ]);
+      if (activeUser.role === ROLES.ADMIN) {
+        const [usersRes, partsRes, salesRes] = await Promise.all([
+          apiFetch('/users'),
+          apiFetch('/parts'),
+          apiFetch('/Transactions/sales')
+        ]);
 
-      const users = Array.isArray(usersRes) ? usersRes : [];
-      setStaffList(users.filter((u) => u.role === 'Admin' || u.role === 'Staff'));
-      setCustomerList(users.filter((u) => u.role === 'Customer').map((c) => ({
-        id: c.id,
-        name: c.name,
-        email: c.email || '',
-        phone: c.phoneNumber || '',
-        role: c.role,
-        isActive: c.isActive,
-        plate: c.vehicles?.length > 0 ? c.vehicles[0].plateNumber : 'N/A',
-        spend: 0
-      })));
+        const users = Array.isArray(usersRes) ? usersRes : [];
+        setStaffList(users.filter((u) => u.role === 'Admin' || u.role === 'Staff'));
+        setCustomerList(users.filter((u) => u.role === 'Customer').map((c) => ({
+          id: c.id,
+          name: c.name,
+          email: c.email || '',
+          phone: c.phoneNumber || '',
+          role: c.role,
+          isActive: c.isActive,
+          plate: c.vehicles?.length > 0 ? c.vehicles[0].plateNumber : 'N/A',
+          vehicleInfo: c.vehicles?.length > 0 ? c.vehicles[0] : null,
+          vehicleCount: c.vehicles?.length || 0,
+          spend: 0
+        })));
 
-      const parts = Array.isArray(partsRes) ? partsRes : [];
-      setInventory(parts.map((p) => ({
-        id: p.id,
-        name: p.name || '',
-        stock: p.stockLevel || 0,
-        price: p.price || 0,
-        vendor: p.vendorName || 'Unknown Vendor'
-      })));
+        const parts = Array.isArray(partsRes) ? partsRes : [];
+        setInventory(parts.map((p) => ({
+          id: p.id,
+          name: p.name || '',
+          stock: p.stockLevel || 0,
+          price: p.price || 0,
+          vendor: p.vendorName || 'Unknown Vendor'
+        })));
 
-      const sales = Array.isArray(salesRes) ? salesRes : [];
-      setSalesHistory(sales.map((s) => ({
-        id: s.id,
-        customerName: s.customerName,
-        total: s.totalAmount,
-        date: new Date(s.date).toLocaleDateString(),
-        discountApplied: false
-      })));
+        const sales = Array.isArray(salesRes) ? salesRes : [];
+        setSalesHistory(sales.map((s) => ({
+          id: s.id,
+          customerName: s.customerName,
+          total: s.totalAmount,
+          date: new Date(s.date).toLocaleDateString(),
+          discountApplied: false
+        })));
+      } else if (activeUser.role === ROLES.STAFF) {
+        // Staff only needs customers and parts for sales operations
+        const [customersRes, partsRes, salesRes] = await Promise.all([
+          apiFetch('/users/customers'),
+          apiFetch('/parts'),
+          apiFetch('/Transactions/sales')
+        ]);
+
+        setStaffList([]);
+        const customers = Array.isArray(customersRes) ? customersRes : [];
+        setCustomerList(customers.map((c) => ({
+          id: c.id,
+          name: c.name,
+          email: c.email || '',
+          phone: c.phoneNumber || '',
+          role: c.role,
+          isActive: c.isActive,
+          plate: c.vehicles?.length > 0 ? c.vehicles[0].plateNumber : 'N/A',
+          vehicleInfo: c.vehicles?.length > 0 ? c.vehicles[0] : null,
+          vehicleCount: c.vehicles?.length || 0,
+          spend: 0
+        })));
+
+        const parts = Array.isArray(partsRes) ? partsRes : [];
+        setInventory(parts.map((p) => ({
+          id: p.id,
+          name: p.name || '',
+          stock: p.stockLevel || 0,
+          price: p.price || 0,
+          vendor: p.vendorName || 'Unknown Vendor'
+        })));
+
+        const sales = Array.isArray(salesRes) ? salesRes : [];
+        setSalesHistory(sales.map((s) => ({
+          id: s.id,
+          customerName: s.customerName,
+          total: s.totalAmount,
+          date: new Date(s.date).toLocaleDateString(),
+          discountApplied: false
+        })));
+      }
     } catch (error) {
       console.error('Data load error:', error);
       showToast('error', 'Some data failed to load. Please refresh if needed.');
@@ -249,6 +293,7 @@ function App() {
       });
 
       const loginResponse = await authApi.login(customerData.email.trim(), customerData.password);
+      await loadAllData(); // Refresh list to include new customer
       return {
         id: loginResponse.id,
         name: loginResponse.fullName,
@@ -274,28 +319,36 @@ function App() {
   const handleUpdateCustomer = (updatedCust) =>
     setCustomerList((prev) => prev.map((c) => c.id === updatedCust.id ? updatedCust : c));
 
-  const handleProcessSale = async (customerId, cartItems) => {
+  const handleProcessSale = async (customerId, cartItems, paymentStatus = 'full-payment') => {
     const customer = customerList.find((c) => c.id === parseInt(customerId, 10));
     if (!customer || cartItems.length === 0) return showToast('error', 'Please select a customer and at least one item.');
 
     try {
       const totalAmount = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
+      // Build the sale request payload matching the backend DTO
+      const salePayload = {
+        customerId: parseInt(customerId, 10),
+        totalAmount,
+        paymentStatus: paymentStatus || 'full-payment',
+        items: cartItems.map((item) => ({
+          partId: item.id,
+          quantity: item.quantity,
+          unitPrice: item.price
+        }))
+      };
+
+      console.log('Sale payload:', salePayload);
+
       const invoice = await apiFetch('/Transactions/sale', {
         method: 'POST',
-        body: JSON.stringify({
-          customerId: parseInt(customerId, 10),
-          totalAmount,
-          items: cartItems.map((item) => ({
-            partId: item.id,
-            quantity: item.quantity,
-            unitPrice: item.price
-          }))
-        })
+        body: JSON.stringify(salePayload)
       });
 
+      console.log('Sale response:', invoice);
+
       const finalPrice = invoice.totalAmount;
-      const isDiscounted = finalPrice < totalAmount;
+      const isDiscounted = invoice.discountApplied || finalPrice < totalAmount;
 
       const newInvoice = {
         id: invoice.id,
@@ -314,9 +367,11 @@ function App() {
       });
       setInventory(updatedInv);
 
-      showToast('success', `Invoice generated. ${isDiscounted ? '10% Loyalty Discount Applied! ' : ''}Total: Rs. ${finalPrice.toFixed(2)}`);
-    } catch {
-      showToast('error', 'Failed to process sale.');
+      showToast('success', `Invoice #${invoice.id} generated. ${isDiscounted ? '10% Loyalty Discount Applied! ' : ''}Total: Rs. ${finalPrice.toFixed(2)}`);
+    } catch (error) {
+      console.error('Sale error:', error);
+      const errorMessage = error.message || 'Failed to process sale.';
+      showToast('error', errorMessage);
     }
   };
 
@@ -441,6 +496,7 @@ function App() {
             onUpdateInventory={handleUpdateInventory}
             onRemoveCustomer={handleRemoveCustomer}
             onUpdateCustomer={handleUpdateCustomer}
+            onRegisterCustomer={handleRegisterCustomer}
             staffView={staffView}
             setStaffView={setStaffView}
             onOpenVendorManagement={() => {
@@ -455,7 +511,7 @@ function App() {
   );
 }
 
-function Dashboard({ user, staffList, customerList, inventory, salesHistory, isLoading, onAddStaff, onRemoveStaff, onUpdateStaff, onProcessSale, onUpdateInventory, onRemoveCustomer, onUpdateCustomer, staffView, setStaffView, onOpenVendorManagement }) {
+function Dashboard({ user, staffList, customerList, inventory, salesHistory, isLoading, onAddStaff, onRemoveStaff, onUpdateStaff, onProcessSale, onUpdateInventory, onRemoveCustomer, onUpdateCustomer, onRegisterCustomer, staffView, setStaffView, onOpenVendorManagement }) {
   return (
     <div>
       <h1>{user.role} Dashboard</h1>

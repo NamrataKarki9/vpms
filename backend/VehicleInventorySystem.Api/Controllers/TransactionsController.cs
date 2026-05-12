@@ -2,9 +2,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VehicleInventorySystem.Api.Data;
+using VehicleInventorySystem.Api.DTOs.Request;
 using VehicleInventorySystem.Api.Models;
 
 using VehicleInventorySystem.Api.Services.Interfaces;
+using System.Security.Claims;
 
 namespace VehicleInventorySystem.Api.Controllers;
 
@@ -59,50 +61,165 @@ public class TransactionsController : ControllerBase
     // F7: Staff - Sell vehicle parts and create sales invoices
     [Authorize(Roles = "Admin,Staff")]
     [HttpPost("sale")]
-    public async Task<ActionResult<Invoice>> CreateSale(Invoice invoice)
+    public async Task<ActionResult<object>> CreateSale([FromBody] CreateSaleRequest request)
     {
-        invoice.Type = InvoiceType.Sale;
-        invoice.Date = DateTime.UtcNow;
-        invoice.IsPaid = invoice.PaymentStatus == null || invoice.PaymentStatus == "full-payment";
-        
-        using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
-            _context.Invoices.Add(invoice);
-            
-            // F16: Loyalty Program - 10% discount if spend > 5000
-            if (invoice.TotalAmount > 5000)
+            // Validate request
+            if (!ModelState.IsValid)
             {
-                invoice.TotalAmount *= 0.9m; // Apply 10% discount
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+                return BadRequest(new { message = "Validation failed.", errors });
             }
-            
-            foreach (var item in invoice.Items)
+
+            // Validate request is not null
+            if (request == null)
+                return BadRequest(new { message = "Request body is required." });
+
+            if (request.Items == null || request.Items.Count == 0)
+                return BadRequest(new { message = "At least one sale item is required." });
+
+            if (request.CustomerId <= 0)
+                return BadRequest(new { message = "Valid customer ID is required." });
+
+            if (request.TotalAmount <= 0)
+                return BadRequest(new { message = "Total amount must be greater than zero." });
+
+            // Validate customer exists
+            var customer = await _context.Users.FindAsync(request.CustomerId);
+            if (customer == null)
+                return BadRequest(new { message = "Customer not found." });
+
+            if (customer.Role != UserRole.Customer)
+                return BadRequest(new { message = "Selected user is not a customer." });
+
+            // Get current user (staff member creating the sale)
+            var staffIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(staffIdClaim, out int staffId))
+                return Unauthorized(new { message = "Could not identify current user." });
+
+            var staff = await _context.Users.FindAsync(staffId);
+            if (staff == null)
+                return Unauthorized(new { message = "Staff member not found." });
+
+            // Validate all items and check stock BEFORE transaction
+            var partIds = request.Items.Select(i => i.PartId).Distinct().ToList();
+            var parts = await _context.Parts.Where(p => partIds.Contains(p.Id)).ToListAsync();
+
+            foreach (var item in request.Items)
             {
-                var part = await _context.Parts.FindAsync(item.PartId);
-                if (part == null || part.StockLevel < item.Quantity)
-                {
-                    return BadRequest($"Part {item.PartId} is out of stock or insufficient.");
-                }
-                
-                part.StockLevel -= item.Quantity; // Decrease stock
-                
-                // F15: System notification for low stock (< 10)
-                if (part.StockLevel < 10)
-                {
-                    Console.WriteLine($"[NOTIFICATION] Admin: Part {part.Name} (Code: {part.PartCode}) is low on stock: {part.StockLevel} units remaining.");
-                    await _emailService.SendEmailAsync("admin@vehicleinventory.com", "Low Stock Alert", $"Part {part.Name} (Code: {part.PartCode}) is low on stock. Only {part.StockLevel} units remain.");
-                }
+                if (item.Quantity <= 0)
+                    return BadRequest(new { message = "Quantity must be greater than zero." });
+
+                if (item.UnitPrice <= 0)
+                    return BadRequest(new { message = "Unit price must be greater than zero." });
+
+                var part = parts.FirstOrDefault(p => p.Id == item.PartId);
+                if (part == null)
+                    return BadRequest(new { message = $"Part with ID {item.PartId} not found." });
+
+                if (part.StockLevel < item.Quantity)
+                    return BadRequest(new { message = $"Insufficient stock for {part.Name}. Available: {part.StockLevel}, Requested: {item.Quantity}" });
             }
-            
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-            
-            return Ok(invoice);
+
+            // All validation passed, now start transaction
+            using var dbTransaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                // Create invoice
+                var invoice = new Invoice
+                {
+                    Type = InvoiceType.Sale,
+                    Date = DateTime.UtcNow,
+                    CustomerId = request.CustomerId,
+                    CreatedById = staffId,
+                    TotalAmount = request.TotalAmount,
+                    PaymentStatus = request.PaymentStatus ?? "full-payment",
+                    IsPaid = string.IsNullOrEmpty(request.PaymentStatus) || request.PaymentStatus == "full-payment"
+                };
+
+                // Add invoice to context FIRST (without items)
+                _context.Invoices.Add(invoice);
+                
+                // Save to get the invoice ID
+                await _context.SaveChangesAsync();
+
+                Console.WriteLine($"[DEBUG] Invoice created with ID: {invoice.Id}");
+
+                // Now add invoice items with the actual invoice ID
+                foreach (var item in request.Items)
+                {
+                    var part = parts.First(p => p.Id == item.PartId);
+
+                    var invoiceItem = new InvoiceItem
+                    {
+                        InvoiceId = invoice.Id,
+                        PartId = item.PartId,
+                        Quantity = item.Quantity,
+                        UnitPrice = item.UnitPrice
+                    };
+                    
+                    _context.InvoiceItems.Add(invoiceItem);
+                    
+                    // Decrease stock
+                    part.StockLevel -= item.Quantity;
+
+                    Console.WriteLine($"[DEBUG] Added item {item.PartId}, stock now: {part.StockLevel}");
+
+                    // F15: System notification for low stock (< 10)
+                    if (part.StockLevel < 10)
+                    {
+                        Console.WriteLine($"[LOW STOCK ALERT] Part: {part.Name} (Code: {part.PartCode}) - Remaining: {part.StockLevel} units");
+                    }
+                }
+
+                // F16: Loyalty Program - 10% discount if spend > 5000
+                decimal originalAmount = invoice.TotalAmount;
+                if (invoice.TotalAmount > 5000)
+                {
+                    invoice.TotalAmount *= 0.9m; // Apply 10% discount
+                    Console.WriteLine($"[DEBUG] Loyalty discount applied: {originalAmount} -> {invoice.TotalAmount}");
+                }
+
+                // Save items and stock updates
+                await _context.SaveChangesAsync();
+                await dbTransaction.CommitAsync();
+
+                Console.WriteLine($"[DEBUG] Sale completed successfully. Invoice ID: {invoice.Id}");
+
+                // Return success response
+                return Ok(new
+                {
+                    id = invoice.Id,
+                    customerId = invoice.CustomerId,
+                    customerName = customer.Name,
+                    totalAmount = invoice.TotalAmount,
+                    date = invoice.Date.ToShortDateString(),
+                    paymentStatus = invoice.PaymentStatus,
+                    itemCount = request.Items.Count,
+                    discountApplied = invoice.TotalAmount < originalAmount
+                });
+            }
+            catch (DbUpdateException dbEx)
+            {
+                await dbTransaction.RollbackAsync();
+                var innerMessage = dbEx.InnerException?.Message ?? dbEx.Message;
+                Console.WriteLine($"[DB ERROR] {innerMessage}");
+                Console.WriteLine($"[DB STACK] {dbEx.StackTrace}");
+                return BadRequest(new { message = $"Database error: {innerMessage}" });
+            }
+            catch (Exception ex)
+            {
+                await dbTransaction.RollbackAsync();
+                Console.WriteLine($"[TRANSACTION ERROR] {ex.Message}");
+                Console.WriteLine($"[STACK] {ex.StackTrace}");
+                return BadRequest(new { message = $"Transaction error: {ex.Message}" });
+            }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            await transaction.RollbackAsync();
-            return BadRequest("Failed to process sales invoice.");
+            Console.WriteLine($"[UNHANDLED ERROR] {ex.Message}\n{ex.StackTrace}");
+            return BadRequest(new { message = $"Error: {ex.Message}" });
         }
     }
 
@@ -212,5 +329,37 @@ public class TransactionsController : ControllerBase
             })
             .ToListAsync();
         return Ok(invoices);
+    }
+
+    // F13: Get detailed sale invoices for staff/admin dashboard
+    [Authorize(Roles = "Admin,Staff")]
+    [HttpGet("sales")]
+    public async Task<ActionResult<IEnumerable<object>>> GetSales()
+    {
+        var query = _context.Invoices.AsQueryable();
+        query = query.Where(i => i.Type == InvoiceType.Sale);
+
+        var sales = await query
+            .Include(i => i.Customer)
+            .Include(i => i.Items)
+            .ThenInclude(ii => ii.Part)
+            .OrderByDescending(i => i.Date)
+            .Select(i => new {
+                i.Id,
+                CustomerName = i.Customer != null ? i.Customer.Name : "Walk-in",
+                CustomerEmail = i.Customer != null ? i.Customer.Email : "",
+                i.Date,
+                TotalAmount = i.TotalAmount,
+                PaymentStatus = i.PaymentStatus,
+                IsPaid = i.IsPaid,
+                Items = i.Items.Select(ii => new {
+                    PartName = ii.Part != null ? ii.Part.Name : "Unknown Part",
+                    ii.Quantity,
+                    ii.UnitPrice
+                })
+            })
+            .ToListAsync();
+
+        return Ok(sales);
     }
 }

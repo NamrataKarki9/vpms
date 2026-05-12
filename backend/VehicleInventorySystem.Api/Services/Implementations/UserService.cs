@@ -126,7 +126,7 @@ public class UserService : IUserService
 
     public async Task<List<UserResponse>> GetAllUsersAsync(UserRole? role)
     {
-        var query = _context.Users.AsNoTracking().AsQueryable();
+        var query = _context.Users.AsNoTracking().Include(u => u.Vehicles).AsQueryable();
 
         if (role.HasValue)
         {
@@ -144,6 +144,7 @@ public class UserService : IUserService
     {
         var staff = await _context.Users
             .AsNoTracking()
+            .Include(u => u.Vehicles)
             .Where(u => u.Role == UserRole.Staff)
             .OrderBy(u => u.Name)
             .ToListAsync();
@@ -160,6 +161,7 @@ public class UserService : IUserService
 
         var user = await _context.Users
             .AsNoTracking()
+            .Include(u => u.Vehicles)
             .FirstOrDefaultAsync(u => u.Id == id);
 
         if (user == null)
@@ -417,7 +419,17 @@ public class UserService : IUserService
             PhoneNumber = user.PhoneNumber,
             Role = user.Role.ToString(),
             IsActive = user.IsActive,
-            CreatedAt = user.CreatedAt
+            CreatedAt = user.CreatedAt,
+            Vehicles = user.Vehicles?.Select(v => new VehicleResponse
+            {
+                Id = v.Id,
+                PlateNumber = v.PlateNumber,
+                Model = v.Model,
+                Make = v.Make,
+                Year = v.Year,
+                FuelType = v.FuelType,
+                Mileage = v.Mileage
+            }).ToList() ?? new List<VehicleResponse>()
         };
     }
 

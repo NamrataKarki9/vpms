@@ -21,7 +21,7 @@ public class SmtpEmailService : IEmailService
     public async Task SendEmailAsync(string toEmail, string subject, string body)
     {
         var message = new MimeMessage();
-        message.From.Add(new MailboxAddress(_settings.SenderName, _settings.SenderEmail));
+        message.From.Add(new MailboxAddress(_settings.FromName, _settings.FromEmail));
         message.To.Add(MailboxAddress.Parse(toEmail));
         message.Subject = subject;
         message.Body = new TextPart("plain") { Text = body };

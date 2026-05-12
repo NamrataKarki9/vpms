@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../context/ToastContext';
+import CustomerVehicleForm from '../components/management/CustomerVehicleForm';
 
 export function StaffDashboard({ view, setView, customers, parts, sales, onProcessSale, onRegisterCustomer }) {
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
 
   if (view === 'sales') return <ProcessSalePage customers={customers} parts={parts} onProcessSale={onProcessSale} onBack={() => setView('main')} />;
   if (view === 'invoices') return <InvoicesPage sales={sales} onBack={() => setView('main')} />;
-  if (view === 'customers') return <CustomerManagementPage onSelectCustomer={(id) => { setSelectedCustomerId(id); setView('customer-details'); }} onBack={() => setView('main')} />;
+  if (view === 'customers') return <CustomerSearchPage customers={customers} onSelectCustomer={(id) => { setSelectedCustomerId(id); setView('customer-details'); }} onBack={() => setView('main')} />;
   if (view === 'customer-details') return <CustomerDetailPage customerId={selectedCustomerId} onBack={() => setView('customers')} />;
   if (view === 'reports') return <ReportsPage onBack={() => setView('main')} />;
   if (view === 'orders') return <OrdersPage onBack={() => setView('main')} />;
@@ -125,7 +126,8 @@ function ProcessSalePage({ customers, parts, onProcessSale, onBack }) {
   const handleComplete = () => {
     if (!selectedCust) return showToast('error', 'Please select a customer.');
     if (cart.length === 0) return showToast('error', 'Cart is empty.');
-    onProcessSale(selectedCust, cart);
+    if (!paymentStatus) return showToast('error', 'Please select a payment status.');
+    onProcessSale(selectedCust, cart, paymentStatus);
     onBack();
   };
 
@@ -229,16 +231,53 @@ function ProcessSalePage({ customers, parts, onProcessSale, onBack }) {
   );
 }
 
-function InvoicesPage({ sales, onBack }) {
+function InvoicesPage({ sales: initialSales, onBack }) {
   const showToast = useToast();
+  const [sales, setSales] = useState(initialSales || []);
+  const [isLoading, setIsLoading] = useState(false);
+  const [emailStatus, setEmailStatus] = useState(null);
+  const [emailingId, setEmailingId] = useState(null);
+
+  useEffect(() => {
+    const fetchInvoices = async () => {
+      setIsLoading(true);
+      try {
+        const { transactionsApi } = await import('../services/api');
+        const data = await transactionsApi.getSales();
+        if (data) {
+          setSales(data.map(s => ({
+            id: s.id,
+            customerName: s.customerName,
+            total: s.totalAmount,
+            date: new Date(s.date).toLocaleDateString(),
+            items: s.items
+          })));
+        }
+      } catch (err) {
+        console.error('Fetch invoices error:', err);
+        showToast('error', 'Unable to load invoices from database.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchInvoices();
+  }, [showToast]);
+
   const handleEmailInvoice = async (invoiceId) => {
     setEmailingId(invoiceId);
     setEmailStatus(null);
     try {
       const { apiFetch } = await import('../services/api');
       await apiFetch(`/Transactions/${invoiceId}/email`, { method: 'POST' });
+      setEmailStatus({ type: 'success', message: `Invoice #${invoiceId} has been successfully emailed.` });
       showToast('success', `Invoice #${invoiceId} has been successfully emailed.`);
-    } catch(err) { showToast('error', 'Failed to email invoice.'); }
+    } catch(err) { 
+      setEmailStatus({ type: 'error', message: 'Failed to email invoice.' });
+      showToast('error', 'Failed to email invoice.'); 
+    } finally {
+      setEmailingId(null);
+    }
   };
 
   return (
@@ -259,46 +298,63 @@ function InvoicesPage({ sales, onBack }) {
       )}
 
       <div className="data-list" style={{ marginTop: '2rem' }}>
-        {sales.map(s => (
-          <div key={s.id} className="list-item">
-            <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
-               <span style={{ fontWeight: 700, minWidth: '80px' }}>#{s.id}</span>
-               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <strong>{s.customerName}</strong>
-                  <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>{s.date}</span>
-               </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-               <span className="badge">Rs. {s.total.toFixed(2)}</span>
-               <button
-                 onClick={() => handleEmailInvoice(s.id)}
-                 className="btn-small"
-                 disabled={emailingId === s.id}
-                 style={{ background: emailingId === s.id ? '#cbd5e1' : '#dbeafe', color: '#1d4ed8', opacity: emailingId === s.id ? 0.6 : 1, cursor: emailingId === s.id ? 'not-allowed' : 'pointer' }}
-               >
-                 {emailingId === s.id ? 'Sending...' : 'Email Invoice'}
-               </button>
-            </div>
-          </div>
-        ))}
-        {sales.length === 0 && <p style={{textAlign: 'center', padding: '3rem', opacity: 0.5}}>No invoices found in database.</p>}
+        {isLoading ? (
+          <p style={{ textAlign: 'center', padding: '3rem', opacity: 0.5 }}>Loading invoices...</p>
+        ) : (
+          <>
+            {sales.map(s => (
+              <div key={s.id} className="list-item">
+                <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
+                   <span style={{ fontWeight: 700, minWidth: '80px' }}>#{s.id}</span>
+                   <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <strong>{s.customerName}</strong>
+                      <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>{s.date}</span>
+                   </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+                   <span className="badge">Rs. {(s.total || 0).toFixed(2)}</span>
+                   <button
+                     onClick={() => handleEmailInvoice(s.id)}
+                     className="btn-small"
+                     disabled={emailingId === s.id}
+                     style={{ background: emailingId === s.id ? '#cbd5e1' : '#dbeafe', color: '#1d4ed8', opacity: emailingId === s.id ? 0.6 : 1, cursor: emailingId === s.id ? 'not-allowed' : 'pointer' }}
+                   >
+                     {emailingId === s.id ? 'Sending...' : 'Email Invoice'}
+                   </button>
+                </div>
+              </div>
+            ))}
+            {sales.length === 0 && <p style={{textAlign: 'center', padding: '3rem', opacity: 0.5}}>No invoices found in database.</p>}
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-function CustomerSearchPage({ onBack }) {
-  const showToast = useToast();
+function CustomerSearchPage({ customers = [], onSelectCustomer, onBack }) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchResults, setSearchResults] = useState(null);
+  const [pageSize, setPageSize] = useState(10);
+  const [pageNumber, setPageNumber] = useState(1);
 
-  const handleSearch = async () => {
-    if (!searchTerm) return;
-    try {
-      const { apiFetch } = await import('../services/api');
-      const results = await apiFetch(`/Customers/search?query=${encodeURIComponent(searchTerm)}`);
-      setSearchResults(results || []);
-    } catch(err) { showToast('error', 'Search failed.'); }
+  // Filter customers based on search term
+  const filteredCustomers = (customers || []).filter(c => 
+    (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (c.plate || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (c.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (c.phone || '').includes(searchTerm)
+  );
+
+  const totalItems = filteredCustomers.length;
+  const totalPages = Math.ceil(totalItems / pageSize) || 1;
+  const paginatedCustomers = filteredCustomers.slice((pageNumber - 1) * pageSize, pageNumber * pageSize);
+
+  const hasPreviousPage = pageNumber > 1;
+  const hasNextPage = pageNumber < totalPages;
+
+  const handleClear = () => {
+    setSearchTerm('');
+    setPageNumber(1);
   };
 
   return (
@@ -312,23 +368,22 @@ function CustomerSearchPage({ onBack }) {
       </div>
 
       <div className="card" style={{ padding: '1rem' }}>
-        <form onSubmit={handleSearch} style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
           <input
             type="text"
-            placeholder="Search by name or plate number..."
-            value={searchInput}
-            onChange={handleInputChange}
+            placeholder="Search by name, plate number, or email..."
+            value={searchTerm}
+            onChange={(e) => { setSearchTerm(e.target.value); setPageNumber(1); }}
             style={{ marginBottom: 0, flex: 1 }}
           />
-          <button type="submit" style={{ whiteSpace: 'nowrap' }}>Search</button>
-          {submittedSearch && (
+          {searchTerm && (
             <button type="button" className="btn-small" onClick={handleClear} style={{ background: '#e2e8f0', color: '#0f172a', whiteSpace: 'nowrap' }}>Clear</button>
           )}
-        </form>
+        </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
           <span style={{ fontSize: '0.85rem', opacity: 0.6 }}>
-            {isLoading ? 'Loading...' : `${customers.length} of ${totalItems} customer${totalItems === 1 ? '' : 's'}`}
+            {`${filteredCustomers.length} of ${customers.length} customer${customers.length === 1 ? '' : 's'}`}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <label htmlFor="cust-page-size" style={{ fontSize: '0.85rem', opacity: 0.6 }}>Page size</label>
@@ -354,7 +409,7 @@ function CustomerSearchPage({ onBack }) {
                 </tr>
               </thead>
               <tbody>
-                {customers.map((c) => (
+                {paginatedCustomers.map((c) => (
                   <tr key={c.id}>
                     <td>
                       <div className="vendor-name-cell">
@@ -366,11 +421,27 @@ function CustomerSearchPage({ onBack }) {
                       </div>
                     </td>
                     <td>{c.email || '-'}</td>
-                    <td>{c.phoneNumber || '-'}</td>
+                    <td>{c.phone || '-'}</td>
                     <td>
-                      {c.vehicles && c.vehicles.length > 0
-                        ? <span className="badge">{c.vehicles.length} vehicle{c.vehicles.length > 1 ? 's' : ''}</span>
-                        : <span style={{ opacity: 0.5 }}>None</span>}
+                      {c.vehicleInfo ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary)' }}>
+                            {c.vehicleInfo.make?.toLowerCase().includes(c.vehicleInfo.model?.toLowerCase()) || c.vehicleInfo.model?.toLowerCase().includes(c.vehicleInfo.make?.toLowerCase()) 
+                              ? c.vehicleInfo.make 
+                              : `${c.vehicleInfo.make} ${c.vehicleInfo.model}`} ({c.vehicleInfo.year})
+                          </span>
+                          <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>
+                            Plate: {c.vehicleInfo.plateNumber}
+                          </span>
+                          {c.vehicleCount > 1 && (
+                            <span className="badge" style={{ marginTop: '2px', alignSelf: 'flex-start', fontSize: '0.65rem', padding: '1px 6px' }}>
+                              +{c.vehicleCount - 1} more
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span style={{ opacity: 0.5, fontSize: '0.85rem' }}>No vehicle added</span>
+                      )}
                     </td>
                     <td>
                       <span className={`vendor-status-badge ${c.isActive ? 'is-active' : 'is-inactive'}`}>
@@ -386,27 +457,24 @@ function CustomerSearchPage({ onBack }) {
                 ))}
               </tbody>
             </table>
-            {!isLoading && customers.length === 0 && (
+            {filteredCustomers.length === 0 && (
               <div className="vendor-empty-state">
                 <h3>No customers found</h3>
                 <p>Try adjusting your search query.</p>
               </div>
             )}
-            {isLoading && (
-              <div style={{ textAlign: 'center', padding: '3rem', opacity: 0.5 }}>Loading customer records...</div>
-            )}
           </div>
         </div>
 
-        {!isLoading && customers.length > 0 && (
+        {filteredCustomers.length > 0 && (
           <div className="vendor-pagination" style={{ marginTop: '1rem' }}>
             <div className="vendor-pagination-meta">
-              <span className="vendor-pagination-count">Total customers: {totalItems}</span>
+              <span className="vendor-pagination-count">Total matches: {totalItems}</span>
               <span className="vendor-pagination-summary">Page {pageNumber} of {totalPages}</span>
             </div>
             <div className="vendor-pagination-actions">
               <button type="button" className="btn-secondary vendor-pagination-button vendor-pagination-button-previous" onClick={() => setPageNumber((p) => Math.max(1, p - 1))} disabled={!hasPreviousPage}>Previous</button>
-              <button type="button" className="btn-secondary vendor-pagination-button vendor-pagination-button-next" onClick={() => setPageNumber((p) => p + 1)} disabled={!hasNextPage}>Next</button>
+              <button type="button" className="btn-secondary vendor-pagination-button vendor-pagination-button-next" onClick={() => setPageNumber((p) => Math.min(totalPages, p + 1))} disabled={!hasNextPage}>Next</button>
             </div>
           </div>
         )}
@@ -419,6 +487,52 @@ function ReportsPage({ onBack }) {
   const showToast = useToast();
   const [reportType, setReportType] = useState('high-spenders');
   const [reportData, setReportData] = useState([]);
+
+  const getReportConfig = (type) => {
+    switch(type) {
+      case 'high-spenders':
+        return {
+          title: 'High Spenders',
+          subtitle: 'Customers with the highest total billings.',
+          color: '#8b5cf6',
+          bgColor: 'rgba(139, 92, 246, 0.05)',
+          borderColor: 'rgba(139, 92, 246, 0.2)',
+          mainLabel: (item) => `Rs. ${item.totalSpent?.toFixed(2) || '0.00'}`,
+          extraInfo: (item) => `${item.orderCount || 0} orders`
+        };
+      case 'regulars':
+        return {
+          title: 'Regular Customers',
+          subtitle: 'Customers who visit frequently.',
+          color: '#10b981',
+          bgColor: 'rgba(16, 185, 129, 0.05)',
+          borderColor: 'rgba(16, 185, 129, 0.2)',
+          mainLabel: (item) => `${item.visitCount || 0} visits`,
+          extraInfo: (item) => `Last visit: ${item.lastVisit ? new Date(item.lastVisit).toLocaleDateString() : 'N/A'}`
+        };
+      case 'pending-credits':
+        return {
+          title: 'Pending Credits',
+          subtitle: 'Unpaid or partially paid invoices.',
+          color: '#ef4444',
+          bgColor: 'rgba(239, 68, 68, 0.05)',
+          borderColor: 'rgba(239, 68, 68, 0.2)',
+          mainLabel: (item) => `Rs. ${item.totalPending?.toFixed(2) || '0.00'}`,
+          extraInfo: (item) => `${item.pendingInvoices || 0} pending`
+        };
+      default:
+        return {
+          title: 'Reports',
+          subtitle: 'Select a report to view details.',
+          color: 'var(--primary)',
+          bgColor: 'var(--card-bg)',
+          borderColor: 'var(--border)',
+          mainLabel: () => ''
+        };
+    }
+  };
+
+  const config = getReportConfig(reportType);
 
   useEffect(() => {
     setReportData([]);

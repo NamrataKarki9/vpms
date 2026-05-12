@@ -9,4 +9,5 @@ public class UserResponse
     public string Role { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
+    public List<VehicleResponse> Vehicles { get; set; } = new List<VehicleResponse>();
 }

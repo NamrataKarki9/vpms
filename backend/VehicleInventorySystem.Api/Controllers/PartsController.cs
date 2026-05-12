@@ -7,7 +7,7 @@ namespace VehicleInventorySystem.Api.Controllers;
 
 [ApiController]
 [Route("api/parts")]
-[Authorize(Roles = "Admin")]
+[Authorize]
 public class PartsController : ControllerBase
 {
     private readonly IPartService _partService;
@@ -21,12 +21,14 @@ public class PartsController : ControllerBase
         _environment = environment;
     }
 
+    [Authorize(Roles = "Admin,Staff")]
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
         return await ExecuteAsync(() => _partService.GetAllPartsAsync());
     }
 
+    [Authorize(Roles = "Admin,Staff")]
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id)
     {

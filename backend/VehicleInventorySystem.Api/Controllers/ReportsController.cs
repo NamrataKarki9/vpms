@@ -10,7 +10,7 @@ namespace VehicleInventorySystem.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Admin")]
+[Authorize]
 public class ReportsController : ControllerBase
 {
     private readonly AppDbContext _context;
@@ -45,6 +45,7 @@ public class ReportsController : ControllerBase
     }
 
     // F9: Staff - Customer reports (regulars, high spenders)
+    [Authorize(Roles = "Admin,Staff")]
     [HttpGet("customers/high-spenders")]
     public async Task<ActionResult> GetHighSpenders()
     {
@@ -76,6 +77,7 @@ public class ReportsController : ControllerBase
     }
 
     // F9: Staff - Regular customers (Frequent visits)
+    [Authorize(Roles = "Admin,Staff")]
     [HttpGet("customers/regulars")]
     public async Task<ActionResult> GetRegularCustomers()
     {
@@ -105,6 +107,7 @@ public class ReportsController : ControllerBase
     }
 
     // F9: Staff - Pending credit reports (Customers with unpaid balances)
+    [Authorize(Roles = "Admin,Staff")]
     [HttpGet("customers/pending-credits")]
     public async Task<ActionResult> GetPendingCredits()
     {
