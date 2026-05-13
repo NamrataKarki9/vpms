@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../services/api.js';
 import { useToast } from '../context/ToastContext';
+import VehicleForm from '../components/forms/VehicleForm';
+import { CustomerHistory } from './CustomerHistory';
 
 export function CustomerDashboard({ user }) {
   const showToast = useToast();
@@ -38,8 +40,8 @@ export function CustomerDashboard({ user }) {
       const a = await apiFetch(`/Service/appointments?customerId=${user.id}`);
       if (a) setAppointments(a);
       
-      // Load part requests
-      const pr = await apiFetch(`/Service/part-requests?customerId=${user.id}`);
+      // Load special part requests
+      const pr = await apiFetch(`/Service/special-part-requests?customerId=${user.id}`);
       if (pr) setPartRequests(pr);
     } catch (error) {
       console.error('Error loading data:', error);
@@ -85,7 +87,7 @@ export function CustomerDashboard({ user }) {
   const handleDeleteRequest = async (id) => {
     try {
       const { apiFetch } = await import('../services/api');
-      await apiFetch(`/Service/part-requests/${id}`, { method: 'DELETE' });
+      await apiFetch(`/Service/special-part-requests/${id}`, { method: 'DELETE' });
       setPartRequests(prev => prev.filter(r => r.id !== id));
     } catch (error) {
       console.error('Error deleting request:', error);
@@ -137,6 +139,7 @@ export function CustomerDashboard({ user }) {
   };
 
   if (subView === 'history') return <HistoryPage history={history} onBack={() => setSubView('main')} />;
+  if (subView === 'customer-history') return <CustomerHistory user={user} onBack={() => setSubView('main')} />;
   if (subView === 'vehicles') return <VehiclesPage vehicles={vehicles} onAddVehicle={handleAddVehicle} onDeleteVehicle={handleDeleteVehicle} onBack={() => setSubView('main')} />;
   if (subView === 'appointments') return <AppointmentsPage list={appointments} vehicles={vehicles} onDelete={handleDeleteAppointment} onUpdate={handleUpdateAppointment} onBack={() => setSubView('main')} onNew={() => setSubView('book')} />;
   if (subView === 'book') return <BookingPage user={user} vehicles={vehicles} onComplete={(newApp) => { setAppointments([...appointments, newApp]); setSubView('appointments'); }} onBack={() => setSubView('main')} />;
@@ -166,22 +169,6 @@ export function CustomerDashboard({ user }) {
 
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3>My Purchase History</h3>
-            <button className="btn-small" onClick={() => setSubView('history')}>View All</button>
-          </div>
-          <div style={{ marginTop: '1rem' }}>
-            {history.slice(0, 3).map(s => (
-              <div key={s.id} className="list-item">
-                <span>{s.items?.[0]?.part?.name || 'Invoice'}</span>
-                <span>Rs. {s.totalAmount?.toFixed(2)}</span>
-              </div>
-            ))}
-            {history.length === 0 && <p style={{opacity:0.5}}>No purchase history yet.</p>}
-          </div>
-        </div>
-
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3>Service Bookings</h3>
             <button className="btn-small" onClick={() => setSubView('appointments')}>Manage</button>
           </div>
@@ -196,6 +183,15 @@ export function CustomerDashboard({ user }) {
           </div>
           <p style={{ opacity: 0.6, fontSize: '0.9rem' }}>Track your sourcing requests for custom parts.</p>
           <button onClick={() => setSubView('new-request')} style={{ width: '100%', marginTop: '1rem' }}>Submit Special Order</button>
+        </div>
+
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3>Full Purchase & Service History</h3>
+            <button className="btn-small" onClick={() => setSubView('customer-history')}>View</button>
+          </div>
+          <p style={{ opacity: 0.6, fontSize: '0.9rem' }}>View detailed purchase and service records with filtering by vehicle.</p>
+          <button onClick={() => setSubView('customer-history')} style={{ width: '100%', marginTop: '1rem' }}>View Complete History</button>
         </div>
       </div>
 
@@ -252,8 +248,6 @@ function VehiclesPage({ vehicles, onAddVehicle, onDeleteVehicle, onBack }) {
   const [error, setError] = useState('');
   const [successDialog, setSuccessDialog] = useState(false);
 
-  const fuelTypes = ['Petrol', 'Diesel', 'Hybrid', 'Electric', 'CNG'];
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -268,6 +262,16 @@ function VehiclesPage({ vehicles, onAddVehicle, onDeleteVehicle, onBack }) {
       return;
     }
 
+    if (!form.fuelType) {
+      setError('Please select a fuel type');
+      return;
+    }
+
+    if (Number.isNaN(Number(form.mileage)) || Number(form.mileage) < 0) {
+      setError('Mileage must be 0 or greater');
+      return;
+    }
+
     try {
       await onAddVehicle({
         plateNumber: form.plateNumber.trim(),
@@ -275,7 +279,7 @@ function VehiclesPage({ vehicles, onAddVehicle, onDeleteVehicle, onBack }) {
         make: form.make.trim(),
         year: form.year,
         fuelType: form.fuelType || null,
-        mileage: form.mileage
+        mileage: Number(form.mileage)
       });
       setForm({ plateNumber: '', model: '', make: '', year: new Date().getFullYear(), fuelType: '', mileage: 0 });
       setIsAdding(false);
@@ -297,66 +301,12 @@ function VehiclesPage({ vehicles, onAddVehicle, onDeleteVehicle, onBack }) {
         <div className="card" style={{ background: '#f8fafc', marginBottom: '2rem', padding: '1.5rem' }}>
           <h3>Add New Vehicle</h3>
           <form style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div>
-              <label>License Plate Number *</label>
-              <input
-                type="text"
-                placeholder="e.g., ABC-1234"
-                value={form.plateNumber}
-                onChange={e => setForm({...form, plateNumber: e.target.value})}
-                style={{ borderColor: error && error.includes('required') ? '#ef4444' : '' }}
-              />
-            </div>
-
-            <div>
-              <label>Vehicle Make *</label>
-              <input
-                type="text"
-                placeholder="e.g., Toyota"
-                value={form.make}
-                onChange={e => setForm({...form, make: e.target.value})}
-              />
-            </div>
-
-            <div>
-              <label>Vehicle Model *</label>
-              <input
-                type="text"
-                placeholder="e.g., Camry"
-                value={form.model}
-                onChange={e => setForm({...form, model: e.target.value})}
-              />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div>
-                <label>Year *</label>
-                <input
-                  type="number"
-                  min="1900"
-                  max={new Date().getFullYear() + 1}
-                  value={form.year}
-                  onChange={e => setForm({...form, year: parseInt(e.target.value)})}
-                />
-              </div>
-              <div>
-                <label>Fuel Type</label>
-                <select value={form.fuelType} onChange={e => setForm({...form, fuelType: e.target.value})}>
-                  <option value="">Select...</option>
-                  {fuelTypes.map(ft => <option key={ft} value={ft}>{ft}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label>Current Mileage (km)</label>
-              <input
-                type="number"
-                min="0"
-                value={form.mileage}
-                onChange={e => setForm({...form, mileage: parseInt(e.target.value) || 0})}
-              />
-            </div>
+            <VehicleForm
+              value={form}
+              onChange={setForm}
+              errors={{}}
+              showMileageHint={false}
+            />
 
             {error && <p style={{ color: '#ef4444', fontSize: '0.9rem' }}>{error}</p>}
 
@@ -621,12 +571,22 @@ function AppointmentsPage({ list, vehicles, onDelete, onUpdate, onBack, onNew })
 }
 
 function BookingPage({ user, vehicles, onComplete, onBack }) {
-  const [form, setForm] = useState({ vehicleId: '', serviceType: '', appointmentDate: '', appointmentTime: '10:00', description: '' });
+  const [form, setForm] = useState({ vehicleId: '', serviceType: '', appointmentDate: '', appointmentTime: '09:00', description: '' });
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successDialog, setSuccessDialog] = useState(false);
 
   const serviceTypes = ['Oil Change', 'Filter Replacement', 'Tire Rotation', 'Brake Service', 'Full Service', 'Diagnosis', 'Other'];
+  const timeSlots = [
+    { value: '09:00', label: '09:00 AM' },
+    { value: '10:00', label: '10:00 AM' },
+    { value: '11:00', label: '11:00 AM' },
+    { value: '12:00', label: '12:00 PM' },
+    { value: '14:00', label: '02:00 PM' },
+    { value: '15:00', label: '03:00 PM' },
+    { value: '16:00', label: '04:00 PM' }
+  ];
 
   const getTodayDate = () => {
     return new Date().toISOString().split('T')[0];
@@ -666,8 +626,15 @@ function BookingPage({ user, vehicles, onComplete, onBack }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccessMessage('');
 
     if (!validateBooking()) return;
+
+    // Validate time slot is selected
+    if (!form.appointmentTime) {
+      setError('Please select a time slot');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -676,7 +643,6 @@ function BookingPage({ user, vehicles, onComplete, onBack }) {
       const appointmentData = {
         customerId: user.id,
         vehicleId: parseInt(form.vehicleId),
-        // appointmentDate: form.appointmentDate + 'T00:00:00',
         appointmentDate: new Date(form.appointmentDate).toISOString(),
         appointmentTime: form.appointmentTime + ':00',
         serviceType: form.serviceType.trim(),
@@ -689,13 +655,19 @@ function BookingPage({ user, vehicles, onComplete, onBack }) {
       });
 
       if (result) {
+        setSuccessMessage('Appointment booked successfully.');
         setSuccessDialog(true);
         setTimeout(() => {
-          onComplete(result.appointment || result);
+          onComplete({...result.appointment, status: 'Confirmed'});
         }, 2000);
       }
     } catch (err) {
-      setError(err.message || 'Failed to book appointment');
+      const errorMsg = err.message || 'Failed to book appointment';
+      if (errorMsg.includes('unavailable') || errorMsg.includes('time slot')) {
+        setError('This time slot is unavailable. Please choose another time.');
+      } else {
+        setError(errorMsg);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -773,12 +745,21 @@ function BookingPage({ user, vehicles, onComplete, onBack }) {
         </div>
 
         <div>
-          <label>Preferred Time *</label>
-          <input 
-            type="time" 
+          <label>Preferred Time Slot *</label>
+          <select 
             value={form.appointmentTime} 
-            onChange={e => setForm({...form, appointmentTime: e.target.value})}
-          />
+            onChange={e => {
+              setForm({...form, appointmentTime: e.target.value});
+              setError('');
+            }}
+            style={{ borderColor: error && error.includes('time') ? '#ef4444' : '' }}
+          >
+            <option value="">-- Select Time Slot --</option>
+            {timeSlots.map(slot => (
+              <option key={slot.value} value={slot.value}>{slot.label}</option>
+            ))}
+          </select>
+          {error && error.includes('time') && <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>{error}</span>}
         </div>
 
         <div>
@@ -831,7 +812,8 @@ function BookingPage({ user, vehicles, onComplete, onBack }) {
           />
         </div>
 
-        {error && !error.includes('date') && !error.includes('service') && !error.includes('vehicle') && <p style={{ color: '#ef4444', fontSize: '0.9rem' }}>{error}</p>}
+        {error && !error.includes('date') && !error.includes('service') && !error.includes('vehicle') && !error.includes('time') && <p style={{ color: '#ef4444', fontSize: '0.9rem' }}>{error}</p>}
+        {error && (error.includes('unavailable') || error.includes('time slot')) && <p style={{ color: '#ef4444', fontSize: '0.9rem', background: '#fee2e2', padding: '0.75rem', borderRadius: '6px', borderLeft: '4px solid #ef4444' }}>{error}</p>}
 
         <button type="submit" onClick={handleSubmit} disabled={isSubmitting} style={{ marginTop: '1rem', opacity: isSubmitting ? 0.6 : 1, cursor: isSubmitting ? 'not-allowed' : 'pointer' }}>
           {isSubmitting ? 'Booking...' : 'Confirm Booking'}
@@ -842,8 +824,8 @@ function BookingPage({ user, vehicles, onComplete, onBack }) {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ background: '#fff', padding: '2rem', borderRadius: '12px', maxWidth: '400px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)', textAlign: 'center' }}>
             <p style={{ color: '#10b981', fontSize: '2rem', marginBottom: '0.5rem' }}>✓</p>
-            <p style={{ fontSize: '1rem', fontWeight: 500 }}>Appointment booked successfully!</p>
-            <p style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '0.5rem' }}>You will receive a confirmation email shortly.</p>
+            <p style={{ fontSize: '1rem', fontWeight: 500, color: '#10b981' }}>{successMessage}</p>
+            <p style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '0.5rem' }}>Status: <strong>Confirmed</strong></p>
             <button onClick={() => setSuccessDialog(false)} style={{ marginTop: '1.5rem', background: '#10b981', color: '#fff', padding: '0.6rem 1.2rem', borderRadius: '6px', border: 'none', cursor: 'pointer' }}>OK</button>
           </div>
         </div>
@@ -855,74 +837,125 @@ function BookingPage({ user, vehicles, onComplete, onBack }) {
 function RequestsPage({ list, onDelete, onUpdate, onBack, onNew }) {
   const showToast = useToast();
   const [cancelDialog, setCancelDialog] = useState({ isOpen: false, id: null, name: '' });
-  const [editingId, setEditingId] = useState(null);
-  const [editData, setEditData] = useState({ partName: '', vehicleDetails: '' });
   const [successDialog, setSuccessDialog] = useState({ isOpen: false, message: '' });
 
   const handleCancelClick = (id, partName) => {
     setCancelDialog({ isOpen: true, id, name: partName });
   };
 
-  const handleConfirmCancel = () => {
-    onDelete(cancelDialog.id);
-    setSuccessDialog({ isOpen: true, message: 'Part request cancelled.' });
-    setCancelDialog({ isOpen: false, id: null, name: '' });
-  };
-
-  const handleEditClick = (request) => {
-    setEditingId(request.id);
-    setEditData({ partName: request.partName, vehicleDetails: request.vehicleDetails });
-  };
-
-  const handleSaveEdit = (id) => {
-    if (!editData.partName.trim() || !editData.vehicleDetails.trim()) {
-      showToast('error', 'Please fill in all fields.');
-      return;
+  const handleConfirmCancel = async () => {
+    try {
+      const { apiFetch } = await import('../services/api');
+      await apiFetch(`/Service/special-part-requests/${cancelDialog.id}`, { method: 'DELETE' });
+      onDelete(cancelDialog.id);
+      setSuccessDialog({ isOpen: true, message: 'Request cancelled.' });
+      setCancelDialog({ isOpen: false, id: null, name: '' });
+    } catch (error) {
+      showToast('error', 'Failed to cancel request: ' + error.message);
     }
+  };
 
-    const request = list.find(r => r.id === id);
-    const updatedRequest = {
-      id: request.id,
-      customerId: request.customerId,
-      partName: editData.partName,
-      vehicleDetails: editData.vehicleDetails,
-      requestDate: request.requestDate || new Date().toISOString(),
-      isFulfilled: request.isFulfilled || false
-    };
-    
-    onUpdate(updatedRequest);
-    setSuccessDialog({ isOpen: true, message: 'Special order request updated successfully.' });
-    setEditingId(null);
+  const getPartName = (request) => {
+    return request.part ? request.part.name : request.customPartName;
+  };
+
+  const getVehicleDisplay = (vehicle) => {
+    return vehicle ? `${vehicle.make} ${vehicle.model}` : 'N/A';
+  };
+
+  // Convert enum integers to strings
+  const urgencyLabels = ['Low', 'Medium', 'High'];
+  const statusLabels = ['Pending', 'Approved', 'Rejected', 'Fulfilled'];
+
+  const getUrgencyLabel = (urgency) => {
+    return typeof urgency === 'string' ? urgency : urgencyLabels[urgency] || 'Unknown';
+  };
+
+  const getStatusLabel = (status) => {
+    return typeof status === 'string' ? status : statusLabels[status] || 'Unknown';
+  };
+
+  const getUrgencyColor = (urgency) => {
+    const label = getUrgencyLabel(urgency);
+    return label === 'High' ? '#fee2e2' : label === 'Medium' ? '#fef3c7' : '#dbeafe';
+  };
+
+  const getUrgencyTextColor = (urgency) => {
+    const label = getUrgencyLabel(urgency);
+    return label === 'High' ? '#991b1b' : label === 'Medium' ? '#92400e' : '#1e40af';
+  };
+
+  const getStatusColor = (status) => {
+    const label = getStatusLabel(status);
+    return label === 'Pending' ? '#fef3c7' : label === 'Approved' ? '#dbeafe' : label === 'Fulfilled' ? '#dcfce7' : '#fee2e2';
   };
 
   return (
-    <div className="card" style={{ maxWidth: '800px', margin: 'auto' }}>
+    <div className="card" style={{ maxWidth: '1000px', margin: 'auto' }}>
       <button onClick={onBack} className="btn-small" style={{ marginBottom: '1rem', background: '#cbd5e1' }}>← Back</button>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <h2>Special Part Requests</h2>
         <button onClick={onNew}>+ New Request</button>
       </div>
-      <div className="data-list">
-        {list.map(r => (
-          <div key={r.id} className="list-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-            <div>
-              <strong>{r.partName}</strong>
-              <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>For: {r.vehicleDetails}</div>
-            </div>
-            <button onClick={() => handleCancelClick(r.id, r.partName)} className="btn-small" style={{ background: 'var(--error)', color: '#fff' }}>Cancel Request</button>
-          </div>
-        ))}
-        {list.length === 0 && <p style={{textAlign: 'center', padding: '3rem', opacity: 0.5}}>No active requests.</p>}
-      </div>
+      
+      {list.length === 0 ? (
+        <p style={{ textAlign: 'center', padding: '3rem', opacity: 0.5 }}>No requests yet. Create one to get started!</p>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>
+                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Vehicle</th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Part Name</th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Qty</th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Urgency</th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Status</th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Date</th>
+                <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600 }}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map(req => (
+                <tr key={req.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                  <td style={{ padding: '0.75rem' }}>
+                    {getVehicleDisplay(req.vehicle)}
+                  </td>
+                  <td style={{ padding: '0.75rem' }}>
+                    {getPartName(req)}
+                  </td>
+                  <td style={{ padding: '0.75rem' }}>{req.quantity}</td>
+                  <td style={{ padding: '0.75rem' }}>
+                    <span style={{ display: 'inline-block', padding: '0.25rem 0.75rem', borderRadius: '4px', background: getUrgencyColor(req.urgency), color: getUrgencyTextColor(req.urgency), fontSize: '0.8rem', fontWeight: 500 }}>
+                      {getUrgencyLabel(req.urgency)}
+                    </span>
+                  </td>
+                  <td style={{ padding: '0.75rem' }}>
+                    <span style={{ display: 'inline-block', padding: '0.25rem 0.75rem', borderRadius: '4px', background: getStatusColor(req.status), fontSize: '0.8rem', fontWeight: 500 }}>
+                      {getStatusLabel(req.status)}
+                    </span>
+                  </td>
+                  <td style={{ padding: '0.75rem', opacity: 0.7, fontSize: '0.85rem' }}>
+                    {new Date(req.requestedAt).toLocaleDateString()}
+                  </td>
+                  <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                    <button onClick={() => handleCancelClick(req.id, getPartName(req))} className="btn-small" style={{ background: 'var(--error)', color: '#fff', padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}>Delete</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {cancelDialog.isOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ background: '#fff', padding: '2rem', borderRadius: '12px', maxWidth: '400px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
-            <h3>Cancel Request</h3>
-            <p>Are you sure you want to cancel the request for <strong>{cancelDialog.name}</strong>?</p>
+            <h3>Delete Request</h3>
+            <p>Are you sure you want to delete the request for <strong>{cancelDialog.name}</strong>?</p>
+            <p style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '0.5rem' }}>This action cannot be undone.</p>
             <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
-              <button onClick={() => setCancelDialog({ isOpen: false, id: null, name: '' })} style={{ flex: 1, background: '#cbd5e1', color: '#0f172a' }}>No, Keep It</button>
-              <button onClick={handleConfirmCancel} style={{ flex: 1, background: 'var(--error)', color: '#fff' }}>Yes, Cancel</button>
+              <button onClick={() => setCancelDialog({ isOpen: false, id: null, name: '' })} style={{ flex: 1, background: '#cbd5e1', color: '#0f172a' }}>Keep It</button>
+              <button onClick={handleConfirmCancel} style={{ flex: 1, background: 'var(--error)', color: '#fff' }}>Delete</button>
             </div>
           </div>
         </div>
@@ -943,79 +976,334 @@ function RequestsPage({ list, onDelete, onUpdate, onBack, onNew }) {
 
 function NewRequestPage({ user, onComplete, onBack }) {
   const showToast = useToast();
-  const [form, setForm] = useState({ partName: '', vehicleDetails: '' });
+  const [vehicles, setVehicles] = useState([]);
+  const [parts, setParts] = useState([]);
+  const [form, setForm] = useState({ vehicleId: '', partId: '', customPartName: '', quantity: 1, urgency: 'Medium', description: '' });
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successDialog, setSuccessDialog] = useState(false);
+  const [selectedPart, setSelectedPart] = useState(null);
+  const [requests, setRequests] = useState([]);
 
-  const partCategories = ['Engine Components', 'Brake & Suspension', 'Electrical System', 'Body & Interior', 'Filters & Fluids', 'Other'];
+  // Convert enum integers to strings
+  const urgencyLabels = ['Low', 'Medium', 'High'];
+  const statusLabels = ['Pending', 'Approved', 'Rejected', 'Fulfilled'];
 
-  const handleSubmit = async () => {
-    if (!form.partName || !form.vehicleDetails) {
-      setError('Please fill in all fields');
-      showToast('error', 'Please fill in all fields.');
+  const getUrgencyLabel = (urgency) => {
+    return typeof urgency === 'string' ? urgency : urgencyLabels[urgency] || 'Unknown';
+  };
+
+  const getStatusLabel = (status) => {
+    return typeof status === 'string' ? status : statusLabels[status] || 'Unknown';
+  };
+
+  const getUrgencyColor = (urgency) => {
+    const label = getUrgencyLabel(urgency);
+    return label === 'High' ? '#fee2e2' : label === 'Medium' ? '#fef3c7' : '#dbeafe';
+  };
+
+  const getUrgencyTextColor = (urgency) => {
+    const label = getUrgencyLabel(urgency);
+    return label === 'High' ? '#991b1b' : label === 'Medium' ? '#92400e' : '#1e40af';
+  };
+
+  const getStatusColor = (status) => {
+    const label = getStatusLabel(status);
+    return label === 'Pending' ? '#fef3c7' : label === 'Approved' ? '#dbeafe' : label === 'Fulfilled' ? '#dcfce7' : '#fee2e2';
+  };
+
+  useEffect(() => {
+    loadVehiclesAndParts();
+    loadRequests();
+  }, [user]);
+
+  const loadVehiclesAndParts = async () => {
+    try {
+      const { apiFetch } = await import('../services/api');
+      const vehicleList = await apiFetch(`/Customers/${user.id}/vehicles`);
+      const partsList = await apiFetch('/parts');
+      setVehicles(vehicleList || []);
+      setParts(partsList || []);
+    } catch (error) {
+      console.error('Error loading vehicles or parts:', error);
+      showToast('error', 'Failed to load vehicles or parts');
+    }
+  };
+
+  const loadRequests = async () => {
+    try {
+      const { apiFetch } = await import('../services/api');
+      const requestsList = await apiFetch(`/Service/special-part-requests?customerId=${user.id}`);
+      setRequests(requestsList || []);
+    } catch (error) {
+      console.error('Error loading requests:', error);
+    }
+  };
+
+  const handlePartChange = (e) => {
+    const partId = parseInt(e.target.value) || '';
+    setForm({...form, partId, customPartName: ''});
+    if (partId) {
+      const part = parts.find(p => p.id === partId);
+      setSelectedPart(part);
+    } else {
+      setSelectedPart(null);
+    }
+    setError('');
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    // Validation
+    if (!form.vehicleId) {
+      setError('Please select a vehicle');
+      return;
+    }
+
+    if (!form.partId && !form.customPartName.trim()) {
+      setError('Please select a part or enter a custom part name');
+      return;
+    }
+
+    if (form.quantity <= 0) {
+      setError('Quantity must be greater than 0');
+      return;
+    }
+
+    if (!form.urgency) {
+      setError('Please select urgency level');
       return;
     }
 
     setIsSubmitting(true);
     try {
       const { apiFetch } = await import('../services/api');
-      const result = await apiFetch('/Service/part-requests', {
+      
+      // Convert urgency string to enum integer (Low=0, Medium=1, High=2)
+      const urgencyMap = { Low: 0, Medium: 1, High: 2 };
+      // Convert status string to enum integer (Pending=0, Approved=1, Rejected=2, Fulfilled=3)
+      const statusMap = { Pending: 0, Approved: 1, Rejected: 2, Fulfilled: 3 };
+      
+      const requestData = {
+        customerId: user.id,
+        vehicleId: parseInt(form.vehicleId),
+        partId: form.partId ? parseInt(form.partId) : null,
+        customPartName: form.customPartName.trim() || null,
+        quantity: parseInt(form.quantity),
+        urgency: urgencyMap[form.urgency],
+        description: form.description.trim(),
+        status: statusMap['Pending'],
+        requestedAt: new Date().toISOString()
+      };
+
+      const result = await apiFetch('/Service/special-part-requests', {
         method: 'POST',
-        body: JSON.stringify({
-          customerId: user.id,
-          partName: form.partName,
-          vehicleDetails: form.vehicleDetails,
-          requestDate: new Date().toISOString(),
-          isFulfilled: false
-        })
+        body: JSON.stringify(requestData)
       });
 
       if (result) {
         setSuccessDialog(true);
         setTimeout(() => {
-          onComplete(result);
-        }, 2000);
-      } else {
-        showToast('error', 'Failed to submit request. Please try again.');
+          setForm({ vehicleId: '', partId: '', customPartName: '', quantity: 1, urgency: 'Medium', description: '' });
+          setSelectedPart(null);
+          loadRequests();
+        }, 1500);
       }
     } catch (error) {
       console.error('Error submitting request:', error);
       setError(error.message || 'Failed to submit request');
-      showToast('error', 'Error submitting request: ' + error.message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const getVehicleLabel = (v) => `${v.make} ${v.model} - ${v.plateNumber}`;
+  const getPartLabel = (p) => p.name;
+  const hasLowStock = selectedPart && selectedPart.stockLevel < 10;
+
   return (
-    <div className="card" style={{ maxWidth: '600px', margin: 'auto' }}>
+    <div className="card" style={{ maxWidth: '800px', margin: 'auto' }}>
       <button onClick={onBack} className="btn-small" style={{ marginBottom: '1rem', background: '#cbd5e1' }}>← Back</button>
-      <h2>Submit Special Order</h2>
-      <div className="mini-form" style={{ marginTop: '2rem' }}>
-        <label>Part Category *</label>
-        <select value={form.partName} onChange={e => { setForm({...form, partName: e.target.value}); setError(''); }}>
-          <option value="">Select Category</option>
-          {partCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-        </select>
+      <h2>Request Unavailable Part</h2>
+      
+      <form style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }} onSubmit={handleSubmit}>
+        {/* Select Vehicle */}
+        <div>
+          <label>Select Vehicle *</label>
+          <select 
+            value={form.vehicleId} 
+            onChange={e => { setForm({...form, vehicleId: e.target.value}); setError(''); }}
+            style={{ borderColor: error && error.includes('vehicle') ? '#ef4444' : '' }}
+          >
+            <option value="">-- Select a Vehicle --</option>
+            {vehicles.map(vehicle => (
+              <option key={vehicle.id} value={vehicle.id}>
+                {getVehicleLabel(vehicle)}
+              </option>
+            ))}
+          </select>
+          {error && error.includes('vehicle') && <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>{error}</span>}
+        </div>
 
-        <label>Vehicle Details *</label>
-        <input
-          type="text"
-          placeholder="e.g., Toyota Camry 2020"
-          value={form.vehicleDetails}
-          onChange={e => { setForm({...form, vehicleDetails: e.target.value}); setError(''); }}
-        />
+        {/* Select Part */}
+        <div>
+          <label>Select Part from Inventory</label>
+          <select 
+            value={form.partId} 
+            onChange={handlePartChange}
+          >
+            <option value="">-- Select a Part --</option>
+            {parts.map(part => (
+              <option key={part.id} value={part.id}>
+                {getPartLabel(part)}
+              </option>
+            ))}
+          </select>
 
-        {error && <p style={{ color: '#ef4444', fontSize: '0.9rem' }}>{error}</p>}
+          {/* Stock Warning - Only show if part selected and stock < 10 */}
+          {hasLowStock && (
+            <div style={{ marginTop: '0.5rem', padding: '0.75rem', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: '6px', fontSize: '0.9rem', color: '#92400e' }}>
+              ⚠️ Low Stock: Only {selectedPart.stockLevel} left
+            </div>
+          )}
+        </div>
 
-        <button 
-          onClick={handleSubmit} 
-          disabled={isSubmitting} 
-          style={{ marginTop: '1rem', opacity: isSubmitting ? 0.6 : 1, cursor: isSubmitting ? 'not-allowed' : 'pointer' }}
-        >
-          {isSubmitting ? 'Submitting...' : 'Submit Special Order'}
+        {/* Custom Part Input */}
+        <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+          <label style={{ fontSize: '0.9rem', opacity: 0.8 }}>Can't find your part?</label>
+          <input
+            type="text"
+            placeholder="Enter part name"
+            value={form.customPartName}
+            onChange={e => { setForm({...form, customPartName: e.target.value}); setError(''); }}
+            style={{ marginTop: '0.5rem' }}
+          />
+        </div>
+
+        {/* Quantity */}
+        <div>
+          <label>Quantity *</label>
+          <input
+            type="number"
+            min="1"
+            value={form.quantity}
+            onChange={e => { setForm({...form, quantity: parseInt(e.target.value) || 1}); setError(''); }}
+            style={{ borderColor: error && error.includes('Quantity') ? '#ef4444' : '' }}
+          />
+          {error && error.includes('Quantity') && <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>{error}</span>}
+        </div>
+
+        {/* Urgency */}
+        <div>
+          <label>Urgency *</label>
+          <select 
+            value={form.urgency} 
+            onChange={e => { setForm({...form, urgency: e.target.value}); setError(''); }}
+            style={{ borderColor: error && error.includes('urgency') ? '#ef4444' : '' }}
+          >
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+          </select>
+        </div>
+
+        {/* Description */}
+        <div style={{ width: '100%' }}>
+          <label>Description (Optional)</label>
+          <textarea
+            placeholder="Any additional details about the part you need..."
+            value={form.description}
+            onChange={e => setForm({...form, description: e.target.value})}
+            maxLength={500}
+            style={{ 
+              width: '100%',
+              minHeight: '140px',
+              fontSize: '1rem',
+              padding: '12px 14px',
+              border: '2px solid #e2e8f0',
+              borderRadius: '8px',
+              backgroundColor: '#ffffff',
+              fontFamily: 'inherit',
+              resize: 'vertical',
+              transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+              color: '#334155',
+              lineHeight: '1.5',
+              boxSizing: 'border-box'
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = '#6366f1';
+              e.target.style.outline = 'none';
+              e.target.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.1)';
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = '#e2e8f0';
+              e.target.style.boxShadow = 'none';
+            }}
+          />
+        </div>
+
+        {error && !error.includes('vehicle') && !error.includes('Quantity') && !error.includes('urgency') && (
+          <p style={{ color: '#ef4444', fontSize: '0.9rem', background: '#fee2e2', padding: '0.75rem', borderRadius: '6px', borderLeft: '4px solid #ef4444' }}>
+            {error}
+          </p>
+        )}
+
+        <button type="submit" disabled={isSubmitting} style={{ marginTop: '1rem', opacity: isSubmitting ? 0.6 : 1, cursor: isSubmitting ? 'not-allowed' : 'pointer', background: 'var(--primary)', color: '#fff' }}>
+          {isSubmitting ? 'Submitting...' : 'Submit Request'}
         </button>
+      </form>
+
+      {/* My Requests Table */}
+      <div style={{ marginTop: '3rem', paddingTop: '2rem', borderTop: '1px solid #e2e8f0' }}>
+        <h3>My Requests</h3>
+        <div className="data-list" style={{ marginTop: '1rem' }}>
+          {requests.length === 0 ? (
+            <p style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No requests yet</p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Vehicle</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Part Name</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Qty</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Urgency</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Status</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {requests.map(req => (
+                    <tr key={req.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '0.75rem' }}>
+                        {req.vehicle ? `${req.vehicle.make} ${req.vehicle.model}` : 'N/A'}
+                      </td>
+                      <td style={{ padding: '0.75rem' }}>
+                        {req.part ? req.part.name : req.customPartName}
+                      </td>
+                      <td style={{ padding: '0.75rem' }}>{req.quantity}</td>
+                      <td style={{ padding: '0.75rem' }}>
+                        <span style={{ display: 'inline-block', padding: '0.25rem 0.75rem', borderRadius: '4px', background: getUrgencyColor(req.urgency), color: getUrgencyTextColor(req.urgency), fontSize: '0.8rem', fontWeight: 500 }}>
+                          {getUrgencyLabel(req.urgency)}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.75rem' }}>
+                        <span style={{ display: 'inline-block', padding: '0.25rem 0.75rem', borderRadius: '4px', background: getStatusColor(req.status), fontSize: '0.8rem', fontWeight: 500 }}>
+                          {getStatusLabel(req.status)}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.75rem', opacity: 0.7, fontSize: '0.85rem' }}>
+                        {new Date(req.requestedAt).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
       {successDialog && (

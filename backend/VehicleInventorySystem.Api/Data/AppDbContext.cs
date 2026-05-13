@@ -16,6 +16,7 @@ public class AppDbContext : IdentityDbContext<User, IdentityRole<int>, int>
     public DbSet<InvoiceItem> InvoiceItems { get; set; }
     public DbSet<Appointment> Appointments { get; set; }
     public DbSet<PartRequest> PartRequests { get; set; }
+    public DbSet<SpecialPartRequest> SpecialPartRequests { get; set; }
     public DbSet<ServiceReview> Reviews { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
@@ -81,6 +82,12 @@ public class AppDbContext : IdentityDbContext<User, IdentityRole<int>, int>
             .WithOne()
             .HasForeignKey(ii => ii.InvoiceId);
 
+        builder.Entity<Invoice>()
+            .HasOne(i => i.Vehicle)
+            .WithMany()
+            .HasForeignKey(i => i.VehicleId)
+            .IsRequired(false);
+
         builder.Entity<Vendor>(entity =>
         {
             entity.HasIndex(v => v.EmailAddress).IsUnique();
@@ -91,5 +98,21 @@ public class AppDbContext : IdentityDbContext<User, IdentityRole<int>, int>
         {
             entity.HasIndex(p => p.PartCode).IsUnique();
         });
+
+        builder.Entity<SpecialPartRequest>()
+            .HasOne(spr => spr.Customer)
+            .WithMany()
+            .HasForeignKey(spr => spr.CustomerId);
+
+        builder.Entity<SpecialPartRequest>()
+            .HasOne(spr => spr.Vehicle)
+            .WithMany()
+            .HasForeignKey(spr => spr.VehicleId);
+
+        builder.Entity<SpecialPartRequest>()
+            .HasOne(spr => spr.Part)
+            .WithMany()
+            .HasForeignKey(spr => spr.PartId)
+            .IsRequired(false);
     }
 }

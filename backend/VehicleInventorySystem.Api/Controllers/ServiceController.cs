@@ -39,13 +39,33 @@ public class ServiceController : ControllerBase
             {
                 return BadRequest(new { message = "Vehicle not found or does not belong to you" });
             }
+
+            // Ensure appointment date is in UTC
             appointment.AppointmentDate = DateTime.SpecifyKind(
                 appointment.AppointmentDate,
                 DateTimeKind.Utc
             );
 
-            // appointment.CreatedAt = DateTime.UtcNow;
-            appointment.Status = AppointmentStatus.Pending;
+            // Check if appointment date is in the future
+            if (appointment.AppointmentDate <= DateTime.UtcNow)
+            {
+                return BadRequest(new { message = "Appointment date must be in the future" });
+            }
+
+            // Check if another appointment already exists for the same date and time (and not cancelled)
+            var conflictingAppointment = await _context.Appointments
+                .FirstOrDefaultAsync(a => 
+                    a.AppointmentDate.Date == appointment.AppointmentDate.Date &&
+                    a.AppointmentTime == appointment.AppointmentTime &&
+                    a.Status != AppointmentStatus.Cancelled);
+
+            if (conflictingAppointment != null)
+            {
+                return BadRequest(new { message = "This time slot is unavailable. Please choose another time." });
+            }
+
+            // Auto-confirm the appointment
+            appointment.Status = AppointmentStatus.Confirmed;
             _context.Appointments.Add(appointment);
             await _context.SaveChangesAsync();
             return Ok(new { message = "Appointment booked successfully", appointment });
@@ -56,21 +76,28 @@ public class ServiceController : ControllerBase
         }
     }
 
-    [Authorize(Roles = "Customer")]
+    [Authorize(Roles = "Admin,Staff,Customer")]
     [HttpGet("appointments")]
     public async Task<ActionResult<IEnumerable<Appointment>>> GetAppointments([FromQuery] int? customerId)
     {
-        var currentUserId = GetCurrentUserId();
-        if (currentUserId == null)
+        var role = User.FindFirstValue(ClaimTypes.Role);
+        
+        if (role == "Customer")
         {
-            return Forbid();
+            var currentUserId = GetCurrentUserId();
+            customerId = currentUserId;
         }
 
-        customerId = currentUserId;
+        var query = _context.Appointments.AsQueryable();
+        
+        if (customerId.HasValue)
+        {
+            query = query.Where(a => a.CustomerId == customerId.Value);
+        }
 
-        return await _context.Appointments
-            .Where(a => a.CustomerId == customerId)
+        return await query
             .Include(a => a.Vehicle)
+            .Include(a => a.Customer)
             .ToListAsync();
     }
 
@@ -108,6 +135,19 @@ public class ServiceController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "Admin,Staff")]
+    [HttpPatch("appointments/{id}/status")]
+    public async Task<ActionResult> UpdateAppointmentStatus(int id, [FromBody] AppointmentStatus status)
+    {
+        var appointment = await _context.Appointments.FindAsync(id);
+        if (appointment == null)
+            return NotFound();
+
+        appointment.Status = status;
+        await _context.SaveChangesAsync();
+        return Ok(new { message = "Appointment status updated", appointment });
+    }
+
     [Authorize(Roles = "Customer")]
     [HttpDelete("appointments/{id}")]
     public async Task<IActionResult> DeleteAppointment(int id)
@@ -142,20 +182,27 @@ public class ServiceController : ControllerBase
         return Ok(request);
     }
 
-    [Authorize(Roles = "Customer")]
+    [Authorize(Roles = "Admin,Staff,Customer")]
     [HttpGet("part-requests")]
     public async Task<ActionResult<IEnumerable<PartRequest>>> GetPartRequests([FromQuery] int? customerId)
     {
-        var currentUserId = GetCurrentUserId();
-        if (currentUserId == null)
+        var role = User.FindFirstValue(ClaimTypes.Role);
+        
+        if (role == "Customer")
         {
-            return Forbid();
+            var currentUserId = GetCurrentUserId();
+            customerId = currentUserId;
         }
 
-        customerId = currentUserId;
+        var query = _context.PartRequests.AsQueryable();
+        
+        if (customerId.HasValue)
+        {
+            query = query.Where(pr => pr.CustomerId == customerId.Value);
+        }
 
-        return await _context.PartRequests
-            .Where(pr => pr.CustomerId == customerId)
+        return await query
+            .Include(pr => pr.Customer)
             .ToListAsync();
     }
 
@@ -191,6 +238,19 @@ public class ServiceController : ControllerBase
                 return NotFound();
             throw;
         }
+    }
+
+    [Authorize(Roles = "Admin,Staff")]
+    [HttpPatch("part-requests/{id}/status")]
+    public async Task<ActionResult> UpdatePartRequestStatus(int id, [FromBody] bool isFulfilled)
+    {
+        var request = await _context.PartRequests.FindAsync(id);
+        if (request == null)
+            return NotFound();
+
+        request.IsFulfilled = isFulfilled;
+        await _context.SaveChangesAsync();
+        return Ok(new { message = "Part request status updated", request });
     }
 
     [Authorize(Roles = "Customer")]
@@ -240,6 +300,204 @@ public class ServiceController : ControllerBase
             .Where(r => r.CustomerId == currentUserId)
             .Include(r => r.Customer)
             .ToListAsync();
+    }
+
+    // SpecialPartRequest Endpoints
+    [Authorize(Roles = "Customer")]
+    [HttpPost("special-part-requests")]
+    public async Task<ActionResult<SpecialPartRequest>> CreateSpecialPartRequest([FromBody] SpecialPartRequest request)
+    {
+        try
+        {
+            var currentUserId = GetCurrentUserId();
+            if (currentUserId == null || currentUserId != request.CustomerId)
+            {
+                return Forbid();
+            }
+
+            // Validate required fields
+            if (request.VehicleId <= 0)
+            {
+                return BadRequest(new { message = "VehicleId is required" });
+            }
+
+            if (request.Quantity <= 0)
+            {
+                return BadRequest(new { message = "Quantity must be greater than 0" });
+            }
+
+            if (request.PartId == null && string.IsNullOrWhiteSpace(request.CustomPartName))
+            {
+                return BadRequest(new { message = "Either PartId or CustomPartName is required" });
+            }
+
+            // Validate that the vehicle exists and belongs to the customer
+            var vehicle = await _context.Vehicles
+                .FirstOrDefaultAsync(v => v.Id == request.VehicleId && v.CustomerId == currentUserId);
+            
+            if (vehicle == null)
+            {
+                return BadRequest(new { message = "Vehicle not found or does not belong to you" });
+            }
+
+            // If PartId is provided, verify it exists
+            if (request.PartId.HasValue && request.PartId > 0)
+            {
+                var part = await _context.Parts.FindAsync(request.PartId.Value);
+                if (part == null)
+                {
+                    return BadRequest(new { message = "Part not found" });
+                }
+            }
+
+            // Set status and timestamp
+            request.Status = RequestStatus.Pending;
+            request.RequestedAt = DateTime.UtcNow;
+
+            _context.SpecialPartRequests.Add(request);
+            await _context.SaveChangesAsync();
+
+            // Reload with relationships
+            var createdRequest = await _context.SpecialPartRequests
+                .Include(spr => spr.Vehicle)
+                .Include(spr => spr.Part)
+                .FirstOrDefaultAsync(spr => spr.Id == request.Id);
+
+            return CreatedAtAction(nameof(GetSpecialPartRequest), new { id = request.Id }, createdRequest);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Failed to create special part request", error = ex.Message });
+        }
+    }
+
+    [Authorize(Roles = "Customer")]
+    [HttpGet("special-part-requests/{id}")]
+    public async Task<ActionResult<SpecialPartRequest>> GetSpecialPartRequest(int id)
+    {
+        var request = await _context.SpecialPartRequests
+            .Include(spr => spr.Vehicle)
+            .Include(spr => spr.Part)
+            .Include(spr => spr.Customer)
+            .FirstOrDefaultAsync(spr => spr.Id == id);
+
+        if (request == null)
+        {
+            return NotFound(new { message = "Special part request not found" });
+        }
+
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId != request.CustomerId)
+        {
+            return Forbid();
+        }
+
+        return Ok(request);
+    }
+
+    [Authorize(Roles = "Admin,Staff,Customer")]
+    [HttpGet("special-part-requests")]
+    public async Task<ActionResult<IEnumerable<SpecialPartRequest>>> GetSpecialPartRequests([FromQuery] int? customerId)
+    {
+        var role = User.FindFirstValue(ClaimTypes.Role);
+        
+        if (role == "Customer")
+        {
+            var currentUserId = GetCurrentUserId();
+            customerId = currentUserId;
+        }
+
+        var query = _context.SpecialPartRequests.AsQueryable();
+        
+        if (customerId.HasValue)
+        {
+            query = query.Where(spr => spr.CustomerId == customerId.Value);
+        }
+
+        return await query
+            .Include(spr => spr.Vehicle)
+            .Include(spr => spr.Part)
+            .Include(spr => spr.Customer)
+            .OrderByDescending(spr => spr.RequestedAt)
+            .ToListAsync();
+    }
+
+    [Authorize(Roles = "Customer")]
+    [HttpPut("special-part-requests/{id}")]
+    public async Task<ActionResult<SpecialPartRequest>> UpdateSpecialPartRequest(int id, [FromBody] SpecialPartRequest request)
+    {
+        if (id != request.Id)
+            return BadRequest(new { message = "ID mismatch" });
+
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId == null || currentUserId != request.CustomerId)
+        {
+            return Forbid();
+        }
+
+        var existing = await _context.SpecialPartRequests
+            .AsNoTracking()
+            .FirstOrDefaultAsync(spr => spr.Id == id);
+        
+        if (existing == null)
+        {
+            return NotFound(new { message = "Special part request not found" });
+        }
+
+        if (currentUserId != existing.CustomerId)
+        {
+            return Forbid();
+        }
+
+        // Only allow updating certain fields
+        request.CustomerId = existing.CustomerId;
+        request.RequestedAt = existing.RequestedAt;
+        request.Status = existing.Status;
+
+        _context.Entry(request).State = EntityState.Modified;
+        try
+        {
+            await _context.SaveChangesAsync();
+            return Ok(request);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (!_context.SpecialPartRequests.Any(spr => spr.Id == id))
+                return NotFound();
+            throw;
+        }
+    }
+
+    [Authorize(Roles = "Admin,Staff")]
+    [HttpPatch("special-part-requests/{id}/status")]
+    public async Task<ActionResult> UpdateSpecialPartRequestStatus(int id, [FromBody] RequestStatus status)
+    {
+        var request = await _context.SpecialPartRequests.FindAsync(id);
+        if (request == null)
+            return NotFound(new { message = "Special part request not found" });
+
+        request.Status = status;
+        await _context.SaveChangesAsync();
+        return Ok(new { message = "Special part request status updated", request });
+    }
+
+    [Authorize(Roles = "Customer")]
+    [HttpDelete("special-part-requests/{id}")]
+    public async Task<IActionResult> DeleteSpecialPartRequest(int id)
+    {
+        var request = await _context.SpecialPartRequests.FindAsync(id);
+        if (request == null)
+            return NotFound(new { message = "Special part request not found" });
+
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId != request.CustomerId)
+        {
+            return Forbid();
+        }
+
+        _context.SpecialPartRequests.Remove(request);
+        await _context.SaveChangesAsync();
+        return NoContent();
     }
 
     private int? GetCurrentUserId()

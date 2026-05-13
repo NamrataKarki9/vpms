@@ -34,6 +34,7 @@ public class Appointment
     
     public AppointmentStatus Status { get; set; } = AppointmentStatus.Pending;
     public int RescheduleCount { get; set; } = 0;
+    public decimal Cost { get; set; } = 0; // Service cost
     
     public User? Customer { get; set; }
     public Vehicle? Vehicle { get; set; }

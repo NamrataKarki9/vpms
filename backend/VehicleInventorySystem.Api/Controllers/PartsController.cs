@@ -21,14 +21,14 @@ public class PartsController : ControllerBase
         _environment = environment;
     }
 
-    [Authorize(Roles = "Admin,Staff")]
+    [Authorize(Roles = "Admin,Staff,Customer")]
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
         return await ExecuteAsync(() => _partService.GetAllPartsAsync());
     }
 
-    [Authorize(Roles = "Admin,Staff")]
+    [Authorize(Roles = "Admin,Staff,Customer")]
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id)
     {

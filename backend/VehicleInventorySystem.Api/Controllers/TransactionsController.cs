@@ -90,6 +90,17 @@ public class TransactionsController : ControllerBase
             if (customer == null)
                 return BadRequest(new { message = "Customer not found." });
 
+            // Validate vehicle if provided
+            if (request.VehicleId.HasValue && request.VehicleId > 0)
+            {
+                var vehicle = await _context.Vehicles.FindAsync(request.VehicleId);
+                if (vehicle == null)
+                    return BadRequest(new { message = "Vehicle not found." });
+
+                if (vehicle.CustomerId != request.CustomerId)
+                    return BadRequest(new { message = "Vehicle does not belong to this customer." });
+            }
+
             if (customer.Role != UserRole.Customer)
                 return BadRequest(new { message = "Selected user is not a customer." });
 
@@ -132,6 +143,7 @@ public class TransactionsController : ControllerBase
                     Type = InvoiceType.Sale,
                     Date = DateTime.UtcNow,
                     CustomerId = request.CustomerId,
+                    VehicleId = request.VehicleId,
                     CreatedById = staffId,
                     TotalAmount = request.TotalAmount,
                     PaymentStatus = request.PaymentStatus ?? "full-payment",

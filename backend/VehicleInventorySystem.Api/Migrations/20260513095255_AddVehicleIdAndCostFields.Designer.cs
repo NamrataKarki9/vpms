@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using VehicleInventorySystem.Api.Data;
@@ -11,9 +12,11 @@ using VehicleInventorySystem.Api.Data;
 namespace VehicleInventorySystem.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260513095255_AddVehicleIdAndCostFields")]
+    partial class AddVehicleIdAndCostFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -387,61 +390,6 @@ namespace VehicleInventorySystem.Api.Migrations
                     b.ToTable("Reviews");
                 });
 
-            modelBuilder.Entity("VehicleInventorySystem.Api.Models.SpecialPartRequest", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("CustomPartName")
-                        .HasColumnType("text")
-                        .HasAnnotation("Relational:JsonPropertyName", "customPartName");
-
-                    b.Property<int>("CustomerId")
-                        .HasColumnType("integer")
-                        .HasAnnotation("Relational:JsonPropertyName", "customerId");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text")
-                        .HasAnnotation("Relational:JsonPropertyName", "description");
-
-                    b.Property<int?>("PartId")
-                        .HasColumnType("integer")
-                        .HasAnnotation("Relational:JsonPropertyName", "partId");
-
-                    b.Property<int>("Quantity")
-                        .HasColumnType("integer")
-                        .HasAnnotation("Relational:JsonPropertyName", "quantity");
-
-                    b.Property<DateTime>("RequestedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasAnnotation("Relational:JsonPropertyName", "requestedAt");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer")
-                        .HasAnnotation("Relational:JsonPropertyName", "status");
-
-                    b.Property<int>("Urgency")
-                        .HasColumnType("integer")
-                        .HasAnnotation("Relational:JsonPropertyName", "urgency");
-
-                    b.Property<int>("VehicleId")
-                        .HasColumnType("integer")
-                        .HasAnnotation("Relational:JsonPropertyName", "vehicleId");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CustomerId");
-
-                    b.HasIndex("PartId");
-
-                    b.HasIndex("VehicleId");
-
-                    b.ToTable("SpecialPartRequests");
-                });
-
             modelBuilder.Entity("VehicleInventorySystem.Api.Models.User", b =>
                 {
                     b.Property<int>("Id")
@@ -758,31 +706,6 @@ namespace VehicleInventorySystem.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Customer");
-                });
-
-            modelBuilder.Entity("VehicleInventorySystem.Api.Models.SpecialPartRequest", b =>
-                {
-                    b.HasOne("VehicleInventorySystem.Api.Models.User", "Customer")
-                        .WithMany()
-                        .HasForeignKey("CustomerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("VehicleInventorySystem.Api.Models.Part", "Part")
-                        .WithMany()
-                        .HasForeignKey("PartId");
-
-                    b.HasOne("VehicleInventorySystem.Api.Models.Vehicle", "Vehicle")
-                        .WithMany()
-                        .HasForeignKey("VehicleId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Customer");
-
-                    b.Navigation("Part");
-
-                    b.Navigation("Vehicle");
                 });
 
             modelBuilder.Entity("VehicleInventorySystem.Api.Models.Vehicle", b =>

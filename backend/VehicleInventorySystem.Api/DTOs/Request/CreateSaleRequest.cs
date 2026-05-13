@@ -7,6 +7,8 @@ public class CreateSaleRequest
     [Required(ErrorMessage = "Customer is required.")]
     public int CustomerId { get; set; }
 
+    public int? VehicleId { get; set; } // Optional - parts not tied to specific vehicle
+
     [Required(ErrorMessage = "At least one sale item is required.")]
     [MinLength(1, ErrorMessage = "At least one sale item is required.")]
     public List<SaleItemRequest> Items { get; set; } = new();
