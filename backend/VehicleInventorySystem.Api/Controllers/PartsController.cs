@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using VehicleInventorySystem.Api.DTOs.Request;
 using VehicleInventorySystem.Api.Services.Interfaces;
+using VehicleInventorySystem.Api.DTOs.Response;
 
 namespace VehicleInventorySystem.Api.Controllers;
 
@@ -23,8 +24,17 @@ public class PartsController : ControllerBase
 
     [Authorize(Roles = "Admin,Staff,Customer")]
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetAll([FromQuery] int? pageNumber, [FromQuery] int? pageSize)
     {
+        if (pageNumber.HasValue || pageSize.HasValue)
+        {
+            var pagination = new PaginationRequest
+            {
+                PageNumber = pageNumber ?? 1,
+                PageSize = pageSize ?? 10
+            };
+            return await ExecuteAsync(() => _partService.GetPaginatedPartsAsync(pagination));
+        }
         return await ExecuteAsync(() => _partService.GetAllPartsAsync());
     }
 

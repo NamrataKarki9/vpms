@@ -5,8 +5,11 @@ using VehicleInventorySystem.Api.Data;
 using VehicleInventorySystem.Api.DTOs.Request;
 using VehicleInventorySystem.Api.Models;
 
+using VehicleInventorySystem.Api.DTOs.Response;
 using VehicleInventorySystem.Api.Services.Interfaces;
 using System.Security.Claims;
+using VehicleInventorySystem.Api.Extensions;
+using VehicleInventorySystem.Api.DTOs.Response;
 
 namespace VehicleInventorySystem.Api.Controllers;
 
@@ -346,16 +349,46 @@ public class TransactionsController : ControllerBase
     // F13: Get detailed sale invoices for staff/admin dashboard
     [Authorize(Roles = "Admin,Staff")]
     [HttpGet("sales")]
-    public async Task<ActionResult<IEnumerable<object>>> GetSales()
+    public async Task<ActionResult> GetSales([FromQuery] int? pageNumber, [FromQuery] int? pageSize)
     {
-        var query = _context.Invoices.AsQueryable();
-        query = query.Where(i => i.Type == InvoiceType.Sale);
-
-        var sales = await query
+        var query = _context.Invoices.AsNoTracking()
+            .Where(i => i.Type == InvoiceType.Sale)
             .Include(i => i.Customer)
             .Include(i => i.Items)
             .ThenInclude(ii => ii.Part)
-            .OrderByDescending(i => i.Date)
+            .OrderByDescending(i => i.Date);
+
+        if (pageNumber.HasValue || pageSize.HasValue)
+        {
+            var pagedData = await query.ToPaginatedResponseAsync(pageNumber ?? 1, pageSize ?? 10);
+            return Ok(new PaginatedResponse<object>
+            {
+                Items = pagedData.Items.Select(i => new
+                {
+                    i.Id,
+                    CustomerName = i.Customer != null ? i.Customer.Name : "Walk-in",
+                    CustomerEmail = i.Customer != null ? i.Customer.Email : "",
+                    i.Date,
+                    TotalAmount = i.TotalAmount,
+                    PaymentStatus = i.PaymentStatus,
+                    i.IsPaid,
+                    Items = i.Items.Select(ii => new
+                    {
+                        PartName = ii.Part != null ? ii.Part.Name : "Unknown Part",
+                        ii.Quantity,
+                        ii.UnitPrice
+                    })
+                }).Cast<object>().ToList(),
+                PageNumber = pagedData.PageNumber,
+                PageSize = pagedData.PageSize,
+                TotalItems = pagedData.TotalItems,
+                TotalPages = pagedData.TotalPages,
+                HasNextPage = pagedData.HasNextPage,
+                HasPreviousPage = pagedData.HasPreviousPage
+            });
+        }
+
+        var sales = await query
             .Select(i => new {
                 i.Id,
                 CustomerName = i.Customer != null ? i.Customer.Name : "Walk-in",

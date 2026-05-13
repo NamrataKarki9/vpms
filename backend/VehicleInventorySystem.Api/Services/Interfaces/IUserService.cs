@@ -14,4 +14,5 @@ public interface IUserService
     Task<UserResponse> CreateStaffAsync(CreateStaffRequest request);
     Task<UserResponse> UpdateUserAsync(int id, UpdateUserRequest request);
     Task<UserResponse> ToggleUserStatusAsync(int id);
+    Task<PaginatedResponse<UserResponse>> GetPaginatedUsersAsync(UserRole? role, PaginationRequest pagination);
 }

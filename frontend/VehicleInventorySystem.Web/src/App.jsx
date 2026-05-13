@@ -219,12 +219,12 @@ function App() {
               <Route path="dashboard" element={<Dashboard sales={salesHistory} customers={customerList} parts={inventory} appointments={appointments} />} />
               <Route path="customers/segments" element={<CustomerSegments />} />
               <Route path="customers/:id" element={<CustomerDetail />} />
-              <Route path="customers" element={<Customers customers={customerList} />} />
+              <Route path="customers" element={<Customers />} />
               <Route path="sales/new" element={<Sales customers={customerList} parts={inventory} onProcessSale={handleProcessSale} />} />
               <Route path="invoices/:id" element={<InvoiceDetail />} />
               <Route path="invoices" element={<Invoices />} />
-              <Route path="parts" element={<Inventory parts={inventory} />} />
-              <Route path="appointments" element={<Appointments appointments={appointments} />} />
+              <Route path="parts" element={<Inventory />} />
+              <Route path="appointments" element={<Appointments />} />
             </Route>
           )}
 

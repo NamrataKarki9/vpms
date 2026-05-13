@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
 import { apiFetch } from '../../services/api';
-import { Search, Mail, Eye, FileText } from 'lucide-react';
+import { Search, Mail, Eye, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const getPaymentLabel = (status) => {
   if (status === 'full-payment') return { label: 'Paid', cls: 'badge-paid' };
@@ -11,38 +11,70 @@ const getPaymentLabel = (status) => {
   return { label: status || 'N/A', cls: 'badge-pending' };
 };
 
-const Invoices = ({ sales: propSales = [] }) => {
+const Invoices = () => {
   const showToast = useToast();
   const navigate = useNavigate();
-  const [sales, setSales] = useState(propSales);
-  const [loading, setLoading] = useState(false);
+  const [sales, setSales] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [emailingId, setEmailingId] = useState(null);
+  const [pagination, setPagination] = useState({
+    pageNumber: 1,
+    pageSize: 10,
+    totalItems: 0,
+    totalPages: 0,
+    hasNextPage: false,
+    hasPreviousPage: false
+  });
+
+  const fetchInvoices = async () => {
+    setLoading(true);
+    try {
+      const data = await apiFetch(`/Transactions/sales?pageNumber=${pagination.pageNumber}&pageSize=${pagination.pageSize}`);
+      if (data && data.items) {
+        setSales(data.items.map(s => ({
+          id: s.id,
+          customerName: s.customerName,
+          customerEmail: s.customerEmail,
+          total: s.totalAmount,
+          date: new Date(s.date).toLocaleDateString(),
+          paymentStatus: s.paymentStatus,
+        })));
+        setPagination({
+          ...pagination,
+          totalItems: data.totalItems,
+          totalPages: data.totalPages,
+          hasNextPage: data.hasNextPage,
+          hasPreviousPage: data.hasPreviousPage
+        });
+      } else {
+        setSales((data || []).map(s => ({
+          id: s.id,
+          customerName: s.customerName,
+          customerEmail: s.customerEmail,
+          total: s.totalAmount,
+          date: new Date(s.date).toLocaleDateString(),
+          paymentStatus: s.paymentStatus,
+        })));
+        setPagination({ totalItems: (data || []).length, totalPages: 1, hasNextPage: false, hasPreviousPage: false });
+      }
+    } catch (err) {
+      showToast('error', 'Could not refresh invoices.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchInvoices = async () => {
-      setLoading(true);
-      try {
-        const data = await apiFetch('/Transactions/sales');
-        if (data) {
-          setSales(data.map(s => ({
-            id: s.id,
-            customerName: s.customerName,
-            customerEmail: s.customerEmail,
-            total: s.totalAmount,
-            date: new Date(s.date).toLocaleDateString(),
-            paymentStatus: s.paymentStatus,
-          })));
-        }
-      } catch (err) {
-        showToast('error', 'Could not refresh invoices.');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchInvoices();
-  }, []);
+  }, [pagination.pageNumber]);
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= pagination.totalPages) {
+      setPagination(prev => ({ ...prev, pageNumber: newPage }));
+    }
+  };
 
   const filtered = sales.filter(s => {
     const matchSearch = (s.customerName || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -138,12 +170,12 @@ const Invoices = ({ sales: propSales = [] }) => {
         </div>
 
         {/* Table */}
-        {loading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '60px', gap: '16px', flexDirection: 'column' }}>
-            <div className="spinner" />
-            <span style={{ color: '#64748B', fontSize: '14px' }}>Loading invoices...</span>
-          </div>
-        ) : (
+        <div style={{ position: 'relative' }}>
+          {loading && (
+             <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.7)', zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '8px' }}>
+                <div className="spinner" />
+             </div>
+          )}
           <table className="staff-table">
             <thead>
               <tr>
@@ -192,31 +224,26 @@ const Invoices = ({ sales: propSales = [] }) => {
                         <button
                           onClick={e => handleEmail(t.id, e)}
                           disabled={emailingId === t.id}
+                          className="staff-tab-btn"
                           title="Send Invoice Email"
                           style={{
                             display: 'inline-flex', alignItems: 'center', gap: '5px',
-                            padding: '5px 12px', borderRadius: '6px', border: '1px solid #E2E8F0',
-                            background: emailingId === t.id ? '#F1F5F9' : '#fff', color: '#1E3A5F',
-                            cursor: emailingId === t.id ? 'not-allowed' : 'pointer',
+                            padding: '5px 12px', borderRadius: '6px',
                             fontSize: '12px', fontWeight: 600, transition: 'all 0.15s',
                           }}
-                          onMouseEnter={e => { if (emailingId !== t.id) e.currentTarget.style.background = '#EBF2FB'; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = emailingId === t.id ? '#F1F5F9' : '#fff'; }}
                         >
                           <Mail size={12} />
                           {emailingId === t.id ? 'Sending...' : 'Email'}
                         </button>
                         <button
                           onClick={() => navigate(`/staff/invoices/${t.id}`)}
+                          className="staff-tab-btn"
                           title="View Invoice Detail"
                           style={{
                             display: 'inline-flex', alignItems: 'center', gap: '5px',
-                            padding: '5px 12px', borderRadius: '6px', border: '1px solid #E2E8F0',
-                            background: '#fff', color: '#64748B',
-                            cursor: 'pointer', fontSize: '12px', fontWeight: 600, transition: 'all 0.15s',
+                            padding: '5px 12px', borderRadius: '6px',
+                            fontSize: '12px', fontWeight: 600, transition: 'all 0.15s',
                           }}
-                          onMouseEnter={e => { e.currentTarget.style.background = '#F1F5F9'; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
                         >
                           <Eye size={12} />
                           View
@@ -226,7 +253,7 @@ const Invoices = ({ sales: propSales = [] }) => {
                   </tr>
                 );
               })}
-              {filtered.length === 0 && (
+              {!loading && filtered.length === 0 && (
                 <tr><td colSpan="6">
                   <div className="empty-state">
                     <div className="empty-state-icon">{search ? '🔍' : '🧾'}</div>
@@ -237,6 +264,33 @@ const Invoices = ({ sales: propSales = [] }) => {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination Bar */}
+        {pagination.totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 22px', borderTop: '1px solid #E8ECF0', background: '#F8FAFC' }}>
+            <span style={{ fontSize: '13px', color: '#64748B' }}>
+              Page {pagination.pageNumber} of {pagination.totalPages}
+            </span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                className="staff-tab-btn"
+                disabled={!pagination.hasPreviousPage}
+                onClick={() => handlePageChange(pagination.pageNumber - 1)}
+                style={{ padding: '6px 12px', opacity: pagination.hasPreviousPage ? 1 : 0.5 }}
+              >
+                <ChevronLeft size={14} style={{ marginRight: '4px' }} /> Previous
+              </button>
+              <button
+                className="staff-tab-btn"
+                disabled={!pagination.hasNextPage}
+                onClick={() => handlePageChange(pagination.pageNumber + 1)}
+                style={{ padding: '6px 12px', opacity: pagination.hasNextPage ? 1 : 0.5 }}
+              >
+                Next <ChevronRight size={14} style={{ marginLeft: '4px' }} />
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>

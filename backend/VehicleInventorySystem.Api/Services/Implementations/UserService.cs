@@ -11,6 +11,7 @@ using VehicleInventorySystem.Api.DTOs.Request;
 using VehicleInventorySystem.Api.DTOs.Response;
 using VehicleInventorySystem.Api.Models;
 using VehicleInventorySystem.Api.Services.Interfaces;
+using VehicleInventorySystem.Api.Extensions;
 
 namespace VehicleInventorySystem.Api.Services.Implementations;
 
@@ -152,6 +153,31 @@ public class UserService : IUserService
             .ToListAsync();
 
         return staff.Select(MapToResponse).ToList();
+    }
+
+    public async Task<PaginatedResponse<UserResponse>> GetPaginatedUsersAsync(UserRole? role, PaginationRequest pagination)
+    {
+        var query = _context.Users.AsNoTracking().Include(u => u.Vehicles).AsQueryable();
+
+        if (role.HasValue)
+        {
+            query = query.Where(u => u.Role == role.Value);
+        }
+
+        var pagedData = await query
+            .OrderBy(u => u.Name)
+            .ToPaginatedResponseAsync(pagination.PageNumber, pagination.PageSize);
+
+        return new PaginatedResponse<UserResponse>
+        {
+            Items = pagedData.Items.Select(MapToResponse).ToList(),
+            PageNumber = pagedData.PageNumber,
+            PageSize = pagedData.PageSize,
+            TotalItems = pagedData.TotalItems,
+            TotalPages = pagedData.TotalPages,
+            HasNextPage = pagedData.HasNextPage,
+            HasPreviousPage = pagedData.HasPreviousPage
+        };
     }
 
     public async Task<UserResponse> GetUserByIdAsync(int id)

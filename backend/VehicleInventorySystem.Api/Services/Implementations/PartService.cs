@@ -4,6 +4,7 @@ using VehicleInventorySystem.Api.DTOs.Request;
 using VehicleInventorySystem.Api.DTOs.Response;
 using VehicleInventorySystem.Api.Models;
 using VehicleInventorySystem.Api.Services.Interfaces;
+using VehicleInventorySystem.Api.Extensions;
 
 namespace VehicleInventorySystem.Api.Services.Implementations;
 
@@ -147,6 +148,26 @@ public class PartService : IPartService
 
         return await GetPartByIdAsync(part.Id)
             ?? throw new InvalidOperationException("Failed to update part status.");
+    }
+
+    public async Task<PaginatedResponse<PartResponse>> GetPaginatedPartsAsync(PaginationRequest pagination)
+    {
+        var pagedData = await _context.Parts
+            .AsNoTracking()
+            .Include(p => p.Vendor)
+            .OrderBy(p => p.Name)
+            .ToPaginatedResponseAsync(pagination.PageNumber, pagination.PageSize);
+
+        return new PaginatedResponse<PartResponse>
+        {
+            Items = pagedData.Items.Select(MapToResponse).ToList(),
+            PageNumber = pagedData.PageNumber,
+            PageSize = pagedData.PageSize,
+            TotalItems = pagedData.TotalItems,
+            TotalPages = pagedData.TotalPages,
+            HasNextPage = pagedData.HasNextPage,
+            HasPreviousPage = pagedData.HasPreviousPage
+        };
     }
 
     private static void ValidatePartInput(string name, string partCode, decimal price, int stockLevel, int vendorId)

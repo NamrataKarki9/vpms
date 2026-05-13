@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using VehicleInventorySystem.Api.Data;
 using VehicleInventorySystem.Api.Models;
 using VehicleInventorySystem.Api.DTOs.Request;
+using VehicleInventorySystem.Api.Extensions;
+using VehicleInventorySystem.Api.DTOs.Response;
 
 namespace VehicleInventorySystem.Api.Controllers;
 
@@ -78,7 +80,7 @@ public class ServiceController : ControllerBase
 
     [Authorize(Roles = "Admin,Staff,Customer")]
     [HttpGet("appointments")]
-    public async Task<ActionResult<IEnumerable<Appointment>>> GetAppointments([FromQuery] int? customerId)
+    public async Task<ActionResult> GetAppointments([FromQuery] int? customerId, [FromQuery] int? pageNumber, [FromQuery] int? pageSize)
     {
         var role = User.FindFirstValue(ClaimTypes.Role);
         
@@ -88,17 +90,25 @@ public class ServiceController : ControllerBase
             customerId = currentUserId;
         }
 
-        var query = _context.Appointments.AsQueryable();
+        var query = _context.Appointments
+            .AsNoTracking()
+            .Include(a => a.Vehicle)
+            .Include(a => a.Customer)
+            .OrderByDescending(a => a.AppointmentDate)
+            .ThenByDescending(a => a.AppointmentTime)
+            .AsQueryable();
         
         if (customerId.HasValue)
         {
             query = query.Where(a => a.CustomerId == customerId.Value);
         }
 
-        return await query
-            .Include(a => a.Vehicle)
-            .Include(a => a.Customer)
-            .ToListAsync();
+        if (pageNumber.HasValue || pageSize.HasValue)
+        {
+            return Ok(await query.ToPaginatedResponseAsync(pageNumber ?? 1, pageSize ?? 10));
+        }
+
+        return Ok(await query.ToListAsync());
     }
 
     [Authorize(Roles = "Customer")]
@@ -397,7 +407,7 @@ public class ServiceController : ControllerBase
 
     [Authorize(Roles = "Admin,Staff,Customer")]
     [HttpGet("special-part-requests")]
-    public async Task<ActionResult<IEnumerable<SpecialPartRequest>>> GetSpecialPartRequests([FromQuery] int? customerId)
+    public async Task<ActionResult> GetSpecialPartRequests([FromQuery] int? customerId, [FromQuery] int? pageNumber, [FromQuery] int? pageSize)
     {
         var role = User.FindFirstValue(ClaimTypes.Role);
         
@@ -407,19 +417,25 @@ public class ServiceController : ControllerBase
             customerId = currentUserId;
         }
 
-        var query = _context.SpecialPartRequests.AsQueryable();
+        var query = _context.SpecialPartRequests
+            .AsNoTracking()
+            .Include(spr => spr.Vehicle)
+            .Include(spr => spr.Part)
+            .Include(spr => spr.Customer)
+            .OrderByDescending(spr => spr.RequestedAt)
+            .AsQueryable();
         
         if (customerId.HasValue)
         {
             query = query.Where(spr => spr.CustomerId == customerId.Value);
         }
 
-        return await query
-            .Include(spr => spr.Vehicle)
-            .Include(spr => spr.Part)
-            .Include(spr => spr.Customer)
-            .OrderByDescending(spr => spr.RequestedAt)
-            .ToListAsync();
+        if (pageNumber.HasValue || pageSize.HasValue)
+        {
+            return Ok(await query.ToPaginatedResponseAsync(pageNumber ?? 1, pageSize ?? 10));
+        }
+
+        return Ok(await query.ToListAsync());
     }
 
     [Authorize(Roles = "Customer")]

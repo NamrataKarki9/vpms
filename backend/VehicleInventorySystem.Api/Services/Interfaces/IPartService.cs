@@ -14,4 +14,6 @@ public interface IPartService
     Task<PartResponse> UpdatePartAsync(int id, UpdatePartRequest request);
 
     Task<PartResponse> TogglePartStatusAsync(int id);
+
+    Task<PaginatedResponse<PartResponse>> GetPaginatedPartsAsync(PaginationRequest pagination);
 }

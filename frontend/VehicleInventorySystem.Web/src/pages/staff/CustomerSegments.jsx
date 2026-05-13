@@ -10,16 +10,18 @@ const TAB_CONFIG = [
   { id: 'pending-credits', label: 'On Credit', icon: AlertCircle, color: '#B91C1C', bg: '#FEE2E2' },
 ];
 
-const DEFAULT_REPORT_FILTER = { period: 'daily', startDate: '', endDate: '' };
+const DEFAULT_REPORT_FILTER = { period: 'daily', startDate: '', endDate: '', pageNumber: 1, pageSize: 10 };
 
 const isValidCustomDateRange = ({ startDate, endDate }) => {
   if (!startDate || !endDate) return false;
   return new Date(endDate) >= new Date(startDate);
 };
 
-const buildReportQuery = ({ period, startDate, endDate }) => {
+const buildReportQuery = ({ period, startDate, endDate, pageNumber, pageSize }) => {
   const params = new URLSearchParams();
   params.set('period', period);
+  params.set('pageNumber', pageNumber || 1);
+  params.set('pageSize', pageSize || 10);
 
   if (period === 'custom') {
     params.set('startDate', startDate);
@@ -35,6 +37,12 @@ const CustomerSegments = () => {
   const [customDateRange, setCustomDateRange] = useState({ startDate: '', endDate: '' });
   const [appliedReportFilter, setAppliedReportFilter] = useState(DEFAULT_REPORT_FILTER);
   const [data, setData] = useState([]);
+  const [pagination, setPagination] = useState({
+    totalItems: 0,
+    totalPages: 0,
+    hasNextPage: false,
+    hasPreviousPage: false
+  });
   const [loading, setLoading] = useState(false);
   const showToast = useToast();
 
@@ -43,7 +51,20 @@ const CustomerSegments = () => {
     try {
       const query = buildReportQuery(reportFilter);
       const res = await apiFetch(`/Reports/customers/${segment}?${query}`);
-      setData(res || []);
+      
+      // Handle paginated response
+      if (res && res.items) {
+        setData(res.items);
+        setPagination({
+          totalItems: res.totalItems,
+          totalPages: res.totalPages,
+          hasNextPage: res.hasNextPage,
+          hasPreviousPage: res.hasPreviousPage
+        });
+      } else {
+        setData(res || []);
+        setPagination({ totalItems: (res || []).length, totalPages: 1, hasNextPage: false, hasPreviousPage: false });
+      }
     } catch (err) {
       showToast('error', 'Failed to load report data.');
     } finally {
@@ -58,7 +79,7 @@ const CustomerSegments = () => {
     setPeriod(nextPeriod);
 
     if (nextPeriod !== 'custom') {
-      setAppliedReportFilter({ period: nextPeriod, startDate: '', endDate: '' });
+      setAppliedReportFilter({ ...DEFAULT_REPORT_FILTER, period: nextPeriod });
     }
   };
 
@@ -71,15 +92,20 @@ const CustomerSegments = () => {
     }
 
     setAppliedReportFilter({
+      ...DEFAULT_REPORT_FILTER,
       period: 'custom',
       startDate: customDateRange.startDate,
       endDate: customDateRange.endDate
     });
   };
 
+  const handlePageChange = (newPage) => {
+    setAppliedReportFilter(prev => ({ ...prev, pageNumber: newPage }));
+  };
+
   const handleSendReminder = async (customerId) => {
     try {
-      await apiFetch('/Reports/send-unpaid-reminders', { method: 'POST' });
+      await apiFetch(`/Reports/send-customer-reminder/${customerId}`, { method: 'POST' });
       showToast('success', 'Payment reminder sent.');
     } catch {
       showToast('error', 'Failed to send reminder.');
@@ -118,8 +144,8 @@ const CustomerSegments = () => {
           {data.map((item, idx) => (
             <tr key={item.customerId || idx}>
               <td>
-                <span style={{ background: idx < 3 ? '#FEF9C3' : '#F1F5F9', color: idx < 3 ? '#854D0E' : '#64748B', padding: '3px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: 700 }}>
-                  #{idx + 1}
+                <span style={{ background: (appliedReportFilter.pageNumber === 1 && idx < 3) ? '#FEF9C3' : '#F1F5F9', color: (appliedReportFilter.pageNumber === 1 && idx < 3) ? '#854D0E' : '#64748B', padding: '3px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: 700 }}>
+                  #{(appliedReportFilter.pageNumber - 1) * appliedReportFilter.pageSize + idx + 1}
                 </span>
               </td>
               <td>
@@ -215,7 +241,10 @@ const CustomerSegments = () => {
                 <button
                   key={tab.id}
                   className={`staff-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setAppliedReportFilter(prev => ({ ...prev, pageNumber: 1 }));
+                  }}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                 >
                   <Icon size={13} />
@@ -224,9 +253,9 @@ const CustomerSegments = () => {
               );
             })}
           </div>
-          {data.length > 0 && (
+          {pagination.totalItems > 0 && (
             <span style={{ background: activeConfig?.bg, color: activeConfig?.color, padding: '4px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: 700 }}>
-              {data.length} records
+              {pagination.totalItems} total records
             </span>
           )}
         </div>
@@ -266,13 +295,41 @@ const CustomerSegments = () => {
           )}
         </form>
         <div>{renderTable()}</div>
+
+        {/* Pagination Bar */}
+        {pagination.totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 22px', borderTop: '1px solid #E8ECF0', background: '#F8FAFC' }}>
+            <span style={{ fontSize: '13px', color: '#64748B' }}>
+              Page {appliedReportFilter.pageNumber} of {pagination.totalPages}
+            </span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                className="staff-tab-btn"
+                disabled={!pagination.hasPreviousPage}
+                onClick={() => handlePageChange(appliedReportFilter.pageNumber - 1)}
+                style={{ padding: '6px 12px', opacity: pagination.hasPreviousPage ? 1 : 0.5 }}
+              >
+                Previous
+              </button>
+              <button
+                className="staff-tab-btn"
+                disabled={!pagination.hasNextPage}
+                onClick={() => handlePageChange(appliedReportFilter.pageNumber + 1)}
+                style={{ padding: '6px 12px', opacity: pagination.hasNextPage ? 1 : 0.5 }}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="report-export-actions report-export-actions--in-card">
           <button
             type="button"
             className="report-export-btn report-export-btn--customer"
             onClick={() => ExportCustomerReportPdf(data, activeTab, 'Staff', appliedReportFilter)}
           >
-            Export Customer Report PDF
+            Export Current Page PDF
           </button>
         </div>
       </div>

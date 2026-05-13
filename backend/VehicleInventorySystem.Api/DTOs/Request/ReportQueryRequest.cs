@@ -1,6 +1,6 @@
 namespace VehicleInventorySystem.Api.DTOs.Request;
 
-public class ReportQueryRequest
+public class ReportQueryRequest : PaginationRequest
 {
     public string Period { get; set; } = "daily";
     public string? StartDate { get; set; }

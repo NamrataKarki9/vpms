@@ -1,10 +1,75 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, User, ChevronRight } from 'lucide-react';
+import { Search, User, ChevronRight, ChevronLeft } from 'lucide-react';
+import { apiFetch } from '../../services/api';
+import { useToast } from '../../context/ToastContext';
 
-const Customers = ({ customers = [] }) => {
+const Customers = () => {
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [pagination, setPagination] = useState({
+    pageNumber: 1,
+    pageSize: 10,
+    totalItems: 0,
+    totalPages: 0,
+    hasNextPage: false,
+    hasPreviousPage: false
+  });
   const navigate = useNavigate();
+  const showToast = useToast();
+
+  useEffect(() => {
+    fetchCustomers();
+  }, [pagination.pageNumber]);
+
+  const fetchCustomers = async () => {
+    setLoading(true);
+    try {
+      const data = await apiFetch(`/users/customers?pageNumber=${pagination.pageNumber}&pageSize=${pagination.pageSize}`);
+      
+      if (data && data.items) {
+        setCustomers(data.items.map(c => ({
+          id: c.id,
+          name: c.name,
+          email: c.email || '',
+          phone: c.phoneNumber || '',
+          isActive: c.isActive,
+          plate: c.vehicles?.length > 0 ? c.vehicles[0].plateNumber : 'N/A',
+          vehicleInfo: c.vehicles?.length > 0 ? c.vehicles[0] : null
+        })));
+        setPagination({
+          ...pagination,
+          totalItems: data.totalItems,
+          totalPages: data.totalPages,
+          hasNextPage: data.hasNextPage,
+          hasPreviousPage: data.hasPreviousPage
+        });
+      } else {
+        // Fallback for non-paginated response if any
+        setCustomers((data || []).map(c => ({
+          id: c.id,
+          name: c.name,
+          email: c.email || '',
+          phone: c.phoneNumber || '',
+          isActive: c.isActive,
+          plate: c.vehicles?.length > 0 ? c.vehicles[0].plateNumber : 'N/A',
+          vehicleInfo: c.vehicles?.length > 0 ? c.vehicles[0] : null
+        })));
+        setPagination({ totalItems: (data || []).length, totalPages: 1, hasNextPage: false, hasPreviousPage: false });
+      }
+    } catch (err) {
+      showToast('error', 'Failed to fetch customers.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= pagination.totalPages) {
+      setPagination(prev => ({ ...prev, pageNumber: newPage }));
+    }
+  };
 
   const filtered = customers.filter(c =>
     (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -26,10 +91,10 @@ const Customers = ({ customers = [] }) => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative' }}>
           <div>
             <h2>Customer Directory</h2>
-            <p>{customers.length} registered customers</p>
+            <p>{pagination.totalItems} registered customers</p>
           </div>
           <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '10px', padding: '10px 16px', textAlign: 'center', backdropFilter: 'blur(4px)' }}>
-            <div style={{ fontSize: '24px', fontWeight: 800, color: '#fff' }}>{customers.length}</div>
+            <div style={{ fontSize: '24px', fontWeight: 800, color: '#fff' }}>{pagination.totalItems}</div>
             <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', marginTop: '2px' }}>Total</div>
           </div>
         </div>
@@ -51,71 +116,105 @@ const Customers = ({ customers = [] }) => {
             />
           </div>
         </div>
-        <table className="staff-table">
-          <thead>
-            <tr>
-              <th>Customer</th>
-              <th>Vehicle</th>
-              <th>Plate No.</th>
-              <th>Phone</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((c, idx) => {
-              const [from, to] = AVATAR_COLORS[idx % AVATAR_COLORS.length];
-              return (
-                <tr key={c.id}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ width: 34, height: 34, borderRadius: '50%', background: `linear-gradient(135deg,${from},${to})`, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700, flexShrink: 0 }}>
-                        {getInitials(c.name)}
+        
+        <div style={{ position: 'relative' }}>
+          {loading && (
+             <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.7)', zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '8px' }}>
+                <div className="spinner" />
+             </div>
+          )}
+          <table className="staff-table">
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>Vehicle</th>
+                <th>Plate No.</th>
+                <th>Phone</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((c, idx) => {
+                const [from, to] = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+                return (
+                  <tr key={c.id}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: 34, height: 34, borderRadius: '50%', background: `linear-gradient(135deg,${from},${to})`, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700, flexShrink: 0 }}>
+                          {getInitials(c.name)}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: '13.5px', color: '#1E293B' }}>{c.name}</div>
+                          <div style={{ fontSize: '11px', color: '#94A3B8' }}>{c.email || 'No email'}</div>
+                        </div>
                       </div>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '13.5px', color: '#1E293B' }}>{c.name}</div>
-                        <div style={{ fontSize: '11px', color: '#94A3B8' }}>{c.email || 'No email'}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ color: '#475569' }}>
-                    {c.vehicleInfo ? `${c.vehicleInfo.make} ${c.vehicleInfo.model}` : (
-                      <span style={{ color: '#CBD5E1', fontStyle: 'italic' }}>No vehicle</span>
-                    )}
-                  </td>
-                  <td>
-                    {c.plate && c.plate !== 'N/A' ? (
-                      <span style={{ background: '#EBF2FB', color: '#1E3A5F', padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, letterSpacing: '0.5px' }}>
-                        {c.plate}
-                      </span>
-                    ) : (
-                      <span style={{ color: '#CBD5E1', fontSize: '12px' }}>—</span>
-                    )}
-                  </td>
-                  <td style={{ color: '#475569', fontSize: '13px' }}>{c.phone || '—'}</td>
-                  <td>
-                    <button
-                      onClick={() => navigate(`/staff/customers/${c.id}`)}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'none', border: '1px solid #E2E8F0', borderRadius: '7px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: 600, color: '#1E3A5F', transition: 'all 0.15s' }}
-                      onMouseEnter={e => { e.currentTarget.style.background = '#EBF2FB'; e.currentTarget.style.borderColor = '#93C5FD'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.borderColor = '#E2E8F0'; }}
-                    >
-                      View <ChevronRight size={13} />
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-            {filtered.length === 0 && (
-              <tr><td colSpan="5">
-                <div className="empty-state">
-                  <div className="empty-state-icon">{searchTerm ? '🔍' : '👥'}</div>
-                  <h4>{searchTerm ? 'No Results Found' : 'No Customers Yet'}</h4>
-                  <p>{searchTerm ? `No customers match "${searchTerm}"` : 'Customers will appear here once registered.'}</p>
-                </div>
-              </td></tr>
-            )}
-          </tbody>
-        </table>
+                    </td>
+                    <td style={{ color: '#475569' }}>
+                      {c.vehicleInfo ? `${c.vehicleInfo.make} ${c.vehicleInfo.model}` : (
+                        <span style={{ color: '#CBD5E1', fontStyle: 'italic' }}>No vehicle</span>
+                      )}
+                    </td>
+                    <td>
+                      {c.plate && c.plate !== 'N/A' ? (
+                        <span style={{ background: '#EBF2FB', color: '#1E3A5F', padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, letterSpacing: '0.5px' }}>
+                          {c.plate}
+                        </span>
+                      ) : (
+                        <span style={{ color: '#CBD5E1', fontSize: '12px' }}>—</span>
+                      )}
+                    </td>
+                    <td style={{ color: '#475569', fontSize: '13px' }}>{c.phone || '—'}</td>
+                    <td>
+                      <button
+                        onClick={() => navigate(`/staff/customers/${c.id}`)}
+                        className="btn-action-view"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'none', border: '1px solid #E2E8F0', borderRadius: '7px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: 600, color: '#1E3A5F', transition: 'all 0.15s' }}
+                      >
+                        View <ChevronRight size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!loading && filtered.length === 0 && (
+                <tr><td colSpan="5">
+                  <div className="empty-state">
+                    <div className="empty-state-icon">{searchTerm ? '🔍' : '👥'}</div>
+                    <h4>{searchTerm ? 'No Results Found' : 'No Customers Yet'}</h4>
+                    <p>{searchTerm ? `No customers match "${searchTerm}"` : 'Customers will appear here once registered.'}</p>
+                  </div>
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination Bar */}
+        {pagination.totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 22px', borderTop: '1px solid #E8ECF0', background: '#F8FAFC' }}>
+            <span style={{ fontSize: '13px', color: '#64748B' }}>
+              Page {pagination.pageNumber} of {pagination.totalPages}
+            </span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                className="staff-tab-btn"
+                disabled={!pagination.hasPreviousPage}
+                onClick={() => handlePageChange(pagination.pageNumber - 1)}
+                style={{ padding: '6px 12px', opacity: pagination.hasPreviousPage ? 1 : 0.5 }}
+              >
+                <ChevronLeft size={14} style={{ marginRight: '4px' }} /> Previous
+              </button>
+              <button
+                className="staff-tab-btn"
+                disabled={!pagination.hasNextPage}
+                onClick={() => handlePageChange(pagination.pageNumber + 1)}
+                style={{ padding: '6px 12px', opacity: pagination.hasNextPage ? 1 : 0.5 }}
+              >
+                Next <ChevronRight size={14} style={{ marginLeft: '4px' }} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
