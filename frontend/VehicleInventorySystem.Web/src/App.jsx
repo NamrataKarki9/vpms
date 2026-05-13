@@ -23,6 +23,7 @@ import CustomerSegments from './pages/staff/CustomerSegments';
 import CustomerDetail from './pages/staff/CustomerDetail';
 import Sales from './pages/staff/Sales';
 import Invoices from './pages/staff/Invoices';
+import InvoiceDetail from './pages/staff/InvoiceDetail';
 import Inventory from './pages/staff/Inventory';
 import Appointments from './pages/staff/Appointments';
 
@@ -172,15 +173,14 @@ function App() {
             <Route path="/staff" element={<StaffLayout user={user} />}>
               <Route index element={<Navigate to="dashboard" />} />
               <Route path="dashboard" element={<Dashboard sales={salesHistory} customers={customerList} parts={inventory} appointments={appointments} />} />
-              <Route path="customers" element={<Customers customers={customerList} />} />
-              <Route path="customers/:id" element={<CustomerDetail />} />
               <Route path="customers/segments" element={<CustomerSegments />} />
+              <Route path="customers/:id" element={<CustomerDetail />} />
+              <Route path="customers" element={<Customers customers={customerList} />} />
               <Route path="sales/new" element={<Sales customers={customerList} parts={inventory} onProcessSale={handleProcessSale} />} />
-              <Route path="invoices" element={<Invoices sales={salesHistory} />} />
+              <Route path="invoices/:id" element={<InvoiceDetail />} />
+              <Route path="invoices" element={<Invoices />} />
               <Route path="parts" element={<Inventory parts={inventory} />} />
               <Route path="appointments" element={<Appointments appointments={appointments} />} />
-              <Route path="analytics" element={<CustomerSegments />} /> {/* Reusing segments for now as placeholder for analytics */}
-              <Route path="history" element={<Invoices sales={salesHistory} />} /> {/* Reusing invoices for history */}
             </Route>
           )}
 
