@@ -74,9 +74,9 @@ export function ForgotPasswordPage({ onContinue, onBack }) {
               )}
             </div>
 
-            <button 
-              type="submit" 
-              className="auth-btn-primary" 
+            <button
+              type="submit"
+              className="auth-btn-primary"
               disabled={!!error || !email || isLoading}
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
             >
@@ -92,9 +92,9 @@ export function ForgotPasswordPage({ onContinue, onBack }) {
           </form>
 
           <div className="auth-footer">
-            <button 
-              onClick={onBack} 
-              className="auth-link" 
+            <button
+              onClick={onBack}
+              className="auth-link"
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', margin: '0 auto' }}
               disabled={isLoading}
             >
