@@ -78,7 +78,7 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
         const template = partTemplates[i % partTemplates.length];
         const vendor = createdVendors[i % createdVendors.length];
         partsToSeed.push({
-          name: `${template.name} - Type ${Math.ceil(i/10)}`,
+          name: `${template.name} - Type ${Math.ceil(i / 10)}`,
           partCode: `${template.code}-${100 + i}`,
           description: `High quality ${template.name}`,
           price: template.price + (i * 50),
@@ -114,7 +114,7 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
 
       showToast('success', 'System fully populated with Vendors, Parts, and Sample Customers!');
       window.location.reload();
-    } catch(err) { showToast('error', 'Seeding partially failed.'); }
+    } catch (err) { showToast('error', 'Seeding partially failed.'); }
     finally { setIsSeeding(false); }
   };
 
@@ -145,15 +145,15 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
 
   return (
     <div style={{ position: 'relative', minHeight: '100vh' }}>
-      <div style={{ 
-        position: 'fixed', 
-        top: '50%', 
-        left: '50%', 
-        transform: 'translate(-50%, -50%)', 
+      <div style={{
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
         width: '40rem',
         height: '40rem',
-        opacity: 0.05, 
-        zIndex: -1, 
+        opacity: 0.05,
+        zIndex: -1,
         pointerEvents: 'none',
         userSelect: 'none',
         backgroundImage: `url('https://cdn-icons-png.flaticon.com/512/912/912318.png')`,
@@ -165,46 +165,46 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '2rem', alignItems: 'start' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        <div className="card" id="stats">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3>Live Financials</h3>
-            <button onClick={handleSeedData} className="btn-small" style={{ background: isSeeding ? '#64748b' : 'var(--secondary)' }} disabled={isSeeding}>
-              {isSeeding ? 'Seeding...' : 'Seed Data'}
-            </button>
-            <select value={viewType} onChange={e => setViewType(e.target.value)} style={{ width: 'auto', padding: '0.4rem', marginBottom: 0 }}>
-              <option value="daily">Daily</option>
-              <option value="monthly">Monthly</option>
-              <option value="yearly">Yearly</option>
-            </select>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          <div className="card" id="stats">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3>Live Financials</h3>
+              <button onClick={handleSeedData} className="btn-small" style={{ background: isSeeding ? '#64748b' : 'var(--secondary)' }} disabled={isSeeding}>
+                {isSeeding ? 'Seeding...' : 'Seed Data'}
+              </button>
+              <select value={viewType} onChange={e => setViewType(e.target.value)} style={{ width: 'auto', padding: '0.4rem', marginBottom: 0 }}>
+                <option value="daily">Daily</option>
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '1rem' }}>
+              <thead><tr><th>Period</th><th>Count</th><th>Revenue</th></tr></thead>
+              <tbody><tr><td style={{ textTransform: 'capitalize' }}>{viewType}</td><td>{report.InvoiceCount ?? 0}</td><td>Rs. {(report.TotalRevenue ?? 0).toFixed(2)}</td></tr></tbody>
+            </table>
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '1rem' }}>
-            <thead><tr><th>Period</th><th>Count</th><th>Revenue</th></tr></thead>
-            <tbody><tr><td style={{ textTransform: 'capitalize' }}>{viewType}</td><td>{report.InvoiceCount ?? 0}</td><td>Rs. {(report.TotalRevenue ?? 0).toFixed(2)}</td></tr></tbody>
-          </table>
-        </div>
-        <div id="vendors" className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3>Partners & Vendors</h3>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button onClick={onOpenVendorManagement} className="btn-small" style={{ background: '#dbeafe', color: '#1d4ed8' }}>Vendor Management</button>
+          <div id="vendors" className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3>Partners & Vendors</h3>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={onOpenVendorManagement} className="btn-small" style={{ background: '#dbeafe', color: '#1d4ed8' }}>Vendor Management</button>
+              </div>
+            </div>
+            <div className="data-list">
+              {vendors.slice(0, 5).map(v => (
+                <div key={v.id} className="list-item"><span>{v.name}</span><span className="badge">Active</span></div>
+              ))}
+              {vendors.length === 0 && <p style={{ opacity: 0.5 }}>No vendors found.</p>}
+              {vendors.length > 5 && <p style={{ textAlign: 'center', fontSize: '0.8rem', opacity: 0.5, marginTop: '0.5rem' }}>+ {vendors.length - 5} more partners...</p>}
             </div>
           </div>
-          <div className="data-list">
-            {vendors.slice(0, 5).map(v => (
-              <div key={v.id} className="list-item"><span>{v.name}</span><span className="badge">Active</span></div>
-            ))}
-            {vendors.length === 0 && <p style={{opacity: 0.5}}>No vendors found.</p>}
-            {vendors.length > 5 && <p style={{ textAlign: 'center', fontSize: '0.8rem', opacity: 0.5, marginTop: '0.5rem' }}>+ {vendors.length - 5} more partners...</p>}
-          </div>
         </div>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        <StaffManager userRole="Admin" staffList={staffList} onNavigate={setAdminRoute} onRemove={onRemoveStaff} onUpdate={onUpdateStaff} />
-        <div id="customers"><CustomerManager customers={customerList} onNavigate={setAdminRoute} onRemove={onRemoveCustomer} onEdit={onUpdateCustomer} /></div>
-      </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          <StaffManager userRole="Admin" staffList={staffList} onNavigate={setAdminRoute} onRemove={onRemoveStaff} onUpdate={onUpdateStaff} />
+          <div id="customers"><CustomerManager customers={customerList} onNavigate={setAdminRoute} onRemove={onRemoveCustomer} onEdit={onUpdateCustomer} /></div>
+        </div>
         <div id="inventory"><InventoryManager inventory={inventory} onNavigate={setAdminRoute} onAddPart={() => setIsAddPartModalOpen(true)} /></div>
-    </div>
+      </div>
       <PartFormModal
         isOpen={isAddPartModalOpen}
         isEditing={false}
@@ -426,22 +426,22 @@ function InventoryPurchasePage({ inventory, onUpdate, onBack }) {
       const updatedInventory = inventory.map(p => p.id === parseInt(purchaseData.partId) ? { ...p, stock: p.stock + parseInt(purchaseData.quantity) } : p);
       onUpdate(updatedInventory);
       onBack();
-    } catch(err) { showToast('error', 'Purchase failed.'); }
+    } catch (err) { showToast('error', 'Purchase failed.'); }
   };
   return (
     <div className="card" style={{ maxWidth: '600px', margin: 'auto' }}>
       <button onClick={onBack} className="btn-small" style={{ marginBottom: '1rem', background: '#cbd5e1', color: '#0f172a' }}>← Back</button>
       <h2>New Stock Purchase</h2>
       <form onSubmit={handlePurchase} className="mini-form">
-        <select required onChange={e => setPurchaseData({...purchaseData, partId: e.target.value})} value={purchaseData.partId}>
+        <select required onChange={e => setPurchaseData({ ...purchaseData, partId: e.target.value })} value={purchaseData.partId}>
           <option value="">Select Part</option>
           {inventory.map(p => <option key={p.id} value={p.id}>{p.name} (Current: {p.stock})</option>)}
         </select>
-        <input type="number" placeholder="Quantity" required onChange={e => setPurchaseData({...purchaseData, quantity: e.target.value})} value={purchaseData.quantity} />
+        <input type="number" placeholder="Quantity" required onChange={e => setPurchaseData({ ...purchaseData, quantity: e.target.value })} value={purchaseData.quantity} />
         <VendorSearchSelect
           vendors={vendors}
           value={purchaseData.vendorId ? Number(purchaseData.vendorId) : null}
-          onChange={(id) => setPurchaseData({...purchaseData, vendorId: id ? String(id) : ''})}
+          onChange={(id) => setPurchaseData({ ...purchaseData, vendorId: id ? String(id) : '' })}
         />
         <button type="submit" style={{ marginTop: '1rem' }}>Complete Purchase</button>
       </form>
@@ -479,7 +479,7 @@ function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
     if (!/^\d{10}$/.test(phone.replace(/\D/g, ''))) return 'Phone must be 10 digits with no letters or symbols';
     return '';
   };
-  
+
   const handleSave = async (id) => {
     const nameError = validateName(editData.name);
     const emailError = validateEmail(editData.email);
@@ -494,22 +494,22 @@ function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
       const { apiFetch } = await import('../services/api');
       await apiFetch(`/users/${id}`, {
         method: 'PUT',
-        body: JSON.stringify({ 
-          name: editData.name, 
+        body: JSON.stringify({
+          name: editData.name,
           email: editData.email,
           phoneNumber: editData.phone
         })
       });
-      
+
       const originalCustomer = customers.find(c => c.id === id);
-      const updatedCustomer = { 
+      const updatedCustomer = {
         ...originalCustomer,
-        name: editData.name, 
+        name: editData.name,
         email: editData.email,
         phone: editData.phone,
         plate: editData.plate
       };
-      
+
       setEditingId(null);
       onUpdate(updatedCustomer);
       setSuccessDialog({ isOpen: true, message: `${editData.name} has been updated successfully.` });
@@ -549,12 +549,12 @@ function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
               <div className="mini-form" style={{ width: '100%' }}>
                 <div>
                   <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>Name</label>
-                  <input 
-                    type="text" 
-                    value={editData.name} 
+                  <input
+                    type="text"
+                    value={editData.name}
                     onChange={e => {
-                      setEditData({...editData, name: e.target.value});
-                      setValidationErrors({...validationErrors, name: validateName(e.target.value)});
+                      setEditData({ ...editData, name: e.target.value });
+                      setValidationErrors({ ...validationErrors, name: validateName(e.target.value) });
                     }}
                     placeholder="Customer Name"
                     style={{ borderColor: validationErrors.name ? '#ef4444' : '' }}
@@ -563,12 +563,12 @@ function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
                 </div>
                 <div>
                   <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>Email</label>
-                  <input 
-                    type="email" 
-                    value={editData.email} 
+                  <input
+                    type="email"
+                    value={editData.email}
                     onChange={e => {
-                      setEditData({...editData, email: e.target.value});
-                      setValidationErrors({...validationErrors, email: validateEmail(e.target.value)});
+                      setEditData({ ...editData, email: e.target.value });
+                      setValidationErrors({ ...validationErrors, email: validateEmail(e.target.value) });
                     }}
                     placeholder="Email"
                     style={{ borderColor: validationErrors.email ? '#ef4444' : '' }}
@@ -577,12 +577,12 @@ function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
                 </div>
                 <div>
                   <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>Phone</label>
-                  <input 
-                    type="text" 
-                    value={editData.phone} 
+                  <input
+                    type="text"
+                    value={editData.phone}
                     onChange={e => {
-                      setEditData({...editData, phone: e.target.value});
-                      setValidationErrors({...validationErrors, phone: validatePhone(e.target.value)});
+                      setEditData({ ...editData, phone: e.target.value });
+                      setValidationErrors({ ...validationErrors, phone: validatePhone(e.target.value) });
                     }}
                     placeholder="Phone Number"
                     style={{ borderColor: validationErrors.phone ? '#ef4444' : '' }}
@@ -591,10 +591,10 @@ function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
                 </div>
                 <div>
                   <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>Plate Number</label>
-                  <input 
-                    type="text" 
-                    value={editData.plate} 
-                    onChange={e => setEditData({...editData, plate: e.target.value})}
+                  <input
+                    type="text"
+                    value={editData.plate}
+                    onChange={e => setEditData({ ...editData, plate: e.target.value })}
                     placeholder="Vehicle Plate"
                   />
                 </div>
@@ -612,8 +612,8 @@ function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
                   {c.vehicleInfo ? (
                     <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>
                       <span style={{ fontWeight: 600 }}>
-                        {c.vehicleInfo.make?.toLowerCase().includes(c.vehicleInfo.model?.toLowerCase()) || c.vehicleInfo.model?.toLowerCase().includes(c.vehicleInfo.make?.toLowerCase()) 
-                          ? c.vehicleInfo.make 
+                        {c.vehicleInfo.make?.toLowerCase().includes(c.vehicleInfo.model?.toLowerCase()) || c.vehicleInfo.model?.toLowerCase().includes(c.vehicleInfo.make?.toLowerCase())
+                          ? c.vehicleInfo.make
                           : `${c.vehicleInfo.make} ${c.vehicleInfo.model}`} ({c.vehicleInfo.year})
                       </span>
                       <br />
@@ -664,8 +664,8 @@ function FullInventoryPage({ inventory, onBack }) {
       <div className="data-list">
         {inventory.map(p => (
           <div key={p.id} className="list-item">
-            <div><strong>{p.name}</strong><br/>Vendor: {p.vendor}</div>
-            <div>Rs. {p.price}<br/><span className="badge">{p.stock} Stock</span></div>
+            <div><strong>{p.name}</strong><br />Vendor: {p.vendor}</div>
+            <div>Rs. {p.price}<br /><span className="badge">{p.stock} Stock</span></div>
           </div>
         ))}
       </div>
