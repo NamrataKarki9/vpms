@@ -35,6 +35,7 @@ public class Invoice
     public int? CustomerId { get; set; }
     public User? Customer { get; set; }
     public int? VendorId { get; set; }
+    public Vendor? Vendor { get; set; }
     
     public ICollection<InvoiceItem> Items { get; set; } = new List<InvoiceItem>();
 }
