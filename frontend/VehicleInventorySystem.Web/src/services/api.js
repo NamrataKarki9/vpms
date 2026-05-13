@@ -149,5 +149,8 @@ export const authApi = {
 export const transactionsApi = {
   getSales: async () => {
     return apiFetch('/Transactions/sales');
+  },
+  getRecent: async () => {
+    return apiFetch('/Transactions/recent');
   }
 };

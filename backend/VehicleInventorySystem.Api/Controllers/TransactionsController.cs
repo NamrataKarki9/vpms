@@ -362,4 +362,37 @@ public class TransactionsController : ControllerBase
 
         return Ok(sales);
     }
+
+    // F14: Admin - Recent live transactions (sales + purchases)
+    [Authorize(Roles = "Admin")]
+    [HttpGet("recent")]
+    public async Task<ActionResult<IEnumerable<object>>> GetRecentTransactions()
+    {
+        var query = _context.Invoices.AsQueryable();
+
+        var recent = await query
+            .Include(i => i.Customer)
+            .Include(i => i.Vendor)
+            .Include(i => i.Items)
+            .ThenInclude(ii => ii.Part)
+            .OrderByDescending(i => i.Date)
+            .Take(20)
+            .Select(i => new
+            {
+                invoiceId = i.Id,
+                type = i.Type == InvoiceType.Sale ? "Sale" : "Purchase",
+                date = i.Date,
+                customerName = i.Type == InvoiceType.Sale ? (i.Customer != null ? i.Customer.Name : "Walk-in") : null,
+                vendorName = i.Type == InvoiceType.Purchase ? (i.Vendor != null ? i.Vendor.Name : "Unknown Vendor") : null,
+                totalAmount = i.TotalAmount,
+                itemCount = i.Items.Count,
+                isPaid = i.IsPaid,
+                summary = i.Type == InvoiceType.Sale
+                    ? $"Sale to {(i.Customer != null ? i.Customer.Name : "Walk-in")}" 
+                    : $"Purchase from {(i.Vendor != null ? i.Vendor.Name : "Unknown Vendor")}"
+            })
+            .ToListAsync();
+
+        return Ok(recent);
+    }
 }

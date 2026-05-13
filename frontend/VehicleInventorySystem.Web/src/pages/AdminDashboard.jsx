@@ -12,19 +12,41 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
   const showToast = useToast();
   const [viewType, setViewType] = useState('daily');
   const [adminRoute, setAdminRoute] = useState('main');
-  const [report, setReport] = useState({ TotalRevenue: 0, InvoiceCount: 0 });
+  const [report, setReport] = useState({ period: 'daily', revenue: 0, count: 0 });
   const [vendors, setVendors] = useState([]);
-  const [isSeeding, setIsSeeding] = useState(false);
   const [isAddPartModalOpen, setIsAddPartModalOpen] = useState(false);
   const [isAddPartSaving, setIsAddPartSaving] = useState(false);
+  const [liveTransactions, setLiveTransactions] = useState([]);
+  const [isLiveTransactionsLoading, setIsLiveTransactionsLoading] = useState(false);
+  const [liveTransactionsError, setLiveTransactionsError] = useState('');
+
+  const refreshLiveTransactions = async () => {
+    setIsLiveTransactionsLoading(true);
+    setLiveTransactionsError('');
+    try {
+      const { apiFetch } = await import('../services/api');
+      const response = await apiFetch('/Transactions/recent');
+      console.log('Live transactions:', response);
+      setLiveTransactions(Array.isArray(response) ? response : []);
+    } catch (error) {
+      setLiveTransactions([]);
+      setLiveTransactionsError('Unable to load live transactions.');
+      showToast('error', 'Unable to load live transactions.');
+    } finally {
+      setIsLiveTransactionsLoading(false);
+    }
+  };
 
   useEffect(() => {
     import('../services/api').then(({ apiFetch }) => {
-      apiFetch(`/Reports/revenue?period=${viewType}`).then(res => {
-        if (res) {
+      const period = viewType.trim().toLowerCase();
+      apiFetch(`/Reports/revenue?period=${encodeURIComponent(period)}`).then(response => {
+        const data = response?.data ?? response;
+        if (data) {
           setReport({
-            TotalRevenue: res.totalRevenue ?? res.TotalRevenue ?? 0,
-            InvoiceCount: res.invoiceCount ?? res.InvoiceCount ?? 0
+            period: data.period ?? data.Period ?? period,
+            revenue: Number(data.revenue ?? data.totalRevenue ?? data.TotalRevenue ?? 0),
+            count: Number(data.count ?? data.invoiceCount ?? data.InvoiceCount ?? 0)
           });
         }
       });
@@ -39,6 +61,15 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
     });
   }, [viewType]);
 
+  useEffect(() => {
+    refreshLiveTransactions();
+  }, []);
+
+  useEffect(() => {
+    if (Array.isArray(sales) && sales.length > 0) {
+      refreshLiveTransactions();
+    }
+  }, [sales]);
   const handleSeedData = async () => {
     if (!window.confirm('This will add 50 realistic items (10 Vendors, 40 Parts) to your database. Continue?')) return;
     setIsSeeding(true);
@@ -138,7 +169,7 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
   };
 
   if (adminRoute === 'add-staff') return <AddStaffPage onAdd={onAddStaff} onBack={() => setAdminRoute('main')} />;
-  if (adminRoute === 'manage-inventory') return <InventoryPurchasePage inventory={inventory} onUpdate={onUpdateInventory} onBack={() => setAdminRoute('main')} />;
+  if (adminRoute === 'manage-inventory') return <InventoryPurchasePage inventory={inventory} onUpdate={onUpdateInventory} onBack={() => setAdminRoute('main')} onRefreshTransactions={refreshLiveTransactions} />;
   if (adminRoute === 'manage-customers') return <CustomerManagementPage customers={customerList} onRemove={onRemoveCustomer} onUpdate={onUpdateCustomer} onBack={() => setAdminRoute('main')} />;
   if (adminRoute === 'view-all-inventory') return <FullInventoryPage inventory={inventory} onBack={() => setAdminRoute('main')} />;
   if (adminRoute === 'view-all-staff') return <FullStaffPage staffList={staffList} onBack={() => setAdminRoute('main')} />;
@@ -165,6 +196,90 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '2rem', alignItems: 'start' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          <div className="card" id="stats">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3>Live Financials</h3>
+              <select value={viewType} onChange={e => setViewType(e.target.value)} style={{ width: 'auto', padding: '0.4rem', marginBottom: 0 }}>
+                <option value="daily">Daily</option>
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '1rem' }}>
+              <thead><tr><th>Period</th><th>Count</th><th>Revenue</th></tr></thead>
+              <tbody><tr><td style={{ textTransform: 'capitalize' }}>{report.period ?? viewType}</td><td>{report.count ?? 0}</td><td>Rs. {(report.revenue ?? 0).toFixed(2)}</td></tr></tbody>
+            </table>
+          </div>
+          <div id="vendors" className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3>Partners & Vendors</h3>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={onOpenVendorManagement} className="btn-small" style={{ background: '#dbeafe', color: '#1d4ed8' }}>Vendor Management</button>
+              </div>
+            </div>
+            <div className="data-list">
+              {vendors.slice(0, 5).map(v => (
+                <div key={v.id} className="list-item"><span>{v.name}</span><span className="badge">Active</span></div>
+              ))}
+              {vendors.length === 0 && <p style={{ opacity: 0.5 }}>No vendors found.</p>}
+              {vendors.length > 5 && <p style={{ textAlign: 'center', fontSize: '0.8rem', opacity: 0.5, marginTop: '0.5rem' }}>+ {vendors.length - 5} more partners...</p>}
+            </div>
+          </div>
+          <div id="live-transactions" className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3>Live Transactions</h3>
+              <button onClick={refreshLiveTransactions} className="btn-small" style={{ background: '#f1f5f9', color: '#0f172a' }}>
+                Refresh
+              </button>
+            </div>
+            <div className="data-list" style={{ marginTop: '1rem' }}>
+              {isLiveTransactionsLoading ? (
+                <p style={{ textAlign: 'center', padding: '2rem', opacity: 0.6 }}>Loading transactions...</p>
+              ) : liveTransactions.length === 0 ? (
+                <p style={{ textAlign: 'center', padding: '2rem', opacity: 0.6 }}>No transactions found.</p>
+              ) : (
+                liveTransactions.map((tx) => {
+                  const invoiceId = tx.invoiceId ?? tx.InvoiceId ?? tx.id ?? tx.Id;
+                  const type = tx.type ?? tx.Type ?? 'Unknown';
+                  const dateValue = tx.date ?? tx.Date;
+                  const dateLabel = dateValue ? new Date(dateValue).toLocaleString() : 'N/A';
+                  const customerName = tx.customerName ?? tx.CustomerName;
+                  const vendorName = tx.vendorName ?? tx.VendorName;
+                  const totalAmount = tx.totalAmount ?? tx.TotalAmount ?? 0;
+                  const itemCount = tx.itemCount ?? tx.ItemCount ?? tx.items?.length ?? 0;
+                  const isPaid = tx.isPaid ?? tx.IsPaid;
+                  const summary = tx.summary ?? tx.Summary ?? (type === 'Sale'
+                    ? `Sale to ${customerName || 'Walk-in'}`
+                    : `Purchase from ${vendorName || 'Unknown Vendor'}`);
+
+                  return (
+                    <div key={invoiceId} className="list-item" style={{ alignItems: 'flex-start' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <strong>{summary}</strong>
+                        <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>{dateLabel}</span>
+                        <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>{type} - {itemCount} item{itemCount === 1 ? '' : 's'}</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+                        <span className="badge">Rs. {Number(totalAmount || 0).toFixed(2)}</span>
+                        <span className="badge" style={{ background: isPaid ? '#dcfce7' : '#fee2e2', color: isPaid ? '#15803d' : '#991b1b' }}>
+                          {isPaid ? 'Paid' : 'Unpaid'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              {liveTransactionsError && !isLiveTransactionsLoading && (
+                <p style={{ textAlign: 'center', padding: '0.5rem', color: '#ef4444' }}>{liveTransactionsError}</p>
+              )}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          <StaffManager userRole="Admin" staffList={staffList} onNavigate={setAdminRoute} onRemove={onRemoveStaff} onUpdate={onUpdateStaff} />
+          <div id="customers"><CustomerManager customers={customerList} onNavigate={setAdminRoute} onRemove={onRemoveCustomer} onEdit={onUpdateCustomer} /></div>
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           <div className="card" id="stats">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -396,7 +511,7 @@ function AddStaffPage({ onAdd, onBack }) {
   );
 }
 
-function InventoryPurchasePage({ inventory, onUpdate, onBack }) {
+function InventoryPurchasePage({ inventory, onUpdate, onBack, onRefreshTransactions }) {
   const showToast = useToast();
   const [purchaseData, setPurchaseData] = useState({ partId: '', quantity: '', vendorId: '' });
   const [vendors, setVendors] = useState([]);
@@ -425,6 +540,9 @@ function InventoryPurchasePage({ inventory, onUpdate, onBack }) {
       showToast('success', 'Stock updated successfully.');
       const updatedInventory = inventory.map(p => p.id === parseInt(purchaseData.partId) ? { ...p, stock: p.stock + parseInt(purchaseData.quantity) } : p);
       onUpdate(updatedInventory);
+      if (onRefreshTransactions) {
+        await onRefreshTransactions();
+      }
       onBack();
     } catch (err) { showToast('error', 'Purchase failed.'); }
   };

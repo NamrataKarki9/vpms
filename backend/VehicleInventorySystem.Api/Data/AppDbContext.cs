@@ -81,6 +81,11 @@ public class AppDbContext : IdentityDbContext<User, IdentityRole<int>, int>
             .WithOne()
             .HasForeignKey(ii => ii.InvoiceId);
 
+        builder.Entity<Invoice>()
+            .HasOne(i => i.Vendor)
+            .WithMany()
+            .HasForeignKey(i => i.VendorId);
+
         builder.Entity<Vendor>(entity =>
         {
             entity.HasIndex(v => v.EmailAddress).IsUnique();

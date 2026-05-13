@@ -27,21 +27,49 @@ public class ReportsController : ControllerBase
     [HttpGet("revenue")]
     public async Task<ActionResult> GetRevenueReport([FromQuery] string period = "daily")
     {
+        period = string.IsNullOrWhiteSpace(period)
+            ? "daily"
+            : period.Trim().ToLowerInvariant();
         var now = DateTime.UtcNow;
-        var query = _context.Invoices.Where(i => i.Type == InvoiceType.Sale);
+        DateTime start;
+        DateTime end;
 
-        if (period == "daily") query = query.Where(i => i.Date >= now.Date);
-        else if (period == "monthly") query = query.Where(i => i.Date >= new DateTime(now.Year, now.Month, 1));
-        else if (period == "yearly") query = query.Where(i => i.Date >= new DateTime(now.Year, 1, 1));
+        switch (period)
+        {
+            case "daily":
+                start = now.Date;
+                end = start.AddDays(1);
+                break;
 
-        var total = await query
-            .Select(i => i.PaymentStatus == "half-payment" ? i.TotalAmount * 0.5m :
-                         i.PaymentStatus == "partial-payment" ? i.TotalAmount * 0.1m :
-                         i.TotalAmount)
-            .SumAsync();
+            case "monthly":
+                start = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+                end = start.AddMonths(1);
+                break;
+
+            case "yearly":
+                start = new DateTime(now.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+                end = start.AddYears(1);
+                break;
+
+            default:
+                start = now.Date;
+                end = start.AddDays(1);
+                break;
+        }
+
+        var query = _context.Invoices
+            .AsQueryable()
+            .Where(i => i.Type == InvoiceType.Sale)
+            .Where(i => i.Date >= start && i.Date < end);
+
         var count = await query.CountAsync();
 
-        return Ok(new { Period = period, TotalRevenue = total, InvoiceCount = count });
+        var revenue = await query
+            .SumAsync(i => (decimal?)i.TotalAmount) ?? 0m;
+
+        Console.WriteLine($"Period: {period}, Start: {start:o}, End: {end:o}, Count: {count}, Revenue: {revenue}");
+
+        return Ok(new { period = period, revenue = revenue, count = count });
     }
 
     // F9: Staff - Customer reports (regulars, high spenders)
