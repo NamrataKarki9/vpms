@@ -35,8 +35,7 @@ public class Invoice
     public int? CustomerId { get; set; }
     public User? Customer { get; set; }
     public int? VendorId { get; set; }
-    public int? VehicleId { get; set; } // For tracking which vehicle this purchase/service is for
-    public Vehicle? Vehicle { get; set; }
+    public Vendor? Vendor { get; set; }
     
     public ICollection<InvoiceItem> Items { get; set; } = new List<InvoiceItem>();
 }

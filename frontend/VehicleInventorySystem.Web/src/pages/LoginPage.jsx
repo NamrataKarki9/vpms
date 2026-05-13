@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { authApi } from '../services/api';
+import { Mail, Lock, Eye, EyeOff, LogIn, AlertCircle } from 'lucide-react';
+import '../styles/auth.css';
 
 export function LoginPage({ onLogin, onSignUp, onForgotPassword }) {
   const [email, setEmail] = useState('');
@@ -21,7 +23,8 @@ export function LoginPage({ onLogin, onSignUp, onForgotPassword }) {
     return '';
   };
 
-  const handleLogin = async () => {
+  const handleLogin = async (e) => {
+    if (e) e.preventDefault();
     const emailError = validateEmail(email);
     const passwordError = validatePassword(password);
     setErrors({ email: emailError, password: passwordError });
@@ -33,11 +36,11 @@ export function LoginPage({ onLogin, onSignUp, onForgotPassword }) {
     try {
       const user = await authApi.login(email.trim(), password);
       onLogin({
-        id: user.id,
-        name: user.fullName,
-        email: user.emailAddress,
-        role: user.role,
-        token: user.token
+        id: user.id ?? user.Id,
+        name: user.fullName ?? user.FullName ?? user.name ?? user.Name,
+        email: user.emailAddress ?? user.EmailAddress ?? user.email ?? user.Email,
+        role: user.role ?? user.Role,
+        token: user.token ?? user.Token
       });
     } catch (err) {
       setLoginError(err.message || 'Invalid email or password.');
@@ -47,49 +50,102 @@ export function LoginPage({ onLogin, onSignUp, onForgotPassword }) {
   };
 
   return (
-    <div className="card" style={{ maxWidth: '400px', margin: 'auto' }}>
-      <h2>Login</h2>
-      <div>
-        <input
-          type="text"
-          placeholder="Email"
-          value={email}
-          onChange={e => {
-            setEmail(e.target.value);
-            setErrors({...errors, email: validateEmail(e.target.value)});
-          }}
-          style={{ borderColor: errors.email ? '#ef4444' : '' }}
-          disabled={isLoading}
-        />
-        {errors.email && <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>{errors.email}</span>}
+    <div className="auth-wrapper">
+      <div className="auth-card">
+        <div className="auth-header">
+          <div className="auth-logo-icon">🔧</div>
+          <h2>Welcome Back</h2>
+          <p>Please enter your details to sign in</p>
+        </div>
+
+        <div className="auth-body">
+          {loginError && (
+            <div className="auth-alert auth-alert-error">
+              <AlertCircle size={18} />
+              <span>{loginError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleLogin}>
+            <div className="auth-form-group">
+              <label className="auth-label">Email Address</label>
+              <div className="auth-input-wrapper">
+                <Mail className="auth-input-icon" size={18} />
+                <input
+                  type="email"
+                  placeholder="name@company.com"
+                  className={`auth-input ${errors.email ? 'error' : ''}`}
+                  value={email}
+                  onChange={e => {
+                    setEmail(e.target.value);
+                    if (errors.email) setErrors({...errors, email: ''});
+                  }}
+                  disabled={isLoading}
+                />
+              </div>
+              {errors.email && <span className="auth-error-text">{errors.email}</span>}
+            </div>
+
+            <div className="auth-form-group">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label className="auth-label" style={{ margin: 0 }}>Password</label>
+                <button 
+                  type="button" 
+                  onClick={onForgotPassword} 
+                  className="auth-link" 
+                  style={{ fontSize: '12px' }}
+                  disabled={isLoading}
+                >
+                  Forgot password?
+                </button>
+              </div>
+              <div className="auth-input-wrapper">
+                <Lock className="auth-input-icon" size={18} />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  className={`auth-input ${errors.password ? 'error' : ''}`}
+                  value={password}
+                  onChange={e => {
+                    setPassword(e.target.value);
+                    if (errors.password) setErrors({...errors, password: ''});
+                  }}
+                  disabled={isLoading}
+                />
+                <button 
+                  type="button" 
+                  className="auth-password-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              {errors.password && <span className="auth-error-text">{errors.password}</span>}
+            </div>
+
+            <button 
+              type="submit" 
+              className="auth-btn-primary" 
+              disabled={isLoading}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+            >
+              {isLoading ? (
+                <>Signing in...</>
+              ) : (
+                <>
+                  <LogIn size={18} />
+                  <span>Sign In</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="auth-footer">
+            <span className="auth-text-muted">New customer? </span>
+            <button onClick={onSignUp} className="auth-link">Create an account</button>
+          </div>
+        </div>
       </div>
-      <div style={{ position: 'relative', width: '100%' }}>
-        <input
-          type={showPassword ? "text" : "password"}
-          placeholder="Password"
-          value={password}
-          onChange={e => {
-            setPassword(e.target.value);
-            setErrors({...errors, password: validatePassword(e.target.value)});
-          }}
-          style={{ width: '100%', marginBottom: '0.25rem', borderColor: errors.password ? '#ef4444' : '' }}
-          disabled={isLoading}
-        />
-        <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '10px', top: '12px', background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: 0, boxShadow: 'none' }} disabled={isLoading}>
-          {showPassword ? 'Hide' : 'Show'}
-        </button>
-      </div>
-      {errors.password && <span style={{ fontSize: '0.75rem', color: '#ef4444', display: 'block', marginBottom: '1rem' }}>{errors.password}</span>}
-      {loginError && <div style={{ fontSize: '0.85rem', color: '#ef4444', background: '#fee2e2', padding: '0.75rem', borderRadius: '6px', marginBottom: '1rem', borderLeft: '4px solid #ef4444' }}>{loginError}</div>}
-      <button onClick={handleLogin} disabled={!!errors.email || !!errors.password || isLoading}>
-        {isLoading ? 'Signing in...' : 'Enter System'}
-      </button>
-      <p style={{ marginTop: '0.75rem', textAlign: 'center', fontSize: '0.85rem' }}>
-        <button onClick={onForgotPassword} className="btn-small" disabled={isLoading}>
-          Forgot Password?
-        </button>
-      </p>
-      <p style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: '0.9rem' }}>New customer? <button onClick={onSignUp} className="btn-small">Sign Up Here</button></p>
     </div>
   );
 }

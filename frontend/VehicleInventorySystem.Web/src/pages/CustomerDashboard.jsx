@@ -272,6 +272,16 @@ function VehiclesPage({ vehicles, onAddVehicle, onDeleteVehicle, onBack }) {
       return;
     }
 
+    if (!form.fuelType) {
+      setError('Please select a fuel type');
+      return;
+    }
+
+    if (Number.isNaN(Number(form.mileage)) || Number(form.mileage) < 0) {
+      setError('Mileage must be 0 or greater');
+      return;
+    }
+
     try {
       await onAddVehicle({
         plateNumber: form.plateNumber.trim(),
@@ -279,6 +289,7 @@ function VehiclesPage({ vehicles, onAddVehicle, onDeleteVehicle, onBack }) {
         make: form.make.trim(),
         year: form.year,
         fuelType: form.fuelType || null,
+        mileage: Number(form.mileage)
         mileage: Number(form.mileage)
       });
       setForm({ plateNumber: '', model: '', make: '', year: new Date().getFullYear(), fuelType: '', mileage: 0 });
@@ -301,6 +312,12 @@ function VehiclesPage({ vehicles, onAddVehicle, onDeleteVehicle, onBack }) {
         <div className="card" style={{ background: '#f8fafc', marginBottom: '2rem', padding: '1.5rem' }}>
           <h3>Add New Vehicle</h3>
           <form style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <VehicleForm
+              value={form}
+              onChange={setForm}
+              errors={{}}
+              showMileageHint={false}
+            />
             <VehicleForm
               value={form}
               onChange={setForm}

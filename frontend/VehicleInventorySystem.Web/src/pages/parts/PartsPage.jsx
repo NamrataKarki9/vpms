@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { partsService } from '../../services/partsService';
-import { vendorService } from '../../services/vendorService';
+import { extractVendorItems, vendorService } from '../../services/vendorService';
 import PartsFilters from '../../components/parts/PartsFilters';
 import PartsStatsCards from '../../components/parts/PartsStatsCards';
 import PartsTable from '../../components/parts/PartsTable';
@@ -35,14 +35,6 @@ function normalizePart(part) {
     vendorId: part.vendorId ?? part.VendorId ?? 0,
     vendorName: part.vendorName ?? part.VendorName ?? part.vendor?.name ?? part.vendor?.Name ?? '',
     isActive: Boolean(part.isActive ?? part.IsActive ?? false),
-  };
-}
-
-function normalizeVendor(vendor) {
-  return {
-    id: vendor.id ?? vendor.Id,
-    name: vendor.name ?? vendor.Name ?? '',
-    isActive: Boolean(vendor.isActive ?? vendor.IsActive ?? false),
   };
 }
 
@@ -95,8 +87,9 @@ export default function PartsPage() {
   const loadVendors = async () => {
     try {
       const response = await vendorService.getVendors({ pageNumber: 1, pageSize: 200, status: 'all' });
-      const items = Array.isArray(response?.items) ? response.items : Array.isArray(response) ? response : [];
-      setVendors(items.map(normalizeVendor));
+      const loadedVendors = extractVendorItems(response);
+      console.log('Loaded vendors:', loadedVendors);
+      setVendors(loadedVendors);
     } catch (error) {
       showToast('error', extractErrorMessage(error));
     }

@@ -27,21 +27,49 @@ public class ReportsController : ControllerBase
     [HttpGet("revenue")]
     public async Task<ActionResult> GetRevenueReport([FromQuery] string period = "daily")
     {
+        period = string.IsNullOrWhiteSpace(period)
+            ? "daily"
+            : period.Trim().ToLowerInvariant();
         var now = DateTime.UtcNow;
-        var query = _context.Invoices.Where(i => i.Type == InvoiceType.Sale);
+        DateTime start;
+        DateTime end;
 
-        if (period == "daily") query = query.Where(i => i.Date >= now.Date);
-        else if (period == "monthly") query = query.Where(i => i.Date >= new DateTime(now.Year, now.Month, 1));
-        else if (period == "yearly") query = query.Where(i => i.Date >= new DateTime(now.Year, 1, 1));
+        switch (period)
+        {
+            case "daily":
+                start = now.Date;
+                end = start.AddDays(1);
+                break;
 
-        var total = await query
-            .Select(i => i.PaymentStatus == "half-payment" ? i.TotalAmount * 0.5m :
-                         i.PaymentStatus == "partial-payment" ? i.TotalAmount * 0.1m :
-                         i.TotalAmount)
-            .SumAsync();
+            case "monthly":
+                start = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+                end = start.AddMonths(1);
+                break;
+
+            case "yearly":
+                start = new DateTime(now.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+                end = start.AddYears(1);
+                break;
+
+            default:
+                start = now.Date;
+                end = start.AddDays(1);
+                break;
+        }
+
+        var query = _context.Invoices
+            .AsQueryable()
+            .Where(i => i.Type == InvoiceType.Sale)
+            .Where(i => i.Date >= start && i.Date < end);
+
         var count = await query.CountAsync();
 
-        return Ok(new { Period = period, TotalRevenue = total, InvoiceCount = count });
+        var revenue = await query
+            .SumAsync(i => (decimal?)i.TotalAmount) ?? 0m;
+
+        Console.WriteLine($"Period: {period}, Start: {start:o}, End: {end:o}, Count: {count}, Revenue: {revenue}");
+
+        return Ok(new { period = period, revenue = revenue, count = count });
     }
 
     // F9: Staff - Customer reports (regulars, high spenders)
@@ -158,7 +186,36 @@ public class ReportsController : ControllerBase
             if (customer != null && !string.IsNullOrEmpty(customer.Email))
             {
                 string subject = "Action Required: Overdue Invoice Payment";
-                string body = $"Dear {customer.Name},\n\nThis is a reminder that your invoice #{invoice.Id} dated {invoice.Date.ToShortDateString()} for the amount of Rs. {invoice.TotalAmount} is overdue by more than a month.\n\nPlease arrange for payment as soon as possible to avoid interruption of services.\n\nThank you,\nVehicle Inventory System";
+                string body = $@"
+<!DOCTYPE html>
+<html>
+<head><meta charset='utf-8'></head>
+<body style='margin:0;padding:0;font-family:Arial,sans-serif;background:#f1f5f9'>
+  <table style='max-width:600px;margin:auto;margin-top:24px;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0'>
+    <tr><td style='background:#e11d48;padding:24px;text-align:center;color:#fff'>
+      <h1 style='margin:0;font-size:20px'>Payment Reminder</h1>
+      <p style='margin:8px 0 0;opacity:0.8'>Overdue Invoice #{invoice.Id}</p>
+    </td></tr>
+    <tr><td style='padding:24px'>
+      <p style='margin:0 0 16px'>Dear <strong>{customer.Name}</strong>,</p>
+      <p style='margin:0 0 16px;color:#475569;line-height:1.5'>
+        This is a reminder that your invoice <strong>#{invoice.Id}</strong> dated <strong>{invoice.Date.ToShortDateString()}</strong> 
+        for the amount of <strong>Rs. {invoice.TotalAmount:N2}</strong> is overdue by more than a month.
+      </p>
+      <p style='margin:0 0 24px;color:#475569;line-height:1.5'>
+        Please arrange for payment as soon as possible to avoid any interruption of services.
+      </p>
+      <div style='background:#fff1f2;padding:16px;border-radius:8px;border:1px solid #fecdd3;color:#9f1239;text-align:center;font-weight:600'>
+        Outstanding Balance: Rs. {invoice.TotalAmount:N2}
+      </div>
+      <p style='margin-top:32px;font-size:13px;color:#64748b;text-align:center'>
+        <strong>Vehicle Inventory System</strong><br>
+        If you have already made the payment, please ignore this email.
+      </p>
+    </td></tr>
+  </table>
+</body>
+</html>";
                 
                 await _emailService.SendEmailAsync(customer.Email, subject, body);
                 sentCount++;

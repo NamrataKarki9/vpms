@@ -1,23 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { vendorService } from '../../services/vendorService';
+import { extractVendorItems, normalizeVendor, vendorService } from '../../services/vendorService';
 import VendorFilters from '../../components/vendors/VendorFilters';
 import VendorStatsCards from '../../components/vendors/VendorStatsCards';
 import VendorTable from '../../components/vendors/VendorTable';
 import VendorFormModal from '../../components/vendors/VendorFormModal';
 
 const EMPTY_VENDORS = [];
-
-function normalizeVendor(vendor) {
-  return {
-    ...vendor,
-    name: vendor.name ?? '',
-    contactPerson: vendor.contactPerson ?? '',
-    phoneNumber: vendor.phoneNumber ?? vendor.phone ?? '',
-    emailAddress: vendor.emailAddress ?? vendor.email ?? '',
-    address: vendor.address ?? '',
-    isActive: Boolean(vendor.isActive),
-  };
-}
 
 export default function VendorPage() {
   const [vendors, setVendors] = useState(EMPTY_VENDORS);
@@ -51,16 +39,16 @@ export default function VendorPage() {
         searchTerm: submittedSearchTerm,
         status: appliedStatusFilter,
       });
-      const items = Array.isArray(response?.items) ? response.items : [];
-      const normalized = items.map(normalizeVendor);
+      const normalized = extractVendorItems(response);
+      console.log('Loaded vendors:', normalized);
       setVendors(normalized);
-      setTotalItems(response?.totalItems ?? items.length);
-      setTotalPages(response?.totalPages ?? 1);
-      setHasNextPage(Boolean(response?.hasNextPage));
-      setHasPreviousPage(Boolean(response?.hasPreviousPage));
-      setPageNumber(response?.pageNumber ?? targetPage);
-      setPageSize(response?.pageSize ?? pageSize);
-      return { items: normalized, pageNumber: response?.pageNumber ?? targetPage };
+      setTotalItems(response?.totalItems ?? response?.TotalItems ?? normalized.length);
+      setTotalPages(response?.totalPages ?? response?.TotalPages ?? 1);
+      setHasNextPage(Boolean(response?.hasNextPage ?? response?.HasNextPage));
+      setHasPreviousPage(Boolean(response?.hasPreviousPage ?? response?.HasPreviousPage));
+      setPageNumber(response?.pageNumber ?? response?.PageNumber ?? targetPage);
+      setPageSize(response?.pageSize ?? response?.PageSize ?? pageSize);
+      return { items: normalized, pageNumber: response?.pageNumber ?? response?.PageNumber ?? targetPage };
     } catch (error) {
       setToast({ type: 'error', message: error.message || 'Unable to load vendors.' });
       return { items: [], pageNumber: targetPage };

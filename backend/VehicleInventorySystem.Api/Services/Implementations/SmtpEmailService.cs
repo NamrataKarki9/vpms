@@ -62,7 +62,18 @@ public class SmtpEmailService : IEmailService
         message.From.Add(new MailboxAddress(_settings.SenderName ?? "System", _settings.FromEmail));
         message.To.Add(MailboxAddress.Parse(toEmail));
         message.Subject = subject;
-        message.Body = new TextPart("plain") { Text = body };
+
+        var bodyBuilder = new BodyBuilder();
+        string trimmedBody = body.Trim();
+        if (trimmedBody.StartsWith("<") || trimmedBody.Contains("<html>") || trimmedBody.Contains("<body>"))
+        {
+            bodyBuilder.HtmlBody = body;
+        }
+        else
+        {
+            bodyBuilder.TextBody = body;
+        }
+        message.Body = bodyBuilder.ToMessageBody();
 
         using var client = new SmtpClient();
         try

@@ -1,12 +1,19 @@
 import React, { useMemo, useState } from 'react';
 
 export default function VendorSearchSelect({ vendors, value, onChange, label }) {
-  const vendorList = useMemo(() => vendors || [], [vendors]);
+  const vendorList = useMemo(() => (vendors || []).map((vendor) => ({
+    id: Number(vendor.id ?? vendor.Id ?? 0),
+    name: vendor.name ?? vendor.Name ?? '',
+    contactPerson: vendor.contactPerson ?? vendor.ContactPerson ?? '',
+    emailAddress: vendor.emailAddress ?? vendor.EmailAddress ?? '',
+    isActive: Boolean(vendor.isActive ?? vendor.IsActive ?? false),
+  })).filter((vendor) => vendor.id > 0 && vendor.name), [vendors]);
+  const selectedValue = value ? Number(value) : null;
 
   const selectedVendor = useMemo(() => {
-    if (!value) return null;
-    return vendorList.find((v) => v.id === value) || null;
-  }, [value, vendorList]);
+    if (!selectedValue) return null;
+    return vendorList.find((v) => v.id === selectedValue) || null;
+  }, [selectedValue, vendorList]);
 
   const [draft, setDraft] = useState('');
 
@@ -15,7 +22,11 @@ export default function VendorSearchSelect({ vendors, value, onChange, label }) 
   const filtered = useMemo(() => {
     const term = searchValue.trim().toLowerCase();
     if (!term) return vendorList;
-    return vendorList.filter((v) => String(v.name || '').toLowerCase().includes(term));
+    return vendorList.filter((vendor) => [
+      vendor.name,
+      vendor.contactPerson,
+      vendor.emailAddress,
+    ].some((field) => String(field || '').toLowerCase().includes(term)));
   }, [vendorList, searchValue]);
 
   return (
@@ -27,14 +38,14 @@ export default function VendorSearchSelect({ vendors, value, onChange, label }) 
         value={searchValue}
         onChange={(e) => {
           setDraft(e.target.value);
-          if (value) onChange(null);
+          if (selectedValue) onChange(null);
         }}
       />
       <div className="vendor-select-list">
         {filtered.map((vendor) => (
           <div
             key={vendor.id}
-            className={`vendor-select-item${value === vendor.id ? ' selected' : ''}`}
+            className={`vendor-select-item${selectedValue === vendor.id ? ' selected' : ''}`}
             onClick={() => {
               onChange(vendor.id);
               setDraft('');

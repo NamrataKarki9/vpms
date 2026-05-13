@@ -14,6 +14,37 @@ function buildQuery(params = {}) {
   return query.toString();
 }
 
+export function normalizeVendor(vendor) {
+  return {
+    id: Number(vendor?.id ?? vendor?.Id ?? 0),
+    name: vendor?.name ?? vendor?.Name ?? '',
+    contactPerson: vendor?.contactPerson ?? vendor?.ContactPerson ?? '',
+    phoneNumber: vendor?.phoneNumber ?? vendor?.PhoneNumber ?? '',
+    emailAddress: vendor?.emailAddress ?? vendor?.EmailAddress ?? '',
+    address: vendor?.address ?? vendor?.Address ?? '',
+    isActive: Boolean(vendor?.isActive ?? vendor?.IsActive ?? false),
+  };
+}
+
+export function extractVendorItems(response) {
+  const items = Array.isArray(response?.items)
+    ? response.items
+    : Array.isArray(response?.Items)
+      ? response.Items
+      : Array.isArray(response)
+        ? response
+        : [];
+
+  return items
+    .map(normalizeVendor)
+    .filter((vendor) => vendor.id > 0 && vendor.name && (
+      vendor.contactPerson ||
+      vendor.phoneNumber ||
+      vendor.emailAddress ||
+      vendor.address
+    ));
+}
+
 export const vendorService = {
   getVendors: ({ pageNumber, pageSize, searchTerm, status } = {}) => {
     const query = buildQuery({ pageNumber, pageSize, searchTerm, status });

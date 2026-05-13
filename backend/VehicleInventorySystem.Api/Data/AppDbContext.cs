@@ -83,10 +83,9 @@ public class AppDbContext : IdentityDbContext<User, IdentityRole<int>, int>
             .HasForeignKey(ii => ii.InvoiceId);
 
         builder.Entity<Invoice>()
-            .HasOne(i => i.Vehicle)
+            .HasOne(i => i.Vendor)
             .WithMany()
-            .HasForeignKey(i => i.VehicleId)
-            .IsRequired(false);
+            .HasForeignKey(i => i.VendorId);
 
         builder.Entity<Vendor>(entity =>
         {
