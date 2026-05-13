@@ -24,15 +24,36 @@ public class ServiceController : ControllerBase
     [HttpPost("appointments")]
     public async Task<ActionResult<Appointment>> BookAppointment(Appointment appointment)
     {
-        if (GetCurrentUserId() != appointment.CustomerId)
+        try
         {
-            return Forbid();
-        }
+            if (GetCurrentUserId() != appointment.CustomerId)
+            {
+                return Forbid();
+            }
 
-        appointment.Status = AppointmentStatus.Pending;
-        _context.Appointments.Add(appointment);
-        await _context.SaveChangesAsync();
-        return Ok(new { message = "Appointment booked successfully", appointment });
+            // Validate that the vehicle exists and belongs to the customer
+            var vehicle = await _context.Vehicles
+                .FirstOrDefaultAsync(v => v.Id == appointment.VehicleId && v.CustomerId == appointment.CustomerId);
+            
+            if (vehicle == null)
+            {
+                return BadRequest(new { message = "Vehicle not found or does not belong to you" });
+            }
+            appointment.AppointmentDate = DateTime.SpecifyKind(
+                appointment.AppointmentDate,
+                DateTimeKind.Utc
+            );
+
+            // appointment.CreatedAt = DateTime.UtcNow;
+            appointment.Status = AppointmentStatus.Pending;
+            _context.Appointments.Add(appointment);
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Appointment booked successfully", appointment });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Failed to book appointment", error = ex.Message });
+        }
     }
 
     [Authorize(Roles = "Customer")]

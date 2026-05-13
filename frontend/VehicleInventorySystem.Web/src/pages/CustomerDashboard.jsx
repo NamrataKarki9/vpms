@@ -138,7 +138,7 @@ export function CustomerDashboard({ user }) {
 
   if (subView === 'history') return <HistoryPage history={history} onBack={() => setSubView('main')} />;
   if (subView === 'vehicles') return <VehiclesPage vehicles={vehicles} onAddVehicle={handleAddVehicle} onDeleteVehicle={handleDeleteVehicle} onBack={() => setSubView('main')} />;
-  if (subView === 'appointments') return <AppointmentsPage list={appointments} vehicles={vehicles} onDelete={handleDeleteAppointment} onBack={() => setSubView('main')} onNew={() => setSubView('book')} />;
+  if (subView === 'appointments') return <AppointmentsPage list={appointments} vehicles={vehicles} onDelete={handleDeleteAppointment} onUpdate={handleUpdateAppointment} onBack={() => setSubView('main')} onNew={() => setSubView('book')} />;
   if (subView === 'book') return <BookingPage user={user} vehicles={vehicles} onComplete={(newApp) => { setAppointments([...appointments, newApp]); setSubView('appointments'); }} onBack={() => setSubView('main')} />;
   if (subView === 'requests') return <RequestsPage list={partRequests} onDelete={handleDeleteRequest} onBack={() => setSubView('main')} onNew={() => setSubView('new-request')} />;
   if (subView === 'new-request') return <NewRequestPage user={user} onComplete={(newReq) => { setPartRequests([...partRequests, newReq]); setSubView('requests'); }} onBack={() => setSubView('main')} />;
@@ -407,14 +407,14 @@ function AppointmentsPage({ list, vehicles, onDelete, onUpdate, onBack, onNew })
   const [successDialog, setSuccessDialog] = useState({ isOpen: false, message: '' });
 
   const validateCancel = (appointment) => {
-    const appointmentDate = new Date(appointment.date);
+    const appointmentDate = new Date(appointment.appointmentDate);
     const now = new Date();
     
     if (appointmentDate < now) {
       return 'Past appointments cannot be cancelled.';
     }
     
-    if (appointment.status === 'cancelled') {
+    if (appointment.status === 'Cancelled') {
       return 'This appointment is already cancelled.';
     }
     
@@ -444,7 +444,7 @@ function AppointmentsPage({ list, vehicles, onDelete, onUpdate, onBack, onNew })
   };
 
   const validateReschedule = (appointment, newDate) => {
-    const appointmentDate = new Date(appointment.date);
+    const appointmentDate = new Date(appointment.appointmentDate);
     const now = new Date();
     const hoursUntilAppointment = (appointmentDate - now) / (1000 * 60 * 60);
 
@@ -452,7 +452,7 @@ function AppointmentsPage({ list, vehicles, onDelete, onUpdate, onBack, onNew })
       return 'Past or completed appointments cannot be rescheduled.';
     }
 
-    if (appointment.status === 'cancelled') {
+    if (appointment.status === 'Cancelled') {
       return 'Cancelled appointments cannot be rescheduled.';
     }
 
@@ -460,9 +460,15 @@ function AppointmentsPage({ list, vehicles, onDelete, onUpdate, onBack, onNew })
       return 'Appointments can only be rescheduled at least 24 hours before the scheduled service time.';
     }
 
-    const selectedDate = new Date(newDate);
-    if (selectedDate <= now) {
-      return 'Please select a valid future date and time.';
+    if (!newDate || newDate.trim() === '') {
+      return 'Please select a new date and time.';
+    }
+
+    if (newDate) {
+      const selectedDate = new Date(newDate);
+      if (selectedDate <= now) {
+        return 'Please select a valid future date and time.';
+      }
     }
 
     if ((appointment.rescheduleCount || 0) >= 2) {
@@ -491,9 +497,13 @@ function AppointmentsPage({ list, vehicles, onDelete, onUpdate, onBack, onNew })
       return;
     }
 
+    // Parse the datetime-local value (format: "2026-05-16T02:20")
+    const [dateStr, timeStr] = rescheduleDialog.newDate.split('T');
+    
     const updatedAppointment = {
       ...appointment,
-      appointmentDate: new Date(rescheduleDialog.newDate).toISOString(),
+      appointmentDate: dateStr + 'T00:00:00Z',
+      appointmentTime: timeStr + ':00',
       rescheduleCount: (appointment.rescheduleCount || 0) + 1
     };
     
@@ -517,6 +527,11 @@ function AppointmentsPage({ list, vehicles, onDelete, onUpdate, onBack, onNew })
       <div className="data-list">
         {list.filter(a => a.status !== 'Cancelled').map(a => {
           const vehicle = getVehicleInfo(a.vehicleId);
+          const appointmentDate = new Date(a.appointmentDate);
+          const now = new Date();
+          const hoursUntilAppointment = (appointmentDate - now) / (1000 * 60 * 60);
+          const canReschedule = hoursUntilAppointment >= 24 && (a.rescheduleCount || 0) < 2;
+
           return (
             <div key={a.id} className="list-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '1rem' }}>
               <div style={{ flex: 1 }}>
@@ -530,7 +545,12 @@ function AppointmentsPage({ list, vehicles, onDelete, onUpdate, onBack, onNew })
                   Scheduled: {new Date(a.appointmentDate).toLocaleDateString()} at {a.appointmentTime || 'TBD'}
                 </div>
               </div>
-              <button onClick={() => handleCancelClick(a.id, a.serviceType)} className="btn-small" style={{ background: 'var(--error)', color: '#fff' }}>Cancel</button>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                {canReschedule && (
+                  <button onClick={() => handleRescheduleClick(a)} className="btn-small" style={{ background: '#3b82f6', color: '#fff' }}>Reschedule</button>
+                )}
+                <button onClick={() => handleCancelClick(a.id)} className="btn-small" style={{ background: 'var(--error)', color: '#fff' }}>Cancel</button>
+              </div>
             </div>
           );
         })}
@@ -546,6 +566,42 @@ function AppointmentsPage({ list, vehicles, onDelete, onUpdate, onBack, onNew })
             <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
               <button onClick={() => setCancelDialog({ isOpen: false, id: null, name: '' })} style={{ flex: 1, background: '#cbd5e1', color: '#0f172a' }}>No, Keep It</button>
               <button onClick={handleConfirmCancel} style={{ flex: 1, background: 'var(--error)', color: '#fff' }}>Yes, Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rescheduleDialog.isOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: '#fff', padding: '2rem', borderRadius: '12px', maxWidth: '400px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
+            <h3>Reschedule Appointment</h3>
+            <p style={{ fontSize: '0.9rem', opacity: 0.7, marginBottom: '1.5rem' }}>Select a new date and time for your appointment.</p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>New Date & Time *</label>
+                <input 
+                  type="datetime-local" 
+                  value={rescheduleDialog.newDate}
+                  onChange={e => {
+                    setRescheduleDialog({ ...rescheduleDialog, newDate: e.target.value });
+                    setRescheduleError('');
+                  }}
+                  min={new Date().toISOString().slice(0, 16)}
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '6px' }}
+                />
+              </div>
+            </div>
+
+            {rescheduleError && (
+              <p style={{ fontSize: '0.85rem', color: '#ef4444', marginBottom: '1rem', background: '#fee2e2', padding: '0.75rem', borderRadius: '6px' }}>
+                {rescheduleError}
+              </p>
+            )}
+
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button onClick={() => setRescheduleDialog({ isOpen: false, id: null, newDate: '' })} style={{ flex: 1, background: '#cbd5e1', color: '#0f172a' }}>Cancel</button>
+              <button onClick={handleConfirmReschedule} style={{ flex: 1, background: '#3b82f6', color: '#fff' }}>Reschedule</button>
             </div>
           </div>
         </div>
@@ -620,8 +676,9 @@ function BookingPage({ user, vehicles, onComplete, onBack }) {
       const appointmentData = {
         customerId: user.id,
         vehicleId: parseInt(form.vehicleId),
-        appointmentDate: new Date(form.appointmentDate).toISOString().split('T')[0],
-        appointmentTime: form.appointmentTime,
+        // appointmentDate: form.appointmentDate + 'T00:00:00',
+        appointmentDate: new Date(form.appointmentDate).toISOString(),
+        appointmentTime: form.appointmentTime + ':00',
         serviceType: form.serviceType.trim(),
         description: form.description.trim()
       };
@@ -740,13 +797,37 @@ function BookingPage({ user, vehicles, onComplete, onBack }) {
           {error && error.includes('service') && <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>{error}</span>}
         </div>
 
-        <div>
+        <div style={{ width: '100%' }}>
           <label>Problem Description (Optional)</label>
           <textarea 
             placeholder="Describe any issues or special requests..." 
             value={form.description} 
             onChange={e => setForm({...form, description: e.target.value})}
-            style={{ minHeight: '100px' }}
+            maxLength={500}
+            style={{ 
+              width: '100%',
+              minHeight: '140px',
+              fontSize: '1rem',
+              padding: '12px 14px',
+              border: '2px solid #6366f1',
+              borderRadius: '8px',
+              backgroundColor: '#ffffff',
+              fontFamily: 'inherit',
+              resize: 'vertical',
+              transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+              color: '#334155',
+              lineHeight: '1.5',
+              boxSizing: 'border-box'
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = '#6366f1';
+              e.target.style.outline = 'none';
+              e.target.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.1)';
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = '#cbd5e1';
+              e.target.style.boxShadow = 'none';
+            }}
           />
         </div>
 
