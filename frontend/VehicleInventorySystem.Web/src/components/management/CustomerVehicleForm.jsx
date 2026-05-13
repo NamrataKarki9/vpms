@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useToast } from '../../context/ToastContext';
 import VehicleForm from '../forms/VehicleForm';
+import { User, Phone, Mail, Lock, Eye, EyeOff, ChevronRight, ChevronLeft, CheckCircle } from 'lucide-react';
 
 function CustomerVehicleForm({ onRegister }) {
   const showToast = useToast();
@@ -23,7 +24,7 @@ function CustomerVehicleForm({ onRegister }) {
 
   const validatePhone = (phoneVal) => {
     if (!phoneVal.trim()) return 'Phone is required';
-    if (!/^\d{10}$/.test(phoneVal)) return 'Phone must be exactly 10 digits (numbers only)';
+    if (!/^\d{10}$/.test(phoneVal)) return 'Phone must be exactly 10 digits';
     return '';
   };
 
@@ -36,7 +37,7 @@ function CustomerVehicleForm({ onRegister }) {
 
   const validatePassword = (passwordVal) => {
     if (!passwordVal.trim()) return 'Password is required';
-    if (passwordVal.length < 6) return 'Password must be at least 6 characters';
+    if (passwordVal.length < 6) return 'At least 6 characters';
     return '';
   };
 
@@ -54,7 +55,7 @@ function CustomerVehicleForm({ onRegister }) {
     if (!yearVal) return 'Year is required';
     const year = parseInt(yearVal, 10);
     const currentYear = new Date().getFullYear();
-    if (year < 1900 || year > currentYear + 1) return `Year must be between 1900 and ${currentYear + 1}`;
+    if (year < 1900 || year > currentYear + 1) return `Between 1900 and ${currentYear + 1}`;
     return '';
   };
 
@@ -71,12 +72,12 @@ function CustomerVehicleForm({ onRegister }) {
   const validateMileage = (mileageVal) => {
     if (mileageVal === '' || mileageVal === null || typeof mileageVal === 'undefined') return 'Mileage is required';
     const mileage = Number(mileageVal);
-    if (Number.isNaN(mileage) || mileage < 0) return 'Mileage must be 0 or greater';
+    if (Number.isNaN(mileage) || mileage < 0) return 'Must be 0 or greater';
     return '';
   };
 
   const handleSubmit = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (onRegister) {
       onRegister({
         name: formData.name,
@@ -93,10 +94,7 @@ function CustomerVehicleForm({ onRegister }) {
         }
       });
     }
-    showToast('success', `${formData.name} registered with vehicle ${formData.plateNumber}`);
-    setStep(1);
-    setFormData({ name: '', phone: '', email: '', password: '', plateNumber: '', make: '', model: '', year: new Date().getFullYear(), fuelType: '', mileage: 0 });
-    setErrors({ name: '', phone: '', email: '', password: '', plateNumber: '', make: '', model: '', year: '', fuelType: '', mileage: '' });
+    showToast('success', `${formData.name} registered successfully!`);
   };
 
   const canProceedStep1 = () => {
@@ -104,7 +102,7 @@ function CustomerVehicleForm({ onRegister }) {
     const phoneError = validatePhone(formData.phone);
     const emailError = validateEmail(formData.email);
     const passwordError = validatePassword(formData.password);
-    return !nameError && !phoneError && !emailError && !passwordError;
+    return !nameError && !phoneError && !emailError && !passwordError && formData.name && formData.phone && formData.email && formData.password;
   };
 
   const canSubmitStep2 = () => {
@@ -118,77 +116,122 @@ function CustomerVehicleForm({ onRegister }) {
   };
 
   return (
-    <div className="management-card">
-      <h3>Customer & Vehicle Registration</h3>
-      <div className="progress-bar" style={{ display: 'flex', gap: '5px', margin: '1rem 0' }}>
-        <div style={{ flex: 1, height: '4px', background: step >= 1 ? 'var(--primary)' : '#e2e8f0' }}></div>
-        <div style={{ flex: 1, height: '4px', background: step >= 2 ? 'var(--primary)' : '#e2e8f0' }}></div>
+    <div className="registration-container">
+      {/* Progress Indicator */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '25px' }}>
+        <div style={{ 
+          width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: step >= 1 ? 'linear-gradient(135deg, #1E3A5F 0%, #2563A8 100%)' : '#E2E8F0',
+          color: '#fff', fontSize: '13px', fontWeight: '700'
+        }}>
+          {step > 1 ? <CheckCircle size={16} /> : '1'}
+        </div>
+        <div style={{ flex: 1, height: '2px', background: step >= 2 ? '#2563A8' : '#E2E8F0' }}></div>
+        <div style={{ 
+          width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: step >= 2 ? 'linear-gradient(135deg, #1E3A5F 0%, #2563A8 100%)' : '#E2E8F0',
+          color: '#fff', fontSize: '13px', fontWeight: '700'
+        }}>
+          2
+        </div>
       </div>
 
       <form onSubmit={handleSubmit}>
         {step === 1 ? (
-          <div className="mini-form">
-            <h4>Step 1: Customer Details</h4>
-            <div>
-              <input 
-                type="text" placeholder="Customer Name" required 
-                value={formData.name} 
-                onChange={e => {
-                  setFormData({...formData, name: e.target.value});
-                  setErrors({...errors, name: validateName(e.target.value)});
-                }}
-                style={{ borderColor: errors.name ? '#ef4444' : '' }}
-              />
-              {errors.name && <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>{errors.name}</span>}
+          <div className="auth-step-content">
+            <h4 style={{ margin: '0 0 20px', color: '#1E293B', fontSize: '16px', fontWeight: '700' }}>Customer Details</h4>
+            
+            <div className="auth-form-group">
+              <label className="auth-label">Full Name</label>
+              <div className="auth-input-wrapper">
+                <User className="auth-input-icon" size={18} />
+                <input 
+                  type="text" placeholder="John Doe" 
+                  className={`auth-input ${errors.name ? 'error' : ''}`}
+                  value={formData.name} 
+                  onChange={e => {
+                    setFormData({...formData, name: e.target.value});
+                    setErrors({...errors, name: validateName(e.target.value)});
+                  }}
+                />
+              </div>
+              {errors.name && <span className="auth-error-text">{errors.name}</span>}
             </div>
-            <div>
-              <input 
-                type="tel" 
-                placeholder="Phone Number (10 digits)" 
-                required 
-                value={formData.phone} 
-                onChange={e => {
-                  const onlyNumbers = e.target.value.replace(/\D/g, '');
-                  setFormData({...formData, phone: onlyNumbers});
-                  setErrors({...errors, phone: validatePhone(onlyNumbers)});
-                }}
-                style={{ borderColor: errors.phone ? '#ef4444' : '' }}
-                maxLength="10"
-              />
-              {errors.phone && <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>{errors.phone}</span>}
+
+            <div className="auth-form-group">
+              <label className="auth-label">Phone Number</label>
+              <div className="auth-input-wrapper">
+                <Phone className="auth-input-icon" size={18} />
+                <input 
+                  type="tel" placeholder="10-digit number" 
+                  className={`auth-input ${errors.phone ? 'error' : ''}`}
+                  value={formData.phone} 
+                  onChange={e => {
+                    const onlyNumbers = e.target.value.replace(/\D/g, '');
+                    setFormData({...formData, phone: onlyNumbers});
+                    setErrors({...errors, phone: validatePhone(onlyNumbers)});
+                  }}
+                  maxLength="10"
+                />
+              </div>
+              {errors.phone && <span className="auth-error-text">{errors.phone}</span>}
             </div>
-            <div>
-              <input 
-                type="email" placeholder="Email Address" required 
-                value={formData.email} 
-                onChange={e => {
-                  setFormData({...formData, email: e.target.value});
-                  setErrors({...errors, email: validateEmail(e.target.value)});
-                }}
-                style={{ borderColor: errors.email ? '#ef4444' : '' }}
-              />
-              {errors.email && <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>{errors.email}</span>}
+
+            <div className="auth-form-group">
+              <label className="auth-label">Email Address</label>
+              <div className="auth-input-wrapper">
+                <Mail className="auth-input-icon" size={18} />
+                <input 
+                  type="email" placeholder="name@example.com" 
+                  className={`auth-input ${errors.email ? 'error' : ''}`}
+                  value={formData.email} 
+                  onChange={e => {
+                    setFormData({...formData, email: e.target.value});
+                    setErrors({...errors, email: validateEmail(e.target.value)});
+                  }}
+                />
+              </div>
+              {errors.email && <span className="auth-error-text">{errors.email}</span>}
             </div>
-            <div style={{ position: 'relative', width: '100%' }}>
-              <input 
-                type={showPassword ? "text" : "password"} placeholder="Password" required 
-                value={formData.password} 
-                onChange={e => {
-                  setFormData({...formData, password: e.target.value});
-                  setErrors({...errors, password: validatePassword(e.target.value)});
-                }}
-                style={{ width: '100%', marginBottom: '0.25rem', borderColor: errors.password ? '#ef4444' : '' }}
-              />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '10px', top: '12px', background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: 0, boxShadow: 'none' }}>
-                {showPassword ? 'Hide' : 'Show'}
-              </button>
+
+            <div className="auth-form-group">
+              <label className="auth-label">Create Password</label>
+              <div className="auth-input-wrapper">
+                <Lock className="auth-input-icon" size={18} />
+                <input 
+                  type={showPassword ? "text" : "password"} placeholder="Minimum 6 characters" 
+                  className={`auth-input ${errors.password ? 'error' : ''}`}
+                  value={formData.password} 
+                  onChange={e => {
+                    setFormData({...formData, password: e.target.value});
+                    setErrors({...errors, password: validatePassword(e.target.value)});
+                  }}
+                />
+                <button 
+                  type="button" className="auth-password-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              {errors.password && <span className="auth-error-text">{errors.password}</span>}
             </div>
-            {errors.password && <span style={{ fontSize: '0.75rem', color: '#ef4444', display: 'block', marginBottom: '1rem' }}>{errors.password}</span>}
-            <button type="button" onClick={() => setStep(2)} disabled={!canProceedStep1()}>Next: Vehicle Details</button>
+
+            <button 
+              type="button" 
+              className="auth-btn-primary" 
+              onClick={() => setStep(2)} 
+              disabled={!canProceedStep1()}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+            >
+              <span>Next: Vehicle Details</span>
+              <ChevronRight size={18} />
+            </button>
           </div>
         ) : (
-          <div className="mini-form">
-            <h4>Step 2: Vehicle Details</h4>
+          <div className="auth-step-content">
+            <h4 style={{ margin: '0 0 20px', color: '#1E293B', fontSize: '16px', fontWeight: '700' }}>Vehicle Details</h4>
+            
             <VehicleForm
               value={{
                 plateNumber: formData.plateNumber,
@@ -211,10 +254,31 @@ function CustomerVehicleForm({ onRegister }) {
                 });
               }}
               errors={errors}
+              useAuthStyles={true}
             />
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button type="button" onClick={() => setStep(1)} style={{ background: '#cbd5e1', color: '#0f172a' }}>Back</button>
-              <button type="submit" disabled={!canSubmitStep2()}>Complete Registration</button>
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+              <button 
+                type="button" 
+                onClick={() => setStep(1)} 
+                className="auth-btn-secondary"
+                style={{ 
+                  flex: 1, padding: '12px', borderRadius: '10px', border: '1.5px solid #E2E8F0', 
+                  background: '#fff', color: '#64748B', fontWeight: '600', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                }}
+              >
+                <ChevronLeft size={18} />
+                <span>Back</span>
+              </button>
+              <button 
+                type="submit" 
+                className="auth-btn-primary" 
+                disabled={!canSubmitStep2()}
+                style={{ flex: 2 }}
+              >
+                Complete Registration
+              </button>
             </div>
           </div>
         )}
