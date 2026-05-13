@@ -1,7 +1,6 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Search, Plus } from 'lucide-react';
-import { clearStoredUser } from '../../services/api';
+import { Search, Bell, Plus } from 'lucide-react';
 
 const StaffTopBar = () => {
   const location = useLocation();
@@ -20,63 +19,31 @@ const StaffTopBar = () => {
     return 'Staff Portal';
   };
 
-  const handleLogout = () => {
-    clearStoredUser();
-    navigate('/login');
-    window.location.reload(); // Ensure state is cleared
-  };
-
   return (
-    <header style={{ 
-      display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'space-between', 
-      height: '52px', 
-      padding: '0 24px', 
-      background: '#fff', 
-      borderBottom: '1px solid #EBEBEB', 
-      flexShrink: 0 
-    }}>
-      <h1 style={{ fontSize: '15px', fontWeight: 500, color: '#111', margin: 0 }}>
-        {getTitle(location.pathname)}
-      </h1>
-      
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <button 
+    <header className="staff-topbar">
+      <h1 className="staff-page-title">{getTitle(location.pathname)}</h1>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="search-input-container">
+          <Search className="search-icon-absolute" size={14} />
+          <input
+            type="text"
+            placeholder="Search dashboard..."
+            className="search-input-field"
+          />
+        </div>
+
+        {/* <button className="btn-icon-square">
+          <Bell size={18} color="#555" />
+          <div className="red-dot-badge"></div>
+        </button> */}
+
+        <button
+          className="btn-sale-primary"
           onClick={() => navigate('/staff/sales/new')}
-          style={{ 
-            background: '#185FA5', 
-            color: '#fff', 
-            border: 'none', 
-            borderRadius: '8px', 
-            padding: '7px 16px', 
-            fontSize: '13px', 
-            fontWeight: 500, 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '6px', 
-            cursor: 'pointer' 
-          }}
         >
           <Plus size={14} />
           <span>New Sale</span>
-        </button>
-
-        <button 
-          onClick={handleLogout}
-          style={{ 
-            background: 'transparent', 
-            border: '1px solid #E5E5E5', 
-            borderRadius: '8px', 
-            padding: '7px 14px', 
-            fontSize: '13px', 
-            color: '#555', 
-            cursor: 'pointer' 
-          }}
-          onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F3'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-        >
-          Logout
         </button>
       </div>
     </header>
