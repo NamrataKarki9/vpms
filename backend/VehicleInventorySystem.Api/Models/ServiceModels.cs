@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace VehicleInventorySystem.Api.Models;
 
 public enum AppointmentStatus
@@ -11,12 +13,25 @@ public enum AppointmentStatus
 public class Appointment
 {
     public int Id { get; set; }
+    
+    [JsonPropertyName("customerId")]
     public int CustomerId { get; set; }
+    
+    [JsonPropertyName("vehicleId")]
     public int VehicleId { get; set; }
+    
+    [JsonPropertyName("appointmentDate")]
     public DateTime AppointmentDate { get; set; }
+    
+    [JsonPropertyName("appointmentTime")]
     public TimeSpan AppointmentTime { get; set; } // Preferred time of appointment
+    
+    [JsonPropertyName("serviceType")]
     public string ServiceType { get; set; } = string.Empty;
+    
+    [JsonPropertyName("description")]
     public string Description { get; set; } = string.Empty;
+    
     public AppointmentStatus Status { get; set; } = AppointmentStatus.Pending;
     public int RescheduleCount { get; set; } = 0;
     
