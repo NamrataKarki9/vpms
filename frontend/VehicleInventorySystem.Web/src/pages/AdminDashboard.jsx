@@ -7,12 +7,45 @@ import { extractVendorItems, vendorService } from '../services/vendorService';
 import { useToast } from '../context/ToastContext';
 import PartFormModal from '../components/parts/PartFormModal';
 import VendorSearchSelect from '../components/VendorSearchSelect';
+import { ExportFinancialReportPdf } from "../utils/Pdf/FinancialReportPdf";
+import { ExportCustomerReportPdf } from "../utils/Pdf/CustomerReportPdf";
+
+const DEFAULT_REPORT_FILTER = { period: 'daily', startDate: '', endDate: '' };
+
+const isValidCustomDateRange = ({ startDate, endDate }) => {
+  if (!startDate || !endDate) return false;
+  return new Date(endDate) >= new Date(startDate);
+};
+
+const buildReportQuery = ({ period, startDate, endDate }) => {
+  const params = new URLSearchParams();
+  params.set('period', period);
+
+  if (period === 'custom') {
+    params.set('startDate', startDate);
+    params.set('endDate', endDate);
+  }
+
+  return params.toString();
+};
+
+const getReportPeriodLabel = (filter) => {
+  if (filter.period === 'custom') return 'Custom Date Range';
+  return filter.period.charAt(0).toUpperCase() + filter.period.slice(1);
+};
 
 export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateStaff, sales, inventory, onUpdateInventory, customerList, onRemoveCustomer, onUpdateCustomer, onOpenVendorManagement }) {
   const showToast = useToast();
   const [viewType, setViewType] = useState('daily');
+  const [customDateRange, setCustomDateRange] = useState({ startDate: '', endDate: '' });
+  const [appliedReportFilter, setAppliedReportFilter] = useState(DEFAULT_REPORT_FILTER);
   const [adminRoute, setAdminRoute] = useState('main');
   const [report, setReport] = useState({ period: 'daily', revenue: 0, count: 0 });
+  const [adminCustomerReport, setAdminCustomerReport] = useState([]);
+  const [isFinancialReportLoading, setIsFinancialReportLoading] = useState(false);
+  const [isCustomerReportLoading, setIsCustomerReportLoading] = useState(false);
+  const [hasFinancialReportLoaded, setHasFinancialReportLoaded] = useState(false);
+  const [hasCustomerReportLoaded, setHasCustomerReportLoaded] = useState(false);
   const [vendors, setVendors] = useState([]);
   const [isAddPartModalOpen, setIsAddPartModalOpen] = useState(false);
   const [isAddPartSaving, setIsAddPartSaving] = useState(false);
@@ -38,25 +71,74 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
   };
 
   useEffect(() => {
-    import('../services/api').then(({ apiFetch }) => {
-      const period = viewType.trim().toLowerCase();
-      apiFetch(`/Reports/revenue?period=${encodeURIComponent(period)}`).then(response => {
+    let isCancelled = false;
+
+    const loadGeneratedReports = async () => {
+      const { apiFetch } = await import('../services/api');
+      const query = buildReportQuery(appliedReportFilter);
+
+      setIsFinancialReportLoading(true);
+      setIsCustomerReportLoading(true);
+      setHasFinancialReportLoaded(false);
+      setHasCustomerReportLoaded(false);
+
+      try {
+        const response = await apiFetch(`/Reports/revenue?${query}`);
         const data = response?.data ?? response;
-        if (data) {
+        if (data && !isCancelled) {
           setReport({
-            period: data.period ?? data.Period ?? period,
+            period: data.period ?? data.Period ?? appliedReportFilter.period,
+            startDate: data.startDate ?? data.StartDate ?? appliedReportFilter.startDate,
+            endDate: data.endDate ?? data.EndDate ?? appliedReportFilter.endDate,
             revenue: Number(data.revenue ?? data.totalRevenue ?? data.TotalRevenue ?? 0),
             count: Number(data.count ?? data.invoiceCount ?? data.InvoiceCount ?? 0)
           });
+          setHasFinancialReportLoaded(true);
         }
-      });
-      vendorService.getVendors({ pageNumber: 1, pageSize: 200, status: 'all' }).then((res) => {
-        const loadedVendors = extractVendorItems(res);
-        console.log('Loaded vendors:', loadedVendors);
-        setVendors(loadedVendors);
-      }).catch(() => setVendors([]));
-    });
-  }, [viewType]);
+      } catch {
+        if (!isCancelled) {
+          setHasFinancialReportLoaded(false);
+          showToast('error', 'Unable to load financial report data.');
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsFinancialReportLoading(false);
+        }
+      }
+
+      try {
+        const response = await apiFetch(`/Reports/customers?${query}`);
+        const data = response?.data ?? response;
+        if (!isCancelled) {
+          setAdminCustomerReport(Array.isArray(data) ? data : []);
+          setHasCustomerReportLoaded(true);
+        }
+      } catch {
+        if (!isCancelled) {
+          setAdminCustomerReport([]);
+          setHasCustomerReportLoaded(false);
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsCustomerReportLoading(false);
+        }
+      }
+    };
+
+    loadGeneratedReports();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [appliedReportFilter]);
+
+  useEffect(() => {
+    vendorService.getVendors({ pageNumber: 1, pageSize: 200, status: 'all' }).then((res) => {
+      const loadedVendors = extractVendorItems(res);
+      console.log('Loaded vendors:', loadedVendors);
+      setVendors(loadedVendors);
+    }).catch(() => setVendors([]));
+  }, []);
 
   useEffect(() => {
     refreshLiveTransactions();
@@ -100,6 +182,33 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
     }
   };
 
+  const handleReportPeriodChange = (event) => {
+    const period = event.target.value;
+    setViewType(period);
+
+    if (period !== 'custom') {
+      setAppliedReportFilter({ period, startDate: '', endDate: '' });
+    }
+  };
+
+  const handleGenerateCustomReport = (event) => {
+    event.preventDefault();
+
+    if (!isValidCustomDateRange(customDateRange)) {
+      showToast('error', 'Please select a valid date range.');
+      return;
+    }
+
+    setAppliedReportFilter({
+      period: 'custom',
+      startDate: customDateRange.startDate,
+      endDate: customDateRange.endDate
+    });
+  };
+
+  const canExportFinancialReport = hasFinancialReportLoaded && !isFinancialReportLoading;
+  const canExportCustomerReport = hasCustomerReportLoaded && !isCustomerReportLoading;
+
   if (adminRoute === 'add-staff') return <AddStaffPage onAdd={onAddStaff} onBack={() => setAdminRoute('main')} />;
   if (adminRoute === 'manage-inventory') return <InventoryPurchasePage inventory={inventory} onUpdate={onUpdateInventory} onBack={() => setAdminRoute('main')} onRefreshTransactions={refreshLiveTransactions} />;
   if (adminRoute === 'manage-customers') return <CustomerManagementPage customers={customerList} onRemove={onRemoveCustomer} onUpdate={onUpdateCustomer} onBack={() => setAdminRoute('main')} />;
@@ -130,18 +239,89 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '2rem', alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           <div className="card" id="stats">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="report-section-header">
               <h3>Live Financials</h3>
-              <select value={viewType} onChange={e => setViewType(e.target.value)} style={{ width: 'auto', padding: '0.4rem', marginBottom: 0 }}>
-                <option value="daily">Daily</option>
-                <option value="monthly">Monthly</option>
-                <option value="yearly">Yearly</option>
-              </select>
+              <div className="report-header-controls">
+                <label className="report-period-control">
+                  <span>Report Period</span>
+                  <select value={viewType} onChange={handleReportPeriodChange} className="report-period-select">
+                    <option value="daily">Daily</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                    <option value="custom">Custom Date Range</option>
+                  </select>
+                </label>
+              </div>
             </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '1rem' }}>
-              <thead><tr><th>Period</th><th>Count</th><th>Revenue</th></tr></thead>
-              <tbody><tr><td style={{ textTransform: 'capitalize' }}>{report.period ?? viewType}</td><td>{report.count ?? 0}</td><td>Rs. {(report.revenue ?? 0).toFixed(2)}</td></tr></tbody>
-            </table>
+            {viewType === 'custom' && (
+              <form className="report-filter-panel" onSubmit={handleGenerateCustomReport}>
+                <label>
+                  <span>From Date</span>
+                  <input
+                    type="date"
+                    required
+                    value={customDateRange.startDate}
+                    onChange={(event) => setCustomDateRange((current) => ({ ...current, startDate: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  <span>To Date</span>
+                  <input
+                    type="date"
+                    required
+                    min={customDateRange.startDate || undefined}
+                    value={customDateRange.endDate}
+                    onChange={(event) => setCustomDateRange((current) => ({ ...current, endDate: event.target.value }))}
+                  />
+                </label>
+                <button type="submit" className="report-generate-btn">Generate Report</button>
+              </form>
+            )}
+            <div className="report-card-divider" />
+            <div className="report-result-section">
+              <h4 className="report-section-label">Report Results</h4>
+              <table className="report-result-table">
+                <thead><tr><th>Period</th><th>Count</th><th>Revenue</th></tr></thead>
+                <tbody><tr><td>{getReportPeriodLabel(appliedReportFilter)}</td><td>{report.count ?? 0}</td><td>Rs. {(report.revenue ?? 0).toFixed(2)}</td></tr></tbody>
+              </table>
+              {isFinancialReportLoading && (
+                <p className="report-status-text">Loading report results...</p>
+              )}
+            </div>
+            <div className="report-card-divider" />
+            <div className="report-export-section">
+              <h4 className="report-section-label">Export Actions</h4>
+              <div className="report-export-actions">
+                <button
+                  className="report-export-btn report-export-btn--financial"
+                  disabled={!canExportFinancialReport}
+                  onClick={() =>
+                    ExportFinancialReportPdf(
+                      report,
+                      appliedReportFilter.period,
+                      "Admin",
+                      appliedReportFilter
+                    )
+                  }
+                >
+                  Export Financial Report PDF
+                </button>
+                <button
+                  className="report-export-btn report-export-btn--customer"
+                  disabled={!canExportCustomerReport}
+                  onClick={() =>
+                    ExportCustomerReportPdf(
+                      adminCustomerReport,
+                      "customer-summary",
+                      "Admin",
+                      appliedReportFilter
+                    )
+                  }
+                >
+                  Export Customer Report PDF
+                </button>
+              </div>
+            </div>
           </div>
           <div id="vendors" className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

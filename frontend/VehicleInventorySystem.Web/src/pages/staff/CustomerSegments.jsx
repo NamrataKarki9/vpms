@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import { Bell, TrendingUp, Users, AlertCircle, Send } from 'lucide-react';
+import { ExportCustomerReportPdf } from '../../utils/Pdf/CustomerReportPdf';
 
 const TAB_CONFIG = [
   { id: 'high-spenders', label: 'High Spenders', icon: TrendingUp, color: '#1D4ED8', bg: '#DBEAFE' },
@@ -9,16 +10,39 @@ const TAB_CONFIG = [
   { id: 'pending-credits', label: 'On Credit', icon: AlertCircle, color: '#B91C1C', bg: '#FEE2E2' },
 ];
 
+const DEFAULT_REPORT_FILTER = { period: 'daily', startDate: '', endDate: '' };
+
+const isValidCustomDateRange = ({ startDate, endDate }) => {
+  if (!startDate || !endDate) return false;
+  return new Date(endDate) >= new Date(startDate);
+};
+
+const buildReportQuery = ({ period, startDate, endDate }) => {
+  const params = new URLSearchParams();
+  params.set('period', period);
+
+  if (period === 'custom') {
+    params.set('startDate', startDate);
+    params.set('endDate', endDate);
+  }
+
+  return params.toString();
+};
+
 const CustomerSegments = () => {
   const [activeTab, setActiveTab] = useState('high-spenders');
+  const [period, setPeriod] = useState('daily');
+  const [customDateRange, setCustomDateRange] = useState({ startDate: '', endDate: '' });
+  const [appliedReportFilter, setAppliedReportFilter] = useState(DEFAULT_REPORT_FILTER);
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const showToast = useToast();
 
-  const fetchSegmentData = async (segment) => {
+  const fetchSegmentData = async (segment, reportFilter) => {
     setLoading(true);
     try {
-      const res = await apiFetch(`/Reports/customers/${segment}`);
+      const query = buildReportQuery(reportFilter);
+      const res = await apiFetch(`/Reports/customers/${segment}?${query}`);
       setData(res || []);
     } catch (err) {
       showToast('error', 'Failed to load report data.');
@@ -27,7 +51,31 @@ const CustomerSegments = () => {
     }
   };
 
-  useEffect(() => { fetchSegmentData(activeTab); }, [activeTab]);
+  useEffect(() => { fetchSegmentData(activeTab, appliedReportFilter); }, [activeTab, appliedReportFilter]);
+
+  const handlePeriodChange = (event) => {
+    const nextPeriod = event.target.value;
+    setPeriod(nextPeriod);
+
+    if (nextPeriod !== 'custom') {
+      setAppliedReportFilter({ period: nextPeriod, startDate: '', endDate: '' });
+    }
+  };
+
+  const handleGenerateCustomReport = (event) => {
+    event.preventDefault();
+
+    if (!isValidCustomDateRange(customDateRange)) {
+      showToast('error', 'Please select a valid date range.');
+      return;
+    }
+
+    setAppliedReportFilter({
+      period: 'custom',
+      startDate: customDateRange.startDate,
+      endDate: customDateRange.endDate
+    });
+  };
 
   const handleSendReminder = async (customerId) => {
     try {
@@ -80,7 +128,7 @@ const CustomerSegments = () => {
               <td><strong style={{ color: '#1E3A5F', fontSize: '14px' }}>Rs. {item.totalSpent?.toFixed(2)}</strong></td>
               <td>
                 <span style={{ background: '#DBEAFE', color: '#1D4ED8', padding: '3px 10px', borderRadius: '12px', fontWeight: 700, fontSize: '12px' }}>
-                  {item.orderCount || 0} orders
+                  {item.orderCount || item.purchaseCount || 0} orders
                 </span>
               </td>
               <td style={{ color: '#64748B', fontSize: '12px' }}>{item.lastVisit ? new Date(item.lastVisit).toLocaleDateString() : '—'}</td>
@@ -159,8 +207,8 @@ const CustomerSegments = () => {
 
       <div className="staff-card">
         {/* Tab Header */}
-        <div style={{ padding: '20px 22px', borderBottom: '1px solid #E8ECF0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div className="staff-tab-bar">
+        <div className="report-section-header" style={{ padding: '20px 22px', borderBottom: '1px solid #E8ECF0' }}>
+          <div className="staff-tab-bar" style={{ flexWrap: 'wrap' }}>
             {TAB_CONFIG.map(tab => {
               const Icon = tab.icon;
               return (
@@ -182,7 +230,51 @@ const CustomerSegments = () => {
             </span>
           )}
         </div>
+        <form className="report-filter-panel report-filter-panel--staff" onSubmit={handleGenerateCustomReport}>
+          <label>
+            <span>Report Period</span>
+            <select value={period} onChange={handlePeriodChange}>
+              <option value="daily">Daily</option>
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+              <option value="custom">Custom Date Range</option>
+            </select>
+          </label>
+          {period === 'custom' && (
+            <>
+              <label>
+                <span>From Date</span>
+                <input
+                  type="date"
+                  required
+                  value={customDateRange.startDate}
+                  onChange={(event) => setCustomDateRange((current) => ({ ...current, startDate: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>To Date</span>
+                <input
+                  type="date"
+                  required
+                  min={customDateRange.startDate || undefined}
+                  value={customDateRange.endDate}
+                  onChange={(event) => setCustomDateRange((current) => ({ ...current, endDate: event.target.value }))}
+                />
+              </label>
+              <button type="submit" className="report-generate-btn">Generate Report</button>
+            </>
+          )}
+        </form>
         <div>{renderTable()}</div>
+        <div className="report-export-actions report-export-actions--in-card">
+          <button
+            type="button"
+            className="report-export-btn report-export-btn--customer"
+            onClick={() => ExportCustomerReportPdf(data, activeTab, 'Staff', appliedReportFilter)}
+          >
+            Export Customer Report PDF
+          </button>
+        </div>
       </div>
     </div>
   );

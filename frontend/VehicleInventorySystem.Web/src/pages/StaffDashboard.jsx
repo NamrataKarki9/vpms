@@ -11,6 +11,26 @@ import TransactionsTable from '../components/staff/TransactionsTable';
 import AlertsPanel from '../components/staff/AlertsPanel';
 import LowStockList from '../components/staff/LowStockList';
 import AppointmentsList from '../components/staff/AppointmentsList';
+import { ExportCustomerReportPdf } from "../utils/Pdf/CustomerReportPdf";
+
+const DEFAULT_REPORT_FILTER = { period: 'daily', startDate: '', endDate: '' };
+
+const isValidCustomDateRange = ({ startDate, endDate }) => {
+  if (!startDate || !endDate) return false;
+  return new Date(endDate) >= new Date(startDate);
+};
+
+const buildReportQuery = ({ period, startDate, endDate }) => {
+  const params = new URLSearchParams();
+  params.set('period', period);
+
+  if (period === 'custom') {
+    params.set('startDate', startDate);
+    params.set('endDate', endDate);
+  }
+
+  return params.toString();
+};
 
 export function StaffDashboard({ view, setView, customers, parts, sales, onProcessSale, onRegisterCustomer }) {
   const showToast = useToast();
@@ -249,7 +269,7 @@ function CustomerSearchPage({ customers = [], onSelectCustomer, onBack }) {
     <div className="dashboard-card">
       <div className="card-header">
         <div className="card-title">Customer Directory</div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           <input type="text" placeholder="Filter..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ padding: '6px 12px', borderRadius: '8px', border: '0.5px solid #E5E5E5', fontSize: '13px' }} />
           <button onClick={onBack} className="btn-small">Back</button>
         </div>
@@ -339,21 +359,50 @@ function CustomerDetailPage({ customerId, onBack }) {
 }
 
 function ReportsPage({ onBack }) {
+  const showToast = useToast();
   const [reportType, setReportType] = useState('high-spenders');
+  const [period, setPeriod] = useState('daily');
+  const [customDateRange, setCustomDateRange] = useState({ startDate: '', endDate: '' });
+  const [appliedReportFilter, setAppliedReportFilter] = useState(DEFAULT_REPORT_FILTER);
   const [data, setData] = useState([]);
 
   useEffect(() => {
     import('../services/api').then(({ apiFetch }) => {
-      apiFetch(`/Reports/customers/${reportType}`).then(res => setData(res || []));
+      const query = buildReportQuery(appliedReportFilter);
+      apiFetch(`/Reports/customers/${reportType}?${query}`).then(res => setData(res || []));
     });
-  }, [reportType]);
+  }, [reportType, appliedReportFilter]);
+
+  const handlePeriodChange = (event) => {
+    const nextPeriod = event.target.value;
+    setPeriod(nextPeriod);
+
+    if (nextPeriod !== 'custom') {
+      setAppliedReportFilter({ period: nextPeriod, startDate: '', endDate: '' });
+    }
+  };
+
+  const handleGenerateCustomReport = (event) => {
+    event.preventDefault();
+
+    if (!isValidCustomDateRange(customDateRange)) {
+      showToast('error', 'Please select a valid date range.');
+      return;
+    }
+
+    setAppliedReportFilter({
+      period: 'custom',
+      startDate: customDateRange.startDate,
+      endDate: customDateRange.endDate
+    });
+  };
 
   return (
     <div className="dashboard-card">
-      <div className="card-header">
-        <div className="card-title">Reports: {reportType.replace('-', ' ')}</div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <select value={reportType} onChange={e => setReportType(e.target.value)} style={{ padding: '4px 8px', borderRadius: '8px', border: '0.5px solid #E5E5E5' }}>
+      <div className="card-header report-section-header">
+        <div className="card-title">Customer Reports</div>
+        <div className="report-header-controls">
+          <select value={reportType} onChange={e => setReportType(e.target.value)} className="report-period-select">
             <option value="high-spenders">High Spenders</option>
             <option value="regulars">Regulars</option>
             <option value="pending-credits">Pending Credits</option>
@@ -361,6 +410,41 @@ function ReportsPage({ onBack }) {
           <button onClick={onBack} className="btn-small">Back</button>
         </div>
       </div>
+      <form className="report-filter-panel report-filter-panel--staff" onSubmit={handleGenerateCustomReport}>
+        <label>
+          <span>Report Period</span>
+          <select value={period} onChange={handlePeriodChange}>
+            <option value="daily">Daily</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+            <option value="custom">Custom Date Range</option>
+          </select>
+        </label>
+        {period === 'custom' && (
+          <>
+            <label>
+              <span>From Date</span>
+              <input
+                type="date"
+                required
+                value={customDateRange.startDate}
+                onChange={(event) => setCustomDateRange((current) => ({ ...current, startDate: event.target.value }))}
+              />
+            </label>
+            <label>
+              <span>To Date</span>
+              <input
+                type="date"
+                required
+                min={customDateRange.startDate || undefined}
+                value={customDateRange.endDate}
+                onChange={(event) => setCustomDateRange((current) => ({ ...current, endDate: event.target.value }))}
+              />
+            </label>
+            <button type="submit" className="report-generate-btn">Generate Report</button>
+          </>
+        )}
+      </form>
       <div className="card-body">
         {data.map((item, i) => (
           <div key={i} className="list-row">
@@ -375,6 +459,21 @@ function ReportsPage({ onBack }) {
             </div>
           </div>
         ))}
+      </div>
+      <div className="report-export-actions report-export-actions--in-card">
+        <button
+          onClick={() =>
+            ExportCustomerReportPdf(
+              data,
+              reportType,
+              "Staff",
+              appliedReportFilter
+            )
+          }
+          className="report-export-btn report-export-btn--customer"
+        >
+          Export Customer Report PDF
+        </button>
       </div>
     </div>
   );
