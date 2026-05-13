@@ -33,11 +33,11 @@ export function LoginPage({ onLogin, onSignUp, onForgotPassword }) {
     try {
       const user = await authApi.login(email.trim(), password);
       onLogin({
-        id: user.id,
-        name: user.fullName,
-        email: user.emailAddress,
-        role: user.role,
-        token: user.token
+        id: user.id ?? user.Id,
+        name: user.fullName ?? user.FullName ?? user.name ?? user.Name,
+        email: user.emailAddress ?? user.EmailAddress ?? user.email ?? user.Email,
+        role: user.role ?? user.Role,
+        token: user.token ?? user.Token
       });
     } catch (err) {
       setLoginError(err.message || 'Invalid email or password.');

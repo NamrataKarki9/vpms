@@ -22,7 +22,7 @@ const Inventory = ({ parts }) => {
               <tr key={p.id}>
                 <td><strong>{p.name}</strong></td>
                 <td><code style={{ fontSize: '11px', color: '#666' }}>{p.partCode || `P-${p.id}`}</code></td>
-                <td>{p.vendor}</td>
+                <td>{p.vendorName || p.vendor || 'Unknown Vendor'}</td>
                 <td>
                   <span className="badge-pill" style={{ background: p.stock < 10 ? '#FCEBEB' : '#EAF3DE', color: p.stock < 10 ? '#A32D2D' : '#3B6D11' }}>
                     {p.stock} units
