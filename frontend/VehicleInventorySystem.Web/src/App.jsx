@@ -3,7 +3,16 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-
 import Header from './components/Header';
 import Footer from './components/Footer';
 import { AdminDashboard } from './pages/AdminDashboard';
-import { CustomerDashboard } from './pages/CustomerDashboard';
+import { 
+  CustomerOverview, 
+  VehiclesPage, 
+  AppointmentsPage, 
+  BookingPage, 
+  RequestsPage, 
+  NewRequestPage, 
+  HistoryPage 
+} from './pages/CustomerDashboard';
+import CustomerLayout from './components/customer/CustomerLayout';
 import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
@@ -147,12 +156,12 @@ function App() {
     navigate(path);
   };
 
-  const handleProcessSale = async (customerId, cartItems, paymentStatus) => {
+  const handleProcessSale = async (customerId, cartItems, paymentStatus, vehicleId = null) => {
     try {
       const totalAmount = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       const salePayload = {
         customerId: parseInt(customerId, 10),
-        //vehicleId: customer.vehicleInfo?.id || null, // Auto-fetch from customer's first vehicle
+        vehicleId: vehicleId || null,
         totalAmount,
         paymentStatus,
         items: cartItems.map(item => ({ partId: item.id, quantity: item.quantity, unitPrice: item.price }))
@@ -189,12 +198,15 @@ function App() {
   };
 
   const isStaffSection = location.pathname.startsWith('/staff');
+  const isCustomerSection = location.pathname.startsWith('/customer');
+  const hideGlobalNav = isStaffSection || isCustomerSection;
 
   return (
     <div className="app-container">
-      {!isStaffSection && user && <Header user={user} onLogout={logout} onNavigateStaff={() => navigate('/staff/dashboard')} />}
+      {!hideGlobalNav && user && <Header user={user} onLogout={logout} onNavigateStaff={() => navigate('/staff/dashboard')} />}
       
-      <main className={isStaffSection ? "" : "main-content"}>
+      <main className={hideGlobalNav ? "" : "main-content"}>
+
         <Routes>
           <Route path="/" element={user ? <Navigate to={user.role === ROLES.STAFF ? "/staff/dashboard" : (user.role === ROLES.ADMIN ? "/admin" : "/customer")} /> : <Navigate to="/login" />} />
           <Route path="/login" element={<LoginPage onLogin={handleLogin} onSignUp={() => navigate('/signup')} onForgotPassword={() => navigate('/forgot-password')} />} />
@@ -233,7 +245,18 @@ function App() {
               />
             ) : <Navigate to="/" />}
           />
-          <Route path="/customer" element={user?.role === ROLES.CUSTOMER ? <CustomerDashboard user={user} sales={salesHistory} /> : <Navigate to="/" />} />
+          {/* Customer Section with Layout Overhaul */}
+          {user?.role === ROLES.CUSTOMER && (
+            <Route path="/customer" element={<CustomerLayout user={user} />}>
+              <Route index element={<CustomerOverview user={user} />} />
+              <Route path="vehicles" element={<VehiclesPage user={user} />} />
+              <Route path="appointments" element={<AppointmentsPage user={user} />} />
+              <Route path="book" element={<BookingPage user={user} />} />
+              <Route path="requests" element={<RequestsPage user={user} />} />
+              <Route path="new-request" element={<NewRequestPage user={user} />} />
+              <Route path="history" element={<HistoryPage user={user} />} />
+            </Route>
+          )}
           <Route path="/parts" element={user?.role === ROLES.ADMIN ? <MainLayout><PartsPage /></MainLayout> : <Navigate to="/" />} />
           <Route path="/vendors" element={user?.role === ROLES.ADMIN ? <MainLayout><VendorPage /></MainLayout> : <Navigate to="/" />} />
           
@@ -243,7 +266,7 @@ function App() {
         </Routes>
       </main>
 
-      {!isStaffSection && user && <Footer />}
+      {!hideGlobalNav && user && <Footer />}
     </div>
   );
 }

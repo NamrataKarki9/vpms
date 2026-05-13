@@ -34,6 +34,8 @@ public class Invoice
     public int? CreatedById { get; set; } // Staff Id
     public int? CustomerId { get; set; }
     public User? Customer { get; set; }
+    public int? VehicleId { get; set; }
+    public Vehicle? Vehicle { get; set; }
     public int? VendorId { get; set; }
     public Vendor? Vendor { get; set; }
     

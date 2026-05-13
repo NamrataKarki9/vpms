@@ -119,10 +119,15 @@ export function StaffDashboard({ view, setView, customers, parts, sales, onProce
 function ProcessSalePage({ customers, parts, onProcessSale, onBack }) {
   const showToast = useToast();
   const [selectedCust, setSelectedCust] = useState('');
+  const [selectedVehicle, setSelectedVehicle] = useState('');
   const [selectedPart, setSelectedPart] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [cart, setCart] = useState([]);
   const [paymentStatus, setPaymentStatus] = useState('');
+
+  // Get vehicles for selected customer
+  const selectedCustomer = customers.find(c => c.id === parseInt(selectedCust));
+  const customerVehicles = selectedCustomer?.vehicleInfo ? [selectedCustomer.vehicleInfo] : [];
 
   const handleAddToCart = () => {
     if (!selectedPart) return;
@@ -145,9 +150,10 @@ function ProcessSalePage({ customers, parts, onProcessSale, onBack }) {
   
   const handleComplete = () => {
     if (!selectedCust) return showToast('error', 'Please select a customer.');
+    if (!selectedVehicle) return showToast('error', 'Please select a vehicle.');
     if (cart.length === 0) return showToast('error', 'Cart is empty.');
     if (!paymentStatus) return showToast('error', 'Please select a payment status.');
-    onProcessSale(selectedCust, cart, paymentStatus);
+    onProcessSale(selectedCust, cart, paymentStatus, parseInt(selectedVehicle));
     onBack();
   };
 
@@ -157,9 +163,17 @@ function ProcessSalePage({ customers, parts, onProcessSale, onBack }) {
       <h2>New Sale Transaction</h2>
       <div style={{ marginTop: '1rem' }}>
         <label style={{ fontSize: '12px', color: '#64748b' }}>Select Customer</label>
-        <select value={selectedCust} onChange={e => setSelectedCust(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '0.5px solid #E5E5E5' }}>
+        <select value={selectedCust} onChange={e => { setSelectedCust(e.target.value); setSelectedVehicle(''); }} style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '0.5px solid #E5E5E5' }}>
           <option value="">Select...</option>
-          {customers.map(c => <option key={c.id} value={c.id}>{c.name} ({c.plate})</option>)}
+          {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </div>
+
+      <div style={{ marginTop: '1rem' }}>
+        <label style={{ fontSize: '12px', color: '#64748b' }}>Select Vehicle</label>
+        <select value={selectedVehicle} onChange={e => setSelectedVehicle(e.target.value)} disabled={!selectedCust} style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '0.5px solid #E5E5E5', opacity: !selectedCust ? 0.5 : 1, cursor: !selectedCust ? 'not-allowed' : 'pointer' }}>
+          <option value="">Select...</option>
+          {customerVehicles.map(v => <option key={v.id} value={v.id}>{v.plateNumber} - {v.make} {v.model}</option>)}
         </select>
       </div>
       <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem' }}>

@@ -108,18 +108,30 @@ export function CustomerHistory({ user, onBack }) {
                   <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 600 }}>Purchase Date</th>
                   <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 600 }}>Vehicle</th>
                   <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 600 }}>Purchased Parts</th>
-                  <th style={{ padding: '1rem', textAlign: 'right', fontWeight: 600 }}>Total Amount</th>
+                  <th style={{ padding: '1rem', textAlign: 'right', fontWeight: 600 }}>Amount Paid | Total Amount</th>
                   <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 600 }}>Payment Status</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredPurchaseHistory.map(purchase => (
+                {filteredPurchaseHistory.map(purchase => {
+                  // Calculate amount paid based on payment status
+                  const totalAmount = purchase.totalAmount;
+                  let amountPaid = totalAmount;
+                  if (purchase.paymentStatus === 'half-payment') {
+                    amountPaid = totalAmount * 0.5;
+                  } else if (purchase.paymentStatus === 'partial-payment') {
+                    amountPaid = totalAmount * 0.1;
+                  }
+                  
+                  return (
                   <tr key={purchase.id} style={{ borderBottom: '1px solid #e2e8f0', hoverBackground: '#f8fafc' }}>
                     <td style={{ padding: '1rem' }}>{purchase.invoiceNumber}</td>
                     <td style={{ padding: '1rem' }}>{new Date(purchase.purchaseDate).toLocaleDateString()}</td>
                     <td style={{ padding: '1rem' }}>{purchase.vehicleNumber} - {purchase.vehicleModel}</td>
                     <td style={{ padding: '1rem', fontSize: '0.9rem' }}>{purchase.purchasedParts || '-'}</td>
-                    <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 600 }}>Rs. {purchase.totalAmount.toFixed(2)}</td>
+                    <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 600 }}>
+                      Rs. {amountPaid.toFixed(2)} | Rs. {totalAmount.toFixed(2)}
+                    </td>
                     <td style={{ padding: '1rem' }}>
                       <span style={{
                         padding: '0.25rem 0.75rem',
@@ -132,7 +144,8 @@ export function CustomerHistory({ user, onBack }) {
                       </span>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

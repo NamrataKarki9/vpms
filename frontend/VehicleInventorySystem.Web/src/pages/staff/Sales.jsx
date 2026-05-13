@@ -11,15 +11,40 @@ const Sales = ({ customers, parts, onProcessSale }) => {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [selectedCust, setSelectedCust] = useState('');
+  const [selectedVehicle, setSelectedVehicle] = useState('');
   const [selectedPart, setSelectedPart] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [cart, setCart] = useState([]);
   const [paymentStatus, setPaymentStatus] = useState('');
   const [processedInvoiceId, setProcessedInvoiceId] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [customerVehicles, setCustomerVehicles] = useState([]);
+
+  // Fetch all vehicles when customer is selected
+  React.useEffect(() => {
+    const fetchVehicles = async () => {
+      if (!selectedCust) {
+        setCustomerVehicles([]);
+        setSelectedVehicle('');
+        return;
+      }
+      try {
+        const vehicles = await apiFetch(`/customer/${selectedCust}/vehicles`);
+        setCustomerVehicles(vehicles || []);
+        setSelectedVehicle(''); // Reset vehicle selection
+      } catch (err) {
+        showToast('error', 'Failed to load customer vehicles');
+        setCustomerVehicles([]);
+      }
+    };
+    fetchVehicles();
+  }, [selectedCust]);
+
+  const selectedCustomer = customers.find(c => c.id === parseInt(selectedCust));
 
   const handleAddToCart = () => {
     if (!selectedPart) return;
+    if (!selectedVehicle) return showToast('error', 'Please select a vehicle first.');
     const part = parts.find(p => p.id === parseInt(selectedPart));
     if (!part) return;
     if (part.stock < parseInt(quantity)) return showToast('error', `Insufficient stock! Only ${part.stock} available.`);
@@ -43,13 +68,13 @@ const Sales = ({ customers, parts, onProcessSale }) => {
     return { payNow: 0, credit: 0 };
   };
   const { payNow, credit } = getCalc();
-  const selectedCustomer = customers.find(c => c.id === parseInt(selectedCust));
 
   const handleComplete = async () => {
     setIsProcessing(true);
     try {
       const salePayload = {
         customerId: parseInt(selectedCust, 10),
+        vehicleId: selectedVehicle ? parseInt(selectedVehicle, 10) : null,
         totalAmount,
         paymentStatus,
         items: cart.map(item => ({ partId: item.id, quantity: item.quantity, unitPrice: item.price }))
@@ -74,7 +99,7 @@ const Sales = ({ customers, parts, onProcessSale }) => {
     }
   };
 
-  const resetForm = () => { setCart([]); setSelectedCust(''); setPaymentStatus(''); setStep(0); setProcessedInvoiceId(null); };
+  const resetForm = () => { setCart([]); setSelectedCust(''); setSelectedVehicle(''); setPaymentStatus(''); setStep(0); setProcessedInvoiceId(null); };
 
   // ── Step Indicator ──
   const StepBar = () => (
@@ -200,7 +225,7 @@ const Sales = ({ customers, parts, onProcessSale }) => {
             <button onClick={() => setStep(0)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '11px 20px', border: '1.5px solid #E2E8F0', borderRadius: '8px', background: '#F8FAFC', cursor: 'pointer', fontSize: '14px', fontWeight: 600, color: '#64748B' }}>
               <ArrowLeft size={15} /> Edit Cart
             </button>
-            <button onClick={handleComplete} disabled={isProcessing} className="btn-sale-primary" style={{ flex: 1, height: '46px', justifyContent: 'center', fontSize: '14px' }}>
+            <button onClick={handleComplete} disabled={isProcessing || !selectedVehicle} className="btn-sale-primary" style={{ flex: 1, height: '46px', justifyContent: 'center', fontSize: '14px', opacity: !selectedVehicle ? 0.6 : 1, cursor: !selectedVehicle ? 'not-allowed' : 'pointer' }}>
               {isProcessing ? 'Processing...' : 'Confirm & Complete Transaction'}
             </button>
           </div>
@@ -221,9 +246,18 @@ const Sales = ({ customers, parts, onProcessSale }) => {
           {/* Customer Select */}
           <div style={{ marginBottom: '20px' }}>
             <label style={{ fontSize: '12px', color: '#64748B', fontWeight: 600, display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Customer</label>
-            <select value={selectedCust} onChange={e => setSelectedCust(e.target.value)} className="search-input-field" style={{ width: '100%' }}>
+            <select value={selectedCust} onChange={e => { setSelectedCust(e.target.value); setSelectedVehicle(''); }} className="search-input-field" style={{ width: '100%' }}>
               <option value="">Choose customer...</option>
-              {customers.map(c => <option key={c.id} value={c.id}>{c.name}{c.plate && c.plate !== 'N/A' ? ` — ${c.plate}` : ''}</option>)}
+              {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+
+          {/* Vehicle Select */}
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ fontSize: '12px', color: '#64748B', fontWeight: 600, display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Vehicle</label>
+            <select value={selectedVehicle} onChange={e => setSelectedVehicle(e.target.value)} disabled={!selectedCust} className="search-input-field" style={{ width: '100%', opacity: !selectedCust ? 0.5 : 1, cursor: !selectedCust ? 'not-allowed' : 'pointer' }}>
+              <option value="">Choose vehicle...</option>
+              {customerVehicles.map(v => <option key={v.id} value={v.id}>{v.plateNumber} — {v.make} {v.model}</option>)}
             </select>
           </div>
 
@@ -306,7 +340,7 @@ const Sales = ({ customers, parts, onProcessSale }) => {
 
           <button
             onClick={() => setStep(1)}
-            disabled={!paymentStatus || !selectedCust || cart.length === 0}
+            disabled={!paymentStatus || !selectedCust || !selectedVehicle || cart.length === 0}
             className="btn-sale-primary"
             style={{ width: '100%', height: '46px', justifyContent: 'center', fontSize: '14px' }}
           >

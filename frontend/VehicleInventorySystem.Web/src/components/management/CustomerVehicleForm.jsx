@@ -8,12 +8,10 @@ function CustomerVehicleForm({ onRegister }) {
   const [formData, setFormData] = useState({
     name: '', phone: '', email: '', password: '',
     plateNumber: '', make: '', model: '', year: new Date().getFullYear(), fuelType: '', mileage: 0
-    plateNumber: '', make: '', model: '', year: new Date().getFullYear(), fuelType: '', mileage: 0
   });
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({
     name: '', phone: '', email: '', password: '',
-    plateNumber: '', make: '', model: '', year: '', fuelType: '', mileage: ''
     plateNumber: '', make: '', model: '', year: '', fuelType: '', mileage: ''
   });
 
@@ -52,14 +50,8 @@ function CustomerVehicleForm({ onRegister }) {
     return '';
   };
 
-  const validateVehicleMake = (makeVal) => {
-    if (!makeVal.trim()) return 'Vehicle make is required';
-    return '';
-  };
-
   const validateVehicleYear = (yearVal) => {
     if (!yearVal) return 'Year is required';
-    const year = parseInt(yearVal, 10);
     const year = parseInt(yearVal, 10);
     const currentYear = new Date().getFullYear();
     if (year < 1900 || year > currentYear + 1) return `Between 1900 and ${currentYear + 1}`;
@@ -117,12 +109,6 @@ function CustomerVehicleForm({ onRegister }) {
 
   const canSubmitStep2 = () => {
     const plateError = validatePlateNumber(formData.plateNumber);
-    const makeError = validateVehicleMake(formData.make);
-    const modelError = validateVehicleModel(formData.model);
-    const yearError = validateVehicleYear(formData.year);
-    const fuelError = validateFuelType(formData.fuelType);
-    const mileageError = validateMileage(formData.mileage);
-    return !plateError && !makeError && !modelError && !yearError && !fuelError && !mileageError;
     const makeError = validateVehicleMake(formData.make);
     const modelError = validateVehicleModel(formData.model);
     const yearError = validateVehicleYear(formData.year);

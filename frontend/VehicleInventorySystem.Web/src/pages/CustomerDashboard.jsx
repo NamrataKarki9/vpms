@@ -1,297 +1,217 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { 
+  Car, 
+  CalendarClock, 
+  ClipboardList, 
+  History as HistoryIcon, 
+  PlusCircle, 
+  Trash2, 
+  ChevronRight, 
+  AlertCircle,
+  Clock,
+  CheckCircle2,
+  Package,
+  MessageSquare,
+  X,
+  Send,
+  TrendingUp
+} from 'lucide-react';
 import { apiFetch } from '../services/api.js';
 import { useToast } from '../context/ToastContext';
 import VehicleForm from '../components/forms/VehicleForm';
-import { CustomerHistory } from './CustomerHistory';
+import { CustomerHistory as CustomerHistoryComp } from './CustomerHistory';
 
-export function CustomerDashboard({ user }) {
-  const showToast = useToast();
-  const [history, setHistory] = useState([]);
-  const [subView, setSubView] = useState('main');
+// --- METRICS & COLORS (Similar to Staff) ---
+const METRIC_COLORS = [
+  { from: '#1E3A5F', to: '#2563A8', light: '#DBEAFE', text: '#1D4ED8' }, // Blue
+  { from: '#065F46', to: '#059669', light: '#DCFCE7', text: '#15803D' }, // Green
+  { from: '#7C3AED', to: '#9333EA', light: '#EDE9FE', text: '#6D28D9' }, // Purple
+  { from: '#B45309', to: '#D97706', light: '#FEF3C7', text: '#B45309' }, // Amber
+];
+
+/**
+ * CUSTOMER OVERVIEW (DASHBOARD MAIN VIEW)
+ */
+export function CustomerOverview({ user }) {
+  const navigate = useNavigate();
+  const [vehicles, setVehicles] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [partRequests, setPartRequests] = useState([]);
-  const [vehicles, setVehicles] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [chatMessages, setChatMessages] = useState([
-    { sender: 'bot', text: 'Hello! I am your AI assistant. How can I help you with your vehicle today?' }
-  ]);
-  const [chatInput, setChatInput] = useState('');
-  const [showChat, setShowChat] = useState(false);
-  
   useEffect(() => {
-    if (user && user.id) {
-      loadData();
-    }
+    if (user?.id) loadData();
   }, [user]);
 
   const loadData = async () => {
     try {
-      const { apiFetch } = await import('../services/api');
-      
-      // Load history
-      const h = await apiFetch(`/Customers/${user.id}/history`);
-      if (h) setHistory(h);
-      
-      // Load vehicles
-      const v = await apiFetch(`/Customers/${user.id}/vehicles`);
+      const [v, a, pr, h] = await Promise.all([
+        apiFetch(`/Customers/${user.id}/vehicles`),
+        apiFetch(`/Service/appointments?customerId=${user.id}`),
+        apiFetch(`/Service/special-part-requests?customerId=${user.id}`),
+        apiFetch(`/Customers/${user.id}/history`)
+      ]);
       if (v) setVehicles(v);
-      
-      // Load appointments
-      const a = await apiFetch(`/Service/appointments?customerId=${user.id}`);
       if (a) setAppointments(a);
-      
-      // Load special part requests
-      const pr = await apiFetch(`/Service/special-part-requests?customerId=${user.id}`);
       if (pr) setPartRequests(pr);
-    } catch (error) {
-      console.error('Error loading data:', error);
+      if (h) setHistory(h);
+    } catch (err) {
+      console.error('Error loading overview data:', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleAddVehicle = async (newVehicle) => {
-    try {
-      const { apiFetch } = await import('../services/api');
-      const savedVehicle = await apiFetch(`/Customers/${user.id}/vehicles`, {
-        method: 'POST',
-        body: JSON.stringify(newVehicle)
-      });
-      setVehicles([...vehicles, savedVehicle]);
-      return savedVehicle;
-    } catch (error) {
-      console.error('Error adding vehicle:', error);
-      throw error;
-    }
-  };
-
-  const handleDeleteVehicle = async (vehicleId) => {
-    try {
-      const { apiFetch } = await import('../services/api');
-      await apiFetch(`/Customers/${user.id}/vehicles/${vehicleId}`, { method: 'DELETE' });
-      setVehicles(prev => prev.filter(v => v.id !== vehicleId));
-    } catch (error) {
-      console.error('Error deleting vehicle:', error);
-      alert('Failed to delete vehicle');
-    }
-  };
-
-  const handleDeleteAppointment = async (id) => {
-    try {
-      await apiFetch(`/Service/appointments/${id}`, { method: 'DELETE' });
-      setAppointments(prev => prev.filter(a => a.id !== id));
-    } catch (error) {
-      console.error('Error deleting appointment:', error);
-      showToast('error', 'Failed to delete appointment');
-    }
-  };
-
-  const handleDeleteRequest = async (id) => {
-    try {
-      const { apiFetch } = await import('../services/api');
-      await apiFetch(`/Service/special-part-requests/${id}`, { method: 'DELETE' });
-      setPartRequests(prev => prev.filter(r => r.id !== id));
-    } catch (error) {
-      console.error('Error deleting request:', error);
-      showToast('error', 'Failed to delete request');
-    }
-  };
-
-  const handleUpdateAppointment = async (updatedAppointment) => {
-    try {
-      await apiFetch(`/Service/appointments/${updatedAppointment.id}`, {
-        method: 'PUT',
-        body: JSON.stringify(updatedAppointment)
-      });
-      setAppointments(prev => prev.map(a => a.id === updatedAppointment.id ? updatedAppointment : a));
-    } catch (error) {
-      console.error('Error updating appointment:', error);
-      showToast('error', 'Failed to update appointment');
-    }
-  };
-
-  const handleUpdateRequest = async (updatedRequest) => {
-    try {
-      await apiFetch(`/Service/part-requests/${updatedRequest.id}`, {
-        method: 'PUT',
-        body: JSON.stringify(updatedRequest)
-      });
-      setPartRequests(prev => prev.map(r => r.id === updatedRequest.id ? updatedRequest : r));
-    } catch (error) {
-      console.error('Error updating request:', error);
-      showToast('error', 'Failed to update request');
-    }
-  };
-
-  const handleChatSubmit = (e) => {
-    e.preventDefault();
-    if (!chatInput.trim()) return;
-    const userMsg = chatInput;
-    setChatMessages(prev => [...prev, { sender: 'user', text: userMsg }]);
-    setChatInput('');
-    setTimeout(() => {
-      let botResponse = "I'm analyzing your request...";
-      const lowerMsg = userMsg.toLowerCase();
-      if (lowerMsg.includes('oil')) botResponse = "You should schedule an oil change every 5,000 miles. Use our 'Book Appointment' page!";
-      else if (lowerMsg.includes('part')) botResponse = "Need something special? Check out our 'Special Orders' section.";
-      else if (lowerMsg.includes('vehicle')) botResponse = "You can add and manage multiple vehicles in your profile. Click 'Manage Vehicles' to add or edit vehicles.";
-      else botResponse = "I can help you with bookings, parts, vehicles, or your history. What's on your mind?";
-      setChatMessages(prev => [...prev, { sender: 'bot', text: botResponse }]);
-    }, 1000);
-  };
-
-  if (subView === 'history') return <HistoryPage history={history} onBack={() => setSubView('main')} />;
-  if (subView === 'customer-history') return <CustomerHistory user={user} onBack={() => setSubView('main')} />;
-  if (subView === 'vehicles') return <VehiclesPage vehicles={vehicles} onAddVehicle={handleAddVehicle} onDeleteVehicle={handleDeleteVehicle} onBack={() => setSubView('main')} />;
-  if (subView === 'appointments') return <AppointmentsPage list={appointments} vehicles={vehicles} onDelete={handleDeleteAppointment} onUpdate={handleUpdateAppointment} onBack={() => setSubView('main')} onNew={() => setSubView('book')} />;
-  if (subView === 'book') return <BookingPage user={user} vehicles={vehicles} onComplete={(newApp) => { setAppointments([...appointments, newApp]); setSubView('appointments'); }} onBack={() => setSubView('main')} />;
-  if (subView === 'requests') return <RequestsPage list={partRequests} onDelete={handleDeleteRequest} onBack={() => setSubView('main')} onNew={() => setSubView('new-request')} />;
-  if (subView === 'new-request') return <NewRequestPage user={user} onComplete={(newReq) => { setPartRequests([...partRequests, newReq]); setSubView('requests'); }} onBack={() => setSubView('main')} />;
+  const metrics = [
+    { label: "My Vehicles", value: vehicles.length, sub: "Registered in garage", icon: Car, color: METRIC_COLORS[0], path: '/customer/vehicles' },
+    { label: "Bookings", value: appointments.filter(a => a.status !== 'Cancelled').length, sub: "Upcoming services", icon: CalendarClock, color: METRIC_COLORS[1], path: '/customer/appointments' },
+    { label: "Special Orders", value: partRequests.length, sub: "Active part requests", icon: Package, color: METRIC_COLORS[2], path: '/customer/requests' },
+    { label: "Total Visits", value: history.length, sub: "Complete history", icon: HistoryIcon, color: METRIC_COLORS[3], path: '/customer/history' },
+  ];
 
   return (
-    <>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '2rem', alignItems: 'start' }}>
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3>My Vehicles</h3>
-            <button className="btn-small" onClick={() => setSubView('vehicles')}>Manage</button>
-          </div>
-          <p style={{ opacity: 0.6, fontSize: '0.9rem' }}>You have {vehicles.length} vehicles registered.</p>
-          <div style={{ marginTop: '1rem' }}>
-            {vehicles.slice(0, 2).map(v => (
-              <div key={v.id} className="list-item" style={{ fontSize: '0.9rem' }}>
-                <span><strong>{v.make?.toLowerCase().includes(v.model?.toLowerCase()) || v.model?.toLowerCase().includes(v.make?.toLowerCase()) ? v.make : `${v.make} ${v.model}`}</strong></span>
-                <span style={{ opacity: 0.7 }}>{v.plateNumber}</span>
+    <div className="customer-dashboard-overview">
+      {/* Page Header */}
+      <div className="page-section-header" style={{ marginBottom: '24px' }}>
+        <h2>Welcome back, {user?.name?.split(' ')[0] || 'Customer'}!</h2>
+        <p>Manage your vehicles and service appointments from your personal portal.</p>
+      </div>
+
+      {/* Metric Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+        {metrics.map((m, i) => (
+          <div key={i} className="metric-card" onClick={() => navigate(m.path)} style={{ cursor: 'pointer' }}>
+            <div className="metric-card-accent" style={{ background: `linear-gradient(135deg, ${m.color.from}, ${m.color.to})` }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
+              <div style={{ width: 40, height: 40, borderRadius: '10px', background: m.color.light, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <m.icon size={18} color={m.color.text} />
               </div>
-            ))}
-            {vehicles.length === 0 && <p style={{opacity:0.5}}>No vehicles yet. Add one to get started!</p>}
-          </div>
-          <button onClick={() => setSubView('vehicles')} style={{ width: '100%', marginTop: '1rem' }}>+ Add Vehicle</button>
-        </div>
-
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3>Service Bookings</h3>
-            <button className="btn-small" onClick={() => setSubView('appointments')}>Manage</button>
-          </div>
-          <p style={{ opacity: 0.6, fontSize: '0.9rem' }}>You have {appointments.filter(a => a.status !== 'Cancelled').length} upcoming appointments.</p>
-          <button onClick={() => setSubView('book')} style={{ width: '100%', marginTop: '1rem' }}>Book New Appointment</button>
-        </div>
-
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3>Special Part Requests</h3>
-            <button className="btn-small" onClick={() => setSubView('requests')}>View All</button>
-          </div>
-          <p style={{ opacity: 0.6, fontSize: '0.9rem' }}>Track your sourcing requests for custom parts.</p>
-          <button onClick={() => setSubView('new-request')} style={{ width: '100%', marginTop: '1rem' }}>Submit Special Order</button>
-        </div>
-
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3>Full Purchase & Service History</h3>
-            <button className="btn-small" onClick={() => setSubView('customer-history')}>View</button>
-          </div>
-          <p style={{ opacity: 0.6, fontSize: '0.9rem' }}>View detailed purchase and service records with filtering by vehicle.</p>
-          <button onClick={() => setSubView('customer-history')} style={{ width: '100%', marginTop: '1rem' }}>View Complete History</button>
-        </div>
-      </div>
-
-      {/* Floating AI Widget */}
-      <div style={{ position: 'fixed', bottom: '22rem', right: '3rem', zIndex: 10000 }}>
-        {!showChat ? (
-          <button onClick={() => setShowChat(true)} style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'var(--primary)', color: '#fff', fontSize: '1.8rem', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', border: 'none', cursor: 'pointer' }}>🤖</button>
-        ) : (
-          <div style={{ width: '350px', height: '450px', background: '#fff', borderRadius: '20px', boxShadow: '0 12px 48px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-            <div style={{ background: 'var(--primary)', color: '#fff', padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <strong>🤖 AI Assistant</strong>
-              <button onClick={() => setShowChat(false)} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '1.2rem', cursor: 'pointer' }}>×</button>
+              <TrendingUp size={14} color="#15803D" />
             </div>
-            <div style={{ flex: 1, padding: '1rem', overflowY: 'auto', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {chatMessages.map((msg, i) => (
-                <div key={i} style={{ alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start', background: msg.sender === 'user' ? 'var(--primary)' : '#fff', color: msg.sender === 'user' ? '#fff' : '#0f172a', padding: '0.6rem 0.9rem', borderRadius: '15px', maxWidth: '80%', fontSize: '0.85rem' }}>{msg.text}</div>
-              ))}
-            </div>
-            <form onSubmit={handleChatSubmit} style={{ padding: '1rem', background: '#fff', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '0.5rem' }}>
-              <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} placeholder="Ask something..." style={{ margin: 0, flex: 1 }} />
-              <button type="submit">✈️</button>
-            </form>
-          </div>
-        )}
-      </div>
-    </>
-  );
-}
-
-function HistoryPage({ history, onBack }) {
-  return (
-    <div className="card" style={{ maxWidth: '800px', margin: 'auto' }}>
-      <button onClick={onBack} className="btn-small" style={{ marginBottom: '1rem', background: '#cbd5e1' }}>← Back</button>
-      <h2>Full Purchase History</h2>
-      <div className="data-list" style={{ marginTop: '2rem' }}>
-        {history.map(s => (
-          <div key={s.id} className="list-item">
-            <div>
-              <strong>{s.items?.[0]?.part?.name || 'Service'}</strong>
-              <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>Date: {new Date(s.date).toLocaleDateString()}</div>
-            </div>
-            <span style={{ fontWeight: 700 }}>Rs. {s.totalAmount?.toFixed(2)}</span>
+            <p style={{ fontSize: '11px', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.7px', fontWeight: 600, marginBottom: '6px' }}>{m.label}</p>
+            <p style={{ fontSize: '26px', fontWeight: 800, color: '#1E293B', letterSpacing: '-0.5px', marginBottom: '4px' }}>{m.value}</p>
+            <p style={{ fontSize: '12px', color: '#94A3B8' }}>{m.sub}</p>
           </div>
         ))}
-        {history.length === 0 && <p style={{ textAlign: 'center', padding: '3rem', opacity: 0.5 }}>No purchase history.</p>}
+      </div>
+
+      {/* Main Content Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '16px' }}>
+        
+        {/* Recent Appointments */}
+        <div className="staff-card">
+          <div className="staff-card-header">
+            <span className="staff-card-title">Upcoming Appointments</span>
+            <button className="btn-view-customer" onClick={() => navigate('/customer/appointments')}>Manage All</button>
+          </div>
+          <div className="staff-card-body">
+            {appointments.filter(a => a.status !== 'Cancelled').slice(0, 3).map(a => (
+              <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid #F1F5F9' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: 36, height: 36, borderRadius: '10px', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Clock size={16} color="#64748B" />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#1E293B' }}>{a.serviceType}</div>
+                    <div style={{ fontSize: '11px', color: '#94A3B8' }}>{new Date(a.appointmentDate).toLocaleDateString()} at {a.appointmentTime}</div>
+                  </div>
+                </div>
+                <span className="badge-pill badge-loyalty">Confirmed</span>
+              </div>
+            ))}
+            {appointments.filter(a => a.status !== 'Cancelled').length === 0 && (
+              <div className="empty-state">
+                <div className="empty-state-icon">📅</div>
+                <h4>No Bookings</h4>
+                <p>You have no upcoming service appointments.</p>
+                <button className="btn-sale-primary" style={{ marginTop: '12px' }} onClick={() => navigate('/customer/book')}>Book Now</button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* My Vehicles Summary */}
+        <div className="staff-card">
+          <div className="staff-card-header">
+            <span className="staff-card-title">My Garage</span>
+            <button className="btn-view-customer" onClick={() => navigate('/customer/vehicles')}>View Garage</button>
+          </div>
+          <div className="staff-card-body">
+            {vehicles.slice(0, 3).map(v => (
+              <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid #F1F5F9' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: 36, height: 36, borderRadius: '10px', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Car size={16} color="#64748B" />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#1E293B' }}>{v.make} {v.model}</div>
+                    <div style={{ fontSize: '11px', color: '#94A3B8' }}>{v.plateNumber} • {v.year}</div>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '11px', color: '#94A3B8' }}>Mileage</div>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#1E293B' }}>{v.mileage} km</div>
+                </div>
+              </div>
+            ))}
+            {vehicles.length === 0 && (
+              <div className="empty-state">
+                <div className="empty-state-icon">🚗</div>
+                <h4>Empty Garage</h4>
+                <p>Add your vehicles to track service history.</p>
+                <button className="btn-sale-primary" style={{ marginTop: '12px' }} onClick={() => navigate('/customer/vehicles')}>Add Vehicle</button>
+              </div>
+            )}
+          </div>
+        </div>
+
       </div>
     </div>
   );
 }
 
-function VehiclesPage({ vehicles, onAddVehicle, onDeleteVehicle, onBack }) {
+/**
+ * VEHICLES PAGE
+ */
+export function VehiclesPage({ user }) {
+  const navigate = useNavigate();
+  const [vehicles, setVehicles] = useState([]);
   const [isAdding, setIsAdding] = useState(false);
   const [form, setForm] = useState({ plateNumber: '', model: '', make: '', year: new Date().getFullYear(), fuelType: '', mileage: 0 });
   const [error, setError] = useState('');
   const [successDialog, setSuccessDialog] = useState(false);
 
+  useEffect(() => {
+    loadVehicles();
+  }, [user]);
+
+  const loadVehicles = async () => {
+    const v = await apiFetch(`/Customers/${user.id}/vehicles`);
+    if (v) setVehicles(v);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-
     if (!form.plateNumber.trim() || !form.model.trim() || !form.make.trim()) {
       setError('Please fill in all required fields');
       return;
     }
-
-    if (form.year < 1900 || form.year > new Date().getFullYear() + 1) {
-      setError('Please enter a valid year');
-      return;
-    }
-
-    if (!form.fuelType) {
-      setError('Please select a fuel type');
-      return;
-    }
-
-    if (Number.isNaN(Number(form.mileage)) || Number(form.mileage) < 0) {
-      setError('Mileage must be 0 or greater');
-      return;
-    }
-
-    if (!form.fuelType) {
-      setError('Please select a fuel type');
-      return;
-    }
-
-    if (Number.isNaN(Number(form.mileage)) || Number(form.mileage) < 0) {
-      setError('Mileage must be 0 or greater');
-      return;
-    }
-
     try {
-      await onAddVehicle({
-        plateNumber: form.plateNumber.trim(),
-        model: form.model.trim(),
-        make: form.make.trim(),
-        year: form.year,
-        fuelType: form.fuelType || null,
-        mileage: Number(form.mileage)
-        mileage: Number(form.mileage)
+      const savedVehicle = await apiFetch(`/Customers/${user.id}/vehicles`, {
+        method: 'POST',
+        body: JSON.stringify({
+          plateNumber: form.plateNumber.trim(),
+          model: form.model.trim(),
+          make: form.make.trim(),
+          year: form.year,
+          fuelType: form.fuelType || null,
+          mileage: Number(form.mileage)
+        })
       });
+      setVehicles([...vehicles, savedVehicle]);
       setForm({ plateNumber: '', model: '', make: '', year: new Date().getFullYear(), fuelType: '', mileage: 0 });
       setIsAdding(false);
       setSuccessDialog(true);
@@ -300,65 +220,93 @@ function VehiclesPage({ vehicles, onAddVehicle, onDeleteVehicle, onBack }) {
     }
   };
 
+  const handleDeleteVehicle = async (id) => {
+    if (!window.confirm('Are you sure you want to remove this vehicle?')) return;
+    try {
+      await apiFetch(`/Customers/${user.id}/vehicles/${id}`, { method: 'DELETE' });
+      setVehicles(prev => prev.filter(v => v.id !== id));
+    } catch (err) {
+      alert('Failed to delete vehicle');
+    }
+  };
+
   return (
-    <div className="card" style={{ maxWidth: '800px', margin: 'auto' }}>
-      <button onClick={onBack} className="btn-small" style={{ marginBottom: '1rem', background: '#cbd5e1' }}>← Back</button>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <h2>My Vehicles</h2>
-        <button onClick={() => setIsAdding(!isAdding)}>+ Add New Vehicle</button>
+    <div>
+      <div className="page-section-header" style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h2>My Vehicles</h2>
+          <p>Manage and track all vehicles in your personal garage.</p>
+        </div>
+        <button className="btn-sale-primary" onClick={() => setIsAdding(!isAdding)}>
+          <PlusCircle size={14} />
+          <span>Add Vehicle</span>
+        </button>
       </div>
 
       {isAdding && (
-        <div className="card" style={{ background: '#f8fafc', marginBottom: '2rem', padding: '1.5rem' }}>
-          <h3>Add New Vehicle</h3>
-          <form style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <VehicleForm
-              value={form}
-              onChange={setForm}
-              errors={{}}
-              showMileageHint={false}
-            />
-            <VehicleForm
-              value={form}
-              onChange={setForm}
-              errors={{}}
-              showMileageHint={false}
-            />
-
-            {error && <p style={{ color: '#ef4444', fontSize: '0.9rem' }}>{error}</p>}
-
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <button type="button" onClick={() => setIsAdding(false)} style={{ flex: 1, background: '#cbd5e1' }}>Cancel</button>
-              <button type="submit" onClick={handleSubmit} style={{ flex: 1, background: 'var(--primary)', color: '#fff' }}>Add Vehicle</button>
+        <div className="staff-card" style={{ marginBottom: '24px', padding: '24px' }}>
+          <h3 style={{ marginBottom: '20px' }}>Register New Vehicle</h3>
+          <form style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <VehicleForm value={form} onChange={setForm} errors={{}} showMileageHint={false} />
+            <div style={{ gridColumn: 'span 2', display: 'flex', gap: '12px', marginTop: '12px' }}>
+              <button type="button" onClick={() => setIsAdding(false)} className="btn-view-customer" style={{ padding: '10px 24px' }}>Cancel</button>
+              <button type="submit" onClick={handleSubmit} className="btn-sale-primary" style={{ padding: '10px 24px' }}>Save Vehicle</button>
             </div>
+            {error && <p style={{ color: '#ef4444', fontSize: '13px', gridColumn: 'span 2' }}>{error}</p>}
           </form>
         </div>
       )}
 
-      <div className="data-list">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
         {vehicles.map(v => (
-          <div key={v.id} className="list-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '1rem' }}>
-            <div style={{ flex: 1 }}>
-              <strong>{v.make?.toLowerCase().includes(v.model?.toLowerCase()) || v.model?.toLowerCase().includes(v.make?.toLowerCase()) ? v.make : `${v.make} ${v.model}`}</strong>
-              <div style={{ fontSize: '0.85rem', opacity: 0.7, marginTop: '0.25rem' }}>
-                <div>Plate: {v.plateNumber}</div>
-                <div>Year: {v.year}</div>
-                {v.fuelType && <div>Fuel: {v.fuelType}</div>}
-                <div>Mileage: {v.mileage} km</div>
-              </div>
+          <div key={v.id} className="staff-card" style={{ position: 'relative' }}>
+            <div className="staff-card-header">
+              <span className="staff-card-title">{v.make} {v.model}</span>
+              <span className="badge-pill badge-paid">{v.year}</span>
             </div>
-            <button onClick={() => onDeleteVehicle(v.id)} className="btn-small" style={{ background: 'var(--error)', color: '#fff' }}>Delete</button>
+            <div style={{ padding: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: '#94A3B8', textTransform: 'uppercase' }}>Plate Number</div>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#1E293B' }}>{v.plateNumber}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: '#94A3B8', textTransform: 'uppercase' }}>Fuel Type</div>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#1E293B' }}>{v.fuelType || 'N/A'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: '#94A3B8', textTransform: 'uppercase' }}>Current Mileage</div>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#1E293B' }}>{v.mileage?.toLocaleString()} km</div>
+                </div>
+              </div>
+              <button 
+                onClick={() => handleDeleteVehicle(v.id)} 
+                style={{ width: '100%', background: '#FFF5F5', color: '#B91C1C', border: '1px solid #FCA5A5', padding: '8px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+              >
+                <Trash2 size={12} style={{ marginRight: '6px' }} />
+                Remove Vehicle
+              </button>
+            </div>
           </div>
         ))}
-        {vehicles.length === 0 && <p style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No vehicles yet. Add your first vehicle!</p>}
+        {vehicles.length === 0 && (
+          <div className="staff-card" style={{ gridColumn: 'span 3', padding: '60px', textAlign: 'center' }}>
+            <Car size={48} color="#CBD5E1" style={{ marginBottom: '16px' }} />
+            <h4>Your garage is empty</h4>
+            <p style={{ color: '#94A3B8' }}>Add your first vehicle to start tracking services.</p>
+          </div>
+        )}
       </div>
 
       {successDialog && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: '#fff', padding: '2rem', borderRadius: '12px', maxWidth: '400px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)', textAlign: 'center' }}>
-            <p style={{ color: '#10b981', fontSize: '2rem', marginBottom: '0.5rem' }}>✓</p>
-            <p style={{ fontSize: '1rem', fontWeight: 500 }}>Vehicle added successfully!</p>
-            <button onClick={() => setSuccessDialog(false)} style={{ marginTop: '1.5rem', background: '#10b981', color: '#fff', padding: '0.6rem 1.2rem', borderRadius: '6px', border: 'none', cursor: 'pointer' }}>OK</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(30,58,95,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(4px)' }}>
+          <div className="staff-card" style={{ padding: '32px', maxWidth: '400px', textAlign: 'center', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#DCFCE7', color: '#15803D', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+              <CheckCircle2 size={32} />
+            </div>
+            <h3 style={{ marginBottom: '12px' }}>Vehicle Added!</h3>
+            <p style={{ color: '#64748B', marginBottom: '24px' }}>Your vehicle has been registered successfully.</p>
+            <button className="btn-sale-primary" style={{ width: '100%' }} onClick={() => setSuccessDialog(false)}>Great, Thanks!</button>
           </div>
         </div>
       )}
@@ -366,624 +314,193 @@ function VehiclesPage({ vehicles, onAddVehicle, onDeleteVehicle, onBack }) {
   );
 }
 
-function AppointmentsPage({ list, vehicles, onDelete, onUpdate, onBack, onNew }) {
+/**
+ * APPOINTMENTS PAGE
+ */
+export function AppointmentsPage({ user }) {
+  const navigate = useNavigate();
   const showToast = useToast();
-  const [cancelDialog, setCancelDialog] = useState({ isOpen: false, id: null, type: '', name: '' });
+  const [appointments, setAppointments] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
+  const [cancelDialog, setCancelDialog] = useState({ isOpen: false, id: null, name: '' });
   const [rescheduleDialog, setRescheduleDialog] = useState({ isOpen: false, id: null, newDate: '' });
   const [rescheduleError, setRescheduleError] = useState('');
   const [successDialog, setSuccessDialog] = useState({ isOpen: false, message: '' });
 
-  const validateCancel = (appointment) => {
-    const appointmentDate = new Date(appointment.appointmentDate);
-    const now = new Date();
-    
-    if (appointmentDate < now) {
-      return 'Past appointments cannot be cancelled.';
-    }
-    
-    if (appointment.status === 'Cancelled') {
-      return 'This appointment is already cancelled.';
-    }
-    
-    return '';
+  useEffect(() => {
+    loadData();
+  }, [user]);
+
+  const loadData = async () => {
+    const [a, v] = await Promise.all([
+      apiFetch(`/Service/appointments?customerId=${user.id}`),
+      apiFetch(`/Customers/${user.id}/vehicles`)
+    ]);
+    if (a) setAppointments(a);
+    if (v) setVehicles(v);
   };
 
-  const handleCancelClick = (id) => {
-    const appointment = list.find(a => a.id === id);
-    const error = validateCancel(appointment);
-    
-    if (error) {
-      showToast('error', error);
+  const handleCancelClick = (a) => {
+    if (new Date(a.appointmentDate) < new Date()) {
+      showToast('error', 'Past appointments cannot be cancelled.');
       return;
     }
-    
-    setCancelDialog({ isOpen: true, id, type: 'appointment', name: appointment.serviceType });
-  };
-
-  const handleConfirmCancel = () => {
-    onDelete(cancelDialog.id);
-    setSuccessDialog({ isOpen: true, message: 'Appointment cancelled successfully.' });
-    setCancelDialog({ isOpen: false, id: null, name: '' });
-  };
-
-  const getVehicleInfo = (vehicleId) => {
-    return vehicles.find(v => v.id === vehicleId);
-  };
-
-  const validateReschedule = (appointment, newDate) => {
-    const appointmentDate = new Date(appointment.appointmentDate);
-    const now = new Date();
-    const hoursUntilAppointment = (appointmentDate - now) / (1000 * 60 * 60);
-
-    if (appointmentDate < now) {
-      return 'Past or completed appointments cannot be rescheduled.';
-    }
-
-    if (appointment.status === 'Cancelled') {
-      return 'Cancelled appointments cannot be rescheduled.';
-    }
-
-    if (hoursUntilAppointment < 24) {
-      return 'Appointments can only be rescheduled at least 24 hours before the scheduled service time.';
-    }
-
-    if (!newDate || newDate.trim() === '') {
-      return 'Please select a new date and time.';
-    }
-
-    if (newDate) {
-      const selectedDate = new Date(newDate);
-      if (selectedDate <= now) {
-        return 'Please select a valid future date and time.';
-      }
-    }
-
-    if ((appointment.rescheduleCount || 0) >= 2) {
-      return 'You have reached the maximum number of allowed reschedules for this appointment.';
-    }
-
-    return '';
-  };
-
-  const handleRescheduleClick = (appointment) => {
-    const error = validateReschedule(appointment, new Date().toISOString().split('T')[0]);
-    if (error && error.includes('maximum')) {
-      showToast('error', error);
-      return;
-    }
-    setRescheduleDialog({ isOpen: true, id: appointment.id, newDate: '' });
-    setRescheduleError('');
-  };
-
-  const handleConfirmReschedule = () => {
-    const appointment = list.find(a => a.id === rescheduleDialog.id);
-    const error = validateReschedule(appointment, rescheduleDialog.newDate);
-    
-    if (error) {
-      setRescheduleError(error);
-      return;
-    }
-
-    // Parse the datetime-local value (format: "2026-05-16T02:20")
-    const [dateStr, timeStr] = rescheduleDialog.newDate.split('T');
-    
-    const updatedAppointment = {
-      ...appointment,
-      appointmentDate: dateStr + 'T00:00:00Z',
-      appointmentTime: timeStr + ':00',
-      rescheduleCount: (appointment.rescheduleCount || 0) + 1
-    };
-    
-    onUpdate(updatedAppointment);
-    setSuccessDialog({ isOpen: true, message: 'Appointment rescheduled successfully!' });
-    setRescheduleDialog({ isOpen: false, id: null, newDate: '' });
-    setRescheduleError('');
-  };
-
-  const getTodayDate = () => {
-    return new Date().toISOString().split('T')[0];
-  };
-
-  return (
-    <div className="card" style={{ maxWidth: '800px', margin: 'auto' }}>
-      <button onClick={onBack} className="btn-small" style={{ marginBottom: '1rem', background: '#cbd5e1' }}>← Back</button>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <h2>My Service Bookings</h2>
-        <button onClick={onNew}>+ Book New</button>
-      </div>
-      <div className="data-list">
-        {list.filter(a => a.status !== 'Cancelled').map(a => {
-          const vehicle = getVehicleInfo(a.vehicleId);
-          const appointmentDate = new Date(a.appointmentDate);
-          const now = new Date();
-          const hoursUntilAppointment = (appointmentDate - now) / (1000 * 60 * 60);
-          const canReschedule = hoursUntilAppointment >= 24 && (a.rescheduleCount || 0) < 2;
-
-          return (
-            <div key={a.id} className="list-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '1rem' }}>
-              <div style={{ flex: 1 }}>
-                <strong>{a.serviceType}</strong>
-                {vehicle && (
-                  <div style={{ fontSize: '0.85rem', opacity: 0.7, marginTop: '0.25rem' }}>
-                    <div>Vehicle: {vehicle.make} {vehicle.model} ({vehicle.plateNumber})</div>
-                  </div>
-                )}
-                <div style={{ fontSize: '0.8rem', opacity: 0.6, marginTop: '0.25rem' }}>
-                  Scheduled: {new Date(a.appointmentDate).toLocaleDateString()} at {a.appointmentTime || 'TBD'}
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                {canReschedule && (
-                  <button onClick={() => handleRescheduleClick(a)} className="btn-small" style={{ background: '#3b82f6', color: '#fff' }}>Reschedule</button>
-                )}
-                <button onClick={() => handleCancelClick(a.id)} className="btn-small" style={{ background: 'var(--error)', color: '#fff' }}>Cancel</button>
-              </div>
-            </div>
-          );
-        })}
-        {list.filter(a => a.status !== 'Cancelled').length === 0 && <p style={{textAlign: 'center', padding: '3rem', opacity: 0.5}}>No upcoming appointments. Book one now!</p>}
-      </div>
-
-      {cancelDialog.isOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: '#fff', padding: '2rem', borderRadius: '12px', maxWidth: '400px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
-            <h3>Cancel Appointment</h3>
-            <p>Are you sure you want to cancel <strong>{cancelDialog.name}</strong>?</p>
-            <p style={{ fontSize: '0.9rem', opacity: 0.7 }}>This action cannot be undone.</p>
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
-              <button onClick={() => setCancelDialog({ isOpen: false, id: null, name: '' })} style={{ flex: 1, background: '#cbd5e1', color: '#0f172a' }}>No, Keep It</button>
-              <button onClick={handleConfirmCancel} style={{ flex: 1, background: 'var(--error)', color: '#fff' }}>Yes, Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {rescheduleDialog.isOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: '#fff', padding: '2rem', borderRadius: '12px', maxWidth: '400px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
-            <h3>Reschedule Appointment</h3>
-            <p style={{ fontSize: '0.9rem', opacity: 0.7, marginBottom: '1.5rem' }}>Select a new date and time for your appointment.</p>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>New Date & Time *</label>
-                <input 
-                  type="datetime-local" 
-                  value={rescheduleDialog.newDate}
-                  onChange={e => {
-                    setRescheduleDialog({ ...rescheduleDialog, newDate: e.target.value });
-                    setRescheduleError('');
-                  }}
-                  min={new Date().toISOString().slice(0, 16)}
-                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '6px' }}
-                />
-              </div>
-            </div>
-
-            {rescheduleError && (
-              <p style={{ fontSize: '0.85rem', color: '#ef4444', marginBottom: '1rem', background: '#fee2e2', padding: '0.75rem', borderRadius: '6px' }}>
-                {rescheduleError}
-              </p>
-            )}
-
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <button onClick={() => setRescheduleDialog({ isOpen: false, id: null, newDate: '' })} style={{ flex: 1, background: '#cbd5e1', color: '#0f172a' }}>Cancel</button>
-              <button onClick={handleConfirmReschedule} style={{ flex: 1, background: '#3b82f6', color: '#fff' }}>Reschedule</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {successDialog.isOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: '#fff', padding: '2rem', borderRadius: '12px', maxWidth: '400px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)', textAlign: 'center' }}>
-            <p style={{ color: '#10b981', fontSize: '2rem', marginBottom: '0.5rem' }}>✓</p>
-            <p style={{ fontSize: '1rem', fontWeight: 500 }}>{successDialog.message}</p>
-            <button onClick={() => setSuccessDialog({ isOpen: false, message: '' })} style={{ marginTop: '1.5rem', background: '#10b981', color: '#fff', padding: '0.6rem 1.2rem', borderRadius: '6px', border: 'none', cursor: 'pointer' }}>OK</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function BookingPage({ user, vehicles, onComplete, onBack }) {
-  const [form, setForm] = useState({ vehicleId: '', serviceType: '', appointmentDate: '', appointmentTime: '09:00', description: '' });
-  const [error, setError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [successDialog, setSuccessDialog] = useState(false);
-
-  const serviceTypes = ['Oil Change', 'Filter Replacement', 'Tire Rotation', 'Brake Service', 'Full Service', 'Diagnosis', 'Other'];
-  const timeSlots = [
-    { value: '09:00', label: '09:00 AM' },
-    { value: '10:00', label: '10:00 AM' },
-    { value: '11:00', label: '11:00 AM' },
-    { value: '12:00', label: '12:00 PM' },
-    { value: '14:00', label: '02:00 PM' },
-    { value: '15:00', label: '03:00 PM' },
-    { value: '16:00', label: '04:00 PM' }
-  ];
-
-  const getTodayDate = () => {
-    return new Date().toISOString().split('T')[0];
-  };
-
-  const getSelectedVehicle = () => {
-    return vehicles.find(v => v.id === parseInt(form.vehicleId));
-  };
-
-  const validateBooking = () => {
-    if (!form.vehicleId) {
-      setError('Please select a vehicle');
-      return false;
-    }
-
-    if (!form.appointmentDate) {
-      setError('Please select a date');
-      return false;
-    }
-
-    if (!form.serviceType.trim()) {
-      setError('Please select or enter a service type');
-      return false;
-    }
-
-    const selectedDate = new Date(form.appointmentDate);
-    const now = new Date();
-
-    if (selectedDate <= now) {
-      setError('Appointment date must be in the future');
-      return false;
-    }
-
-    return true;
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccessMessage('');
-
-    if (!validateBooking()) return;
-
-    // Validate time slot is selected
-    if (!form.appointmentTime) {
-      setError('Please select a time slot');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const { apiFetch } = await import('../services/api');
-      
-      const appointmentData = {
-        customerId: user.id,
-        vehicleId: parseInt(form.vehicleId),
-        appointmentDate: new Date(form.appointmentDate).toISOString(),
-        appointmentTime: form.appointmentTime + ':00',
-        serviceType: form.serviceType.trim(),
-        description: form.description.trim()
-      };
-
-      const result = await apiFetch('/Service/appointments', {
-        method: 'POST',
-        body: JSON.stringify(appointmentData)
-      });
-
-      if (result) {
-        setSuccessMessage('Appointment booked successfully.');
-        setSuccessDialog(true);
-        setTimeout(() => {
-          onComplete({...result.appointment, status: 'Confirmed'});
-        }, 2000);
-      }
-    } catch (err) {
-      const errorMsg = err.message || 'Failed to book appointment';
-      if (errorMsg.includes('unavailable') || errorMsg.includes('time slot')) {
-        setError('This time slot is unavailable. Please choose another time.');
-      } else {
-        setError(errorMsg);
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const selectedVehicle = getSelectedVehicle();
-
-  return (
-    <div className="card" style={{ maxWidth: '600px', margin: 'auto' }}>
-      <button onClick={onBack} className="btn-small" style={{ marginBottom: '1rem', background: '#cbd5e1' }}>← Back</button>
-      <h2>Book Service Appointment</h2>
-      
-      <form style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div>
-          <label>Select Vehicle *</label>
-          <select 
-            value={form.vehicleId} 
-            onChange={e => {
-              setForm({...form, vehicleId: e.target.value});
-              setError('');
-            }}
-            style={{ borderColor: error && error.includes('vehicle') ? '#ef4444' : '' }}
-          >
-            <option value="">-- Select a Vehicle --</option>
-            {vehicles.map(vehicle => (
-              <option key={vehicle.id} value={vehicle.id}>
-                {vehicle.make} {vehicle.model} ({vehicle.plateNumber})
-              </option>
-            ))}
-          </select>
-          {error && error.includes('vehicle') && <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>{error}</span>}
-        </div>
-
-        {selectedVehicle && (
-          <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-            <h4>Vehicle Details</h4>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.9rem' }}>
-              <div>
-                <strong>Make:</strong> {selectedVehicle.make}
-              </div>
-              <div>
-                <strong>Model:</strong> {selectedVehicle.model}
-              </div>
-              <div>
-                <strong>Plate:</strong> {selectedVehicle.plateNumber}
-              </div>
-              <div>
-                <strong>Year:</strong> {selectedVehicle.year}
-              </div>
-              {selectedVehicle.fuelType && (
-                <div>
-                  <strong>Fuel:</strong> {selectedVehicle.fuelType}
-                </div>
-              )}
-              <div>
-                <strong>Mileage:</strong> {selectedVehicle.mileage} km
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div>
-          <label>Appointment Date *</label>
-          <input 
-            type="date" 
-            value={form.appointmentDate} 
-            onChange={e => {
-              setForm({...form, appointmentDate: e.target.value});
-              setError('');
-            }}
-            min={getTodayDate()}
-            style={{ borderColor: error && error.includes('date') ? '#ef4444' : '' }}
-          />
-          {error && error.includes('date') && <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>{error}</span>}
-        </div>
-
-        <div>
-          <label>Preferred Time Slot *</label>
-          <select 
-            value={form.appointmentTime} 
-            onChange={e => {
-              setForm({...form, appointmentTime: e.target.value});
-              setError('');
-            }}
-            style={{ borderColor: error && error.includes('time') ? '#ef4444' : '' }}
-          >
-            <option value="">-- Select Time Slot --</option>
-            {timeSlots.map(slot => (
-              <option key={slot.value} value={slot.value}>{slot.label}</option>
-            ))}
-          </select>
-          {error && error.includes('time') && <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>{error}</span>}
-        </div>
-
-        <div>
-          <label>Service Type *</label>
-          <select 
-            value={form.serviceType} 
-            onChange={e => {
-              setForm({...form, serviceType: e.target.value});
-              setError('');
-            }}
-            style={{ borderColor: error && error.includes('service') ? '#ef4444' : '' }}
-          >
-            <option value="">-- Select Service Type --</option>
-            {serviceTypes.map(st => <option key={st} value={st}>{st}</option>)}
-          </select>
-          {error && error.includes('service') && <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>{error}</span>}
-        </div>
-
-        <div style={{ width: '100%' }}>
-          <label>Problem Description (Optional)</label>
-          <textarea 
-            placeholder="Describe any issues or special requests..." 
-            value={form.description} 
-            onChange={e => setForm({...form, description: e.target.value})}
-            maxLength={500}
-            style={{ 
-              width: '100%',
-              minHeight: '140px',
-              fontSize: '1rem',
-              padding: '12px 14px',
-              border: '2px solid #6366f1',
-              borderRadius: '8px',
-              backgroundColor: '#ffffff',
-              fontFamily: 'inherit',
-              resize: 'vertical',
-              transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
-              color: '#334155',
-              lineHeight: '1.5',
-              boxSizing: 'border-box'
-            }}
-            onFocus={(e) => {
-              e.target.style.borderColor = '#6366f1';
-              e.target.style.outline = 'none';
-              e.target.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.1)';
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = '#cbd5e1';
-              e.target.style.boxShadow = 'none';
-            }}
-          />
-        </div>
-
-        {error && !error.includes('date') && !error.includes('service') && !error.includes('vehicle') && !error.includes('time') && <p style={{ color: '#ef4444', fontSize: '0.9rem' }}>{error}</p>}
-        {error && (error.includes('unavailable') || error.includes('time slot')) && <p style={{ color: '#ef4444', fontSize: '0.9rem', background: '#fee2e2', padding: '0.75rem', borderRadius: '6px', borderLeft: '4px solid #ef4444' }}>{error}</p>}
-
-        <button type="submit" onClick={handleSubmit} disabled={isSubmitting} style={{ marginTop: '1rem', opacity: isSubmitting ? 0.6 : 1, cursor: isSubmitting ? 'not-allowed' : 'pointer' }}>
-          {isSubmitting ? 'Booking...' : 'Confirm Booking'}
-        </button>
-      </form>
-
-      {successDialog && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: '#fff', padding: '2rem', borderRadius: '12px', maxWidth: '400px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)', textAlign: 'center' }}>
-            <p style={{ color: '#10b981', fontSize: '2rem', marginBottom: '0.5rem' }}>✓</p>
-            <p style={{ fontSize: '1rem', fontWeight: 500, color: '#10b981' }}>{successMessage}</p>
-            <p style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '0.5rem' }}>Status: <strong>Confirmed</strong></p>
-            <button onClick={() => setSuccessDialog(false)} style={{ marginTop: '1.5rem', background: '#10b981', color: '#fff', padding: '0.6rem 1.2rem', borderRadius: '6px', border: 'none', cursor: 'pointer' }}>OK</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function RequestsPage({ list, onDelete, onUpdate, onBack, onNew }) {
-  const showToast = useToast();
-  const [cancelDialog, setCancelDialog] = useState({ isOpen: false, id: null, name: '' });
-  const [successDialog, setSuccessDialog] = useState({ isOpen: false, message: '' });
-
-  const handleCancelClick = (id, partName) => {
-    setCancelDialog({ isOpen: true, id, name: partName });
+    setCancelDialog({ isOpen: true, id: a.id, name: a.serviceType });
   };
 
   const handleConfirmCancel = async () => {
     try {
-      const { apiFetch } = await import('../services/api');
-      await apiFetch(`/Service/special-part-requests/${cancelDialog.id}`, { method: 'DELETE' });
-      onDelete(cancelDialog.id);
-      setSuccessDialog({ isOpen: true, message: 'Request cancelled.' });
+      await apiFetch(`/Service/appointments/${cancelDialog.id}`, { method: 'DELETE' });
+      setAppointments(prev => prev.filter(a => a.id !== cancelDialog.id));
+      setSuccessDialog({ isOpen: true, message: 'Appointment cancelled successfully.' });
       setCancelDialog({ isOpen: false, id: null, name: '' });
-    } catch (error) {
-      showToast('error', 'Failed to cancel request: ' + error.message);
+    } catch (err) {
+      showToast('error', 'Failed to cancel appointment');
     }
   };
 
-  const getPartName = (request) => {
-    return request.part ? request.part.name : request.customPartName;
-  };
-
-  const getVehicleDisplay = (vehicle) => {
-    return vehicle ? `${vehicle.make} ${vehicle.model}` : 'N/A';
-  };
-
-  // Convert enum integers to strings
-  const urgencyLabels = ['Low', 'Medium', 'High'];
-  const statusLabels = ['Pending', 'Approved', 'Rejected', 'Fulfilled'];
-
-  const getUrgencyLabel = (urgency) => {
-    return typeof urgency === 'string' ? urgency : urgencyLabels[urgency] || 'Unknown';
-  };
-
-  const getStatusLabel = (status) => {
-    return typeof status === 'string' ? status : statusLabels[status] || 'Unknown';
-  };
-
-  const getUrgencyColor = (urgency) => {
-    const label = getUrgencyLabel(urgency);
-    return label === 'High' ? '#fee2e2' : label === 'Medium' ? '#fef3c7' : '#dbeafe';
-  };
-
-  const getUrgencyTextColor = (urgency) => {
-    const label = getUrgencyLabel(urgency);
-    return label === 'High' ? '#991b1b' : label === 'Medium' ? '#92400e' : '#1e40af';
-  };
-
-  const getStatusColor = (status) => {
-    const label = getStatusLabel(status);
-    return label === 'Pending' ? '#fef3c7' : label === 'Approved' ? '#dbeafe' : label === 'Fulfilled' ? '#dcfce7' : '#fee2e2';
+  const handleConfirmReschedule = async () => {
+    if (!rescheduleDialog.newDate) {
+      setRescheduleError('Please select a new date and time.');
+      return;
+    }
+    try {
+      const appointment = appointments.find(a => a.id === rescheduleDialog.id);
+      const [dateStr, timeStr] = rescheduleDialog.newDate.split('T');
+      const updated = {
+        ...appointment,
+        appointmentDate: dateStr + 'T00:00:00Z',
+        appointmentTime: timeStr + ':00',
+        rescheduleCount: (appointment.rescheduleCount || 0) + 1
+      };
+      await apiFetch(`/Service/appointments/${updated.id}`, { method: 'PUT', body: JSON.stringify(updated) });
+      setAppointments(prev => prev.map(a => a.id === updated.id ? updated : a));
+      setSuccessDialog({ isOpen: true, message: 'Appointment rescheduled!' });
+      setRescheduleDialog({ isOpen: false, id: null, newDate: '' });
+    } catch (err) {
+      setRescheduleError(err.message || 'Failed to reschedule');
+    }
   };
 
   return (
-    <div className="card" style={{ maxWidth: '1000px', margin: 'auto' }}>
-      <button onClick={onBack} className="btn-small" style={{ marginBottom: '1rem', background: '#cbd5e1' }}>← Back</button>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <h2>Special Part Requests</h2>
-        <button onClick={onNew}>+ New Request</button>
+    <div>
+      <div className="page-section-header" style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h2>My Appointments</h2>
+          <p>Track and manage your upcoming vehicle service bookings.</p>
+        </div>
+        <button className="btn-sale-primary" onClick={() => navigate('/customer/book')}>
+          <PlusCircle size={14} />
+          <span>Book Service</span>
+        </button>
       </div>
-      
-      {list.length === 0 ? (
-        <p style={{ textAlign: 'center', padding: '3rem', opacity: 0.5 }}>No requests yet. Create one to get started!</p>
-      ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>
-                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Vehicle</th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Part Name</th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Qty</th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Urgency</th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Status</th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Date</th>
-                <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600 }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.map(req => (
-                <tr key={req.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                  <td style={{ padding: '0.75rem' }}>
-                    {getVehicleDisplay(req.vehicle)}
+
+      <div className="staff-card">
+        <div className="staff-card-header">
+          <span className="staff-card-title">Scheduled Services</span>
+        </div>
+        <table className="staff-table">
+          <thead>
+            <tr>
+              <th>Service Type</th>
+              <th>Vehicle</th>
+              <th>Date & Time</th>
+              <th>Status</th>
+              <th style={{ textAlign: 'center' }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {appointments.filter(a => a.status !== 'Cancelled').map(a => {
+              const vehicle = vehicles.find(v => v.id === a.vehicleId);
+              return (
+                <tr key={a.id}>
+                  <td>
+                    <div style={{ fontWeight: 600, color: '#1E293B' }}>{a.serviceType}</div>
+                    <div style={{ fontSize: '11px', color: '#94A3B8' }}>Booking #{a.id}</div>
                   </td>
-                  <td style={{ padding: '0.75rem' }}>
-                    {getPartName(req)}
+                  <td>
+                    {vehicle ? (
+                      <div>
+                        <div style={{ fontWeight: 500 }}>{vehicle.make} {vehicle.model}</div>
+                        <div style={{ fontSize: '11px', color: '#64748B' }}>{vehicle.plateNumber}</div>
+                      </div>
+                    ) : 'N/A'}
                   </td>
-                  <td style={{ padding: '0.75rem' }}>{req.quantity}</td>
-                  <td style={{ padding: '0.75rem' }}>
-                    <span style={{ display: 'inline-block', padding: '0.25rem 0.75rem', borderRadius: '4px', background: getUrgencyColor(req.urgency), color: getUrgencyTextColor(req.urgency), fontSize: '0.8rem', fontWeight: 500 }}>
-                      {getUrgencyLabel(req.urgency)}
-                    </span>
+                  <td>
+                    <div style={{ color: '#1E293B', fontWeight: 500 }}>{new Date(a.appointmentDate).toLocaleDateString()}</div>
+                    <div style={{ fontSize: '11px', color: '#64748B' }}>{a.appointmentTime}</div>
                   </td>
-                  <td style={{ padding: '0.75rem' }}>
-                    <span style={{ display: 'inline-block', padding: '0.25rem 0.75rem', borderRadius: '4px', background: getStatusColor(req.status), fontSize: '0.8rem', fontWeight: 500 }}>
-                      {getStatusLabel(req.status)}
-                    </span>
-                  </td>
-                  <td style={{ padding: '0.75rem', opacity: 0.7, fontSize: '0.85rem' }}>
-                    {new Date(req.requestedAt).toLocaleDateString()}
-                  </td>
-                  <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                    <button onClick={() => handleCancelClick(req.id, getPartName(req))} className="btn-small" style={{ background: 'var(--error)', color: '#fff', padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}>Delete</button>
+                  <td><span className="badge-pill badge-loyalty">Confirmed</span></td>
+                  <td>
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                      <button className="btn-view-customer" onClick={() => setRescheduleDialog({ isOpen: true, id: a.id, newDate: '' })}>Reschedule</button>
+                      <button className="btn-view-customer" style={{ background: '#FFF5F5', color: '#B91C1C' }} onClick={() => handleCancelClick(a)}>Cancel</button>
+                    </div>
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              );
+            })}
+            {appointments.filter(a => a.status !== 'Cancelled').length === 0 && (
+              <tr>
+                <td colSpan="5">
+                  <div className="empty-state">
+                    <div className="empty-state-icon">📅</div>
+                    <h4>No upcoming appointments</h4>
+                    <p>Book a service to keep your vehicle in top condition.</p>
+                  </div>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
+      {/* Cancel Dialog */}
       {cancelDialog.isOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: '#fff', padding: '2rem', borderRadius: '12px', maxWidth: '400px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
-            <h3>Delete Request</h3>
-            <p>Are you sure you want to delete the request for <strong>{cancelDialog.name}</strong>?</p>
-            <p style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '0.5rem' }}>This action cannot be undone.</p>
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
-              <button onClick={() => setCancelDialog({ isOpen: false, id: null, name: '' })} style={{ flex: 1, background: '#cbd5e1', color: '#0f172a' }}>Keep It</button>
-              <button onClick={handleConfirmCancel} style={{ flex: 1, background: 'var(--error)', color: '#fff' }}>Delete</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(30,58,95,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(4px)' }}>
+          <div className="staff-card" style={{ padding: '32px', maxWidth: '400px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ marginBottom: '12px' }}>Cancel Appointment?</h3>
+            <p style={{ color: '#64748B', marginBottom: '24px' }}>Are you sure you want to cancel your <strong>{cancelDialog.name}</strong> appointment? This cannot be undone.</p>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button className="btn-view-customer" style={{ flex: 1 }} onClick={() => setCancelDialog({ isOpen: false, id: null, name: '' })}>No, Keep it</button>
+              <button className="btn-sale-primary" style={{ flex: 1, background: '#EF4444' }} onClick={handleConfirmCancel}>Yes, Cancel</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Reschedule Dialog */}
+      {rescheduleDialog.isOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(30,58,95,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(4px)' }}>
+          <div className="staff-card" style={{ padding: '32px', maxWidth: '400px', width: '100%', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ marginBottom: '12px' }}>Reschedule</h3>
+            <p style={{ color: '#64748B', marginBottom: '20px' }}>Select a new date and time for your service.</p>
+            <input 
+              type="datetime-local" 
+              className="search-input-field"
+              style={{ width: '100%', marginBottom: '16px', height: '40px' }}
+              value={rescheduleDialog.newDate}
+              onChange={e => { setRescheduleDialog({ ...rescheduleDialog, newDate: e.target.value }); setRescheduleError(''); }}
+            />
+            {rescheduleError && <p style={{ color: '#EF4444', fontSize: '12px', marginBottom: '16px' }}>{rescheduleError}</p>}
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button className="btn-view-customer" style={{ flex: 1 }} onClick={() => setRescheduleDialog({ isOpen: false, id: null, newDate: '' })}>Cancel</button>
+              <button className="btn-sale-primary" style={{ flex: 1 }} onClick={handleConfirmReschedule}>Update Booking</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Dialog */}
       {successDialog.isOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: '#fff', padding: '2rem', borderRadius: '12px', maxWidth: '400px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)', textAlign: 'center' }}>
-            <p style={{ color: '#10b981', fontSize: '2rem', marginBottom: '0.5rem' }}>✓</p>
-            <p style={{ fontSize: '1rem', fontWeight: 500 }}>{successDialog.message}</p>
-            <button onClick={() => setSuccessDialog({ isOpen: false, message: '' })} style={{ marginTop: '1.5rem', background: '#10b981', color: '#fff', padding: '0.6rem 1.2rem', borderRadius: '6px', border: 'none', cursor: 'pointer' }}>OK</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(30,58,95,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(4px)' }}>
+          <div className="staff-card" style={{ padding: '32px', maxWidth: '400px', textAlign: 'center' }}>
+            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#DCFCE7', color: '#15803D', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+              <CheckCircle2 size={32} />
+            </div>
+            <h3>Done!</h3>
+            <p style={{ color: '#64748B', marginBottom: '24px' }}>{successDialog.message}</p>
+            <button className="btn-sale-primary" style={{ width: '100%' }} onClick={() => setSuccessDialog({ isOpen: false, message: '' })}>Close</button>
           </div>
         </div>
       )}
@@ -991,347 +508,441 @@ function RequestsPage({ list, onDelete, onUpdate, onBack, onNew }) {
   );
 }
 
-function NewRequestPage({ user, onComplete, onBack }) {
-  const showToast = useToast();
+/**
+ * BOOKING PAGE
+ */
+export function BookingPage({ user }) {
+  const navigate = useNavigate();
   const [vehicles, setVehicles] = useState([]);
-  const [parts, setParts] = useState([]);
-  const [form, setForm] = useState({ vehicleId: '', partId: '', customPartName: '', quantity: 1, urgency: 'Medium', description: '' });
+  const [form, setForm] = useState({ vehicleId: '', serviceType: '', appointmentDate: '', appointmentTime: '09:00', description: '' });
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successDialog, setSuccessDialog] = useState(false);
-  const [selectedPart, setSelectedPart] = useState(null);
-  const [requests, setRequests] = useState([]);
-
-  // Convert enum integers to strings
-  const urgencyLabels = ['Low', 'Medium', 'High'];
-  const statusLabels = ['Pending', 'Approved', 'Rejected', 'Fulfilled'];
-
-  const getUrgencyLabel = (urgency) => {
-    return typeof urgency === 'string' ? urgency : urgencyLabels[urgency] || 'Unknown';
-  };
-
-  const getStatusLabel = (status) => {
-    return typeof status === 'string' ? status : statusLabels[status] || 'Unknown';
-  };
-
-  const getUrgencyColor = (urgency) => {
-    const label = getUrgencyLabel(urgency);
-    return label === 'High' ? '#fee2e2' : label === 'Medium' ? '#fef3c7' : '#dbeafe';
-  };
-
-  const getUrgencyTextColor = (urgency) => {
-    const label = getUrgencyLabel(urgency);
-    return label === 'High' ? '#991b1b' : label === 'Medium' ? '#92400e' : '#1e40af';
-  };
-
-  const getStatusColor = (status) => {
-    const label = getStatusLabel(status);
-    return label === 'Pending' ? '#fef3c7' : label === 'Approved' ? '#dbeafe' : label === 'Fulfilled' ? '#dcfce7' : '#fee2e2';
-  };
 
   useEffect(() => {
-    loadVehiclesAndParts();
-    loadRequests();
+    apiFetch(`/Customers/${user.id}/vehicles`).then(v => v && setVehicles(v));
   }, [user]);
 
-  const loadVehiclesAndParts = async () => {
-    try {
-      const { apiFetch } = await import('../services/api');
-      const vehicleList = await apiFetch(`/Customers/${user.id}/vehicles`);
-      const partsList = await apiFetch('/parts');
-      setVehicles(vehicleList || []);
-      setParts(partsList || []);
-    } catch (error) {
-      console.error('Error loading vehicles or parts:', error);
-      showToast('error', 'Failed to load vehicles or parts');
-    }
-  };
-
-  const loadRequests = async () => {
-    try {
-      const { apiFetch } = await import('../services/api');
-      const requestsList = await apiFetch(`/Service/special-part-requests?customerId=${user.id}`);
-      setRequests(requestsList || []);
-    } catch (error) {
-      console.error('Error loading requests:', error);
-    }
-  };
-
-  const handlePartChange = (e) => {
-    const partId = parseInt(e.target.value) || '';
-    setForm({...form, partId, customPartName: ''});
-    if (partId) {
-      const part = parts.find(p => p.id === partId);
-      setSelectedPart(part);
-    } else {
-      setSelectedPart(null);
-    }
-    setError('');
-  };
+  const serviceTypes = ['Oil Change', 'Filter Replacement', 'Tire Rotation', 'Brake Service', 'Full Service', 'Diagnosis', 'Other'];
+  const timeSlots = ['09:00', '10:00', '11:00', '12:00', '14:00', '15:00', '16:00'];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-
-    // Validation
-    if (!form.vehicleId) {
-      setError('Please select a vehicle');
+    if (!form.vehicleId || !form.appointmentDate || !form.serviceType) {
+      setError('Please fill all required fields');
       return;
     }
-
-    if (!form.partId && !form.customPartName.trim()) {
-      setError('Please select a part or enter a custom part name');
-      return;
-    }
-
-    if (form.quantity <= 0) {
-      setError('Quantity must be greater than 0');
-      return;
-    }
-
-    if (!form.urgency) {
-      setError('Please select urgency level');
-      return;
-    }
-
     setIsSubmitting(true);
     try {
-      const { apiFetch } = await import('../services/api');
-      
-      // Convert urgency string to enum integer (Low=0, Medium=1, High=2)
-      const urgencyMap = { Low: 0, Medium: 1, High: 2 };
-      // Convert status string to enum integer (Pending=0, Approved=1, Rejected=2, Fulfilled=3)
-      const statusMap = { Pending: 0, Approved: 1, Rejected: 2, Fulfilled: 3 };
-      
-      const requestData = {
-        customerId: user.id,
-        vehicleId: parseInt(form.vehicleId),
-        partId: form.partId ? parseInt(form.partId) : null,
-        customPartName: form.customPartName.trim() || null,
-        quantity: parseInt(form.quantity),
-        urgency: urgencyMap[form.urgency],
-        description: form.description.trim(),
-        status: statusMap['Pending'],
-        requestedAt: new Date().toISOString()
-      };
-
-      const result = await apiFetch('/Service/special-part-requests', {
+      await apiFetch('/Service/appointments', {
         method: 'POST',
-        body: JSON.stringify(requestData)
+        body: JSON.stringify({
+          customerId: user.id,
+          vehicleId: parseInt(form.vehicleId),
+          appointmentDate: new Date(form.appointmentDate).toISOString(),
+          appointmentTime: form.appointmentTime + ':00',
+          serviceType: form.serviceType,
+          description: form.description
+        })
       });
-
-      if (result) {
-        setSuccessDialog(true);
-        setTimeout(() => {
-          setForm({ vehicleId: '', partId: '', customPartName: '', quantity: 1, urgency: 'Medium', description: '' });
-          setSelectedPart(null);
-          loadRequests();
-        }, 1500);
-      }
-    } catch (error) {
-      console.error('Error submitting request:', error);
-      setError(error.message || 'Failed to submit request');
+      setSuccessDialog(true);
+    } catch (err) {
+      setError(err.message || 'Failed to book appointment');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const getVehicleLabel = (v) => `${v.make} ${v.model} - ${v.plateNumber}`;
-  const getPartLabel = (p) => p.name;
-  const hasLowStock = selectedPart && selectedPart.stockLevel < 10;
-
   return (
-    <div className="card" style={{ maxWidth: '800px', margin: 'auto' }}>
-      <button onClick={onBack} className="btn-small" style={{ marginBottom: '1rem', background: '#cbd5e1' }}>← Back</button>
-      <h2>Request Unavailable Part</h2>
-      
-      <form style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }} onSubmit={handleSubmit}>
-        {/* Select Vehicle */}
-        <div>
-          <label>Select Vehicle *</label>
-          <select 
-            value={form.vehicleId} 
-            onChange={e => { setForm({...form, vehicleId: e.target.value}); setError(''); }}
-            style={{ borderColor: error && error.includes('vehicle') ? '#ef4444' : '' }}
-          >
-            <option value="">-- Select a Vehicle --</option>
-            {vehicles.map(vehicle => (
-              <option key={vehicle.id} value={vehicle.id}>
-                {getVehicleLabel(vehicle)}
-              </option>
-            ))}
-          </select>
-          {error && error.includes('vehicle') && <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>{error}</span>}
-        </div>
+    <div style={{ maxWidth: '700px', margin: '0 auto' }}>
+      <div className="page-section-header" style={{ marginBottom: '24px' }}>
+        <h2>Book a Service</h2>
+        <p>Schedule your next maintenance or repair appointment.</p>
+      </div>
 
-        {/* Select Part */}
-        <div>
-          <label>Select Part from Inventory</label>
-          <select 
-            value={form.partId} 
-            onChange={handlePartChange}
-          >
-            <option value="">-- Select a Part --</option>
-            {parts.map(part => (
-              <option key={part.id} value={part.id}>
-                {getPartLabel(part)}
-              </option>
-            ))}
-          </select>
+      <div className="staff-card" style={{ padding: '28px' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div>
+            <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Select Vehicle *</label>
+            <select className="search-input-field" style={{ width: '100%', height: '42px' }} value={form.vehicleId} onChange={e => setForm({...form, vehicleId: e.target.value})}>
+              <option value="">-- Choose from your garage --</option>
+              {vehicles.map(v => <option key={v.id} value={v.id}>{v.make} {v.model} ({v.plateNumber})</option>)}
+            </select>
+          </div>
 
-          {/* Stock Warning - Only show if part selected and stock < 10 */}
-          {hasLowStock && (
-            <div style={{ marginTop: '0.5rem', padding: '0.75rem', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: '6px', fontSize: '0.9rem', color: '#92400e' }}>
-              ⚠️ Low Stock: Only {selectedPart.stockLevel} left
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div>
+              <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Service Type *</label>
+              <select className="search-input-field" style={{ width: '100%', height: '42px' }} value={form.serviceType} onChange={e => setForm({...form, serviceType: e.target.value})}>
+                <option value="">-- Select type --</option>
+                {serviceTypes.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
             </div>
-          )}
-        </div>
-
-        {/* Custom Part Input */}
-        <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-          <label style={{ fontSize: '0.9rem', opacity: 0.8 }}>Can't find your part?</label>
-          <input
-            type="text"
-            placeholder="Enter part name"
-            value={form.customPartName}
-            onChange={e => { setForm({...form, customPartName: e.target.value}); setError(''); }}
-            style={{ marginTop: '0.5rem' }}
-          />
-        </div>
-
-        {/* Quantity */}
-        <div>
-          <label>Quantity *</label>
-          <input
-            type="number"
-            min="1"
-            value={form.quantity}
-            onChange={e => { setForm({...form, quantity: parseInt(e.target.value) || 1}); setError(''); }}
-            style={{ borderColor: error && error.includes('Quantity') ? '#ef4444' : '' }}
-          />
-          {error && error.includes('Quantity') && <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>{error}</span>}
-        </div>
-
-        {/* Urgency */}
-        <div>
-          <label>Urgency *</label>
-          <select 
-            value={form.urgency} 
-            onChange={e => { setForm({...form, urgency: e.target.value}); setError(''); }}
-            style={{ borderColor: error && error.includes('urgency') ? '#ef4444' : '' }}
-          >
-            <option value="Low">Low</option>
-            <option value="Medium">Medium</option>
-            <option value="High">High</option>
-          </select>
-        </div>
-
-        {/* Description */}
-        <div style={{ width: '100%' }}>
-          <label>Description (Optional)</label>
-          <textarea
-            placeholder="Any additional details about the part you need..."
-            value={form.description}
-            onChange={e => setForm({...form, description: e.target.value})}
-            maxLength={500}
-            style={{ 
-              width: '100%',
-              minHeight: '140px',
-              fontSize: '1rem',
-              padding: '12px 14px',
-              border: '2px solid #e2e8f0',
-              borderRadius: '8px',
-              backgroundColor: '#ffffff',
-              fontFamily: 'inherit',
-              resize: 'vertical',
-              transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
-              color: '#334155',
-              lineHeight: '1.5',
-              boxSizing: 'border-box'
-            }}
-            onFocus={(e) => {
-              e.target.style.borderColor = '#6366f1';
-              e.target.style.outline = 'none';
-              e.target.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.1)';
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = '#e2e8f0';
-              e.target.style.boxShadow = 'none';
-            }}
-          />
-        </div>
-
-        {error && !error.includes('vehicle') && !error.includes('Quantity') && !error.includes('urgency') && (
-          <p style={{ color: '#ef4444', fontSize: '0.9rem', background: '#fee2e2', padding: '0.75rem', borderRadius: '6px', borderLeft: '4px solid #ef4444' }}>
-            {error}
-          </p>
-        )}
-
-        <button type="submit" disabled={isSubmitting} style={{ marginTop: '1rem', opacity: isSubmitting ? 0.6 : 1, cursor: isSubmitting ? 'not-allowed' : 'pointer', background: 'var(--primary)', color: '#fff' }}>
-          {isSubmitting ? 'Submitting...' : 'Submit Request'}
-        </button>
-      </form>
-
-      {/* My Requests Table */}
-      <div style={{ marginTop: '3rem', paddingTop: '2rem', borderTop: '1px solid #e2e8f0' }}>
-        <h3>My Requests</h3>
-        <div className="data-list" style={{ marginTop: '1rem' }}>
-          {requests.length === 0 ? (
-            <p style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No requests yet</p>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>
-                    <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Vehicle</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Part Name</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Qty</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Urgency</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Status</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {requests.map(req => (
-                    <tr key={req.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '0.75rem' }}>
-                        {req.vehicle ? `${req.vehicle.make} ${req.vehicle.model}` : 'N/A'}
-                      </td>
-                      <td style={{ padding: '0.75rem' }}>
-                        {req.part ? req.part.name : req.customPartName}
-                      </td>
-                      <td style={{ padding: '0.75rem' }}>{req.quantity}</td>
-                      <td style={{ padding: '0.75rem' }}>
-                        <span style={{ display: 'inline-block', padding: '0.25rem 0.75rem', borderRadius: '4px', background: getUrgencyColor(req.urgency), color: getUrgencyTextColor(req.urgency), fontSize: '0.8rem', fontWeight: 500 }}>
-                          {getUrgencyLabel(req.urgency)}
-                        </span>
-                      </td>
-                      <td style={{ padding: '0.75rem' }}>
-                        <span style={{ display: 'inline-block', padding: '0.25rem 0.75rem', borderRadius: '4px', background: getStatusColor(req.status), fontSize: '0.8rem', fontWeight: 500 }}>
-                          {getStatusLabel(req.status)}
-                        </span>
-                      </td>
-                      <td style={{ padding: '0.75rem', opacity: 0.7, fontSize: '0.85rem' }}>
-                        {new Date(req.requestedAt).toLocaleDateString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div>
+              <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Preferred Date *</label>
+              <input type="date" className="search-input-field" style={{ width: '100%', height: '42px' }} min={new Date().toISOString().split('T')[0]} value={form.appointmentDate} onChange={e => setForm({...form, appointmentDate: e.target.value})} />
             </div>
-          )}
-        </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Preferred Time Slot *</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {timeSlots.map(t => (
+                <button 
+                  key={t} 
+                  type="button"
+                  onClick={() => setForm({...form, appointmentTime: t})}
+                  style={{
+                    padding: '8px 16px', borderRadius: '8px', border: '1px solid #E2E8F0',
+                    background: form.appointmentTime === t ? '#1E3A5F' : '#fff',
+                    color: form.appointmentTime === t ? '#fff' : '#64748B',
+                    fontSize: '12px', fontWeight: 600, cursor: 'pointer', transition: '0.2s'
+                  }}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Problem Description (Optional)</label>
+            <textarea 
+              className="search-input-field" 
+              style={{ width: '100%', minHeight: '100px', resize: 'vertical' }} 
+              placeholder="Tell us what's wrong with your vehicle..."
+              value={form.description}
+              onChange={e => setForm({...form, description: e.target.value})}
+            />
+          </div>
+
+          {error && <p style={{ color: '#EF4444', fontSize: '13px' }}>{error}</p>}
+
+          <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+            <button type="button" className="btn-view-customer" style={{ flex: 1, padding: '12px' }} onClick={() => navigate('/customer/appointments')}>Cancel</button>
+            <button type="submit" className="btn-sale-primary" style={{ flex: 1, padding: '12px' }} disabled={isSubmitting}>
+              {isSubmitting ? 'Processing...' : 'Confirm Booking'}
+            </button>
+          </div>
+        </form>
       </div>
 
       {successDialog && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: '#fff', padding: '2rem', borderRadius: '12px', maxWidth: '400px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)', textAlign: 'center' }}>
-            <p style={{ color: '#10b981', fontSize: '2rem', marginBottom: '0.5rem' }}>✓</p>
-            <p style={{ fontSize: '1rem', fontWeight: 500 }}>Request submitted successfully!</p>
-            <button onClick={() => setSuccessDialog(false)} style={{ marginTop: '1.5rem', background: '#10b981', color: '#fff', padding: '0.6rem 1.2rem', borderRadius: '6px', border: 'none', cursor: 'pointer' }}>OK</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(30,58,95,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(4px)' }}>
+          <div className="staff-card" style={{ padding: '32px', maxWidth: '400px', textAlign: 'center' }}>
+            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#DCFCE7', color: '#15803D', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+              <CheckCircle2 size={32} />
+            </div>
+            <h3>Booking Confirmed!</h3>
+            <p style={{ color: '#64748B', marginBottom: '24px' }}>Your service has been scheduled. We'll see you then!</p>
+            <button className="btn-sale-primary" style={{ width: '100%' }} onClick={() => navigate('/customer/appointments')}>View Appointments</button>
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * SPECIAL REQUESTS PAGE
+ */
+export function RequestsPage({ user }) {
+  const navigate = useNavigate();
+  const [requests, setRequests] = useState([]);
+
+  useEffect(() => {
+    apiFetch(`/Service/special-part-requests?customerId=${user.id}`).then(r => r && setRequests(r));
+  }, [user]);
+
+  const getStatusCls = (s) => {
+    const status = (typeof s === 'string' ? s : ['Pending', 'Approved', 'Rejected', 'Fulfilled'][s]) || 'Pending';
+    if (status === 'Approved' || status === 'Fulfilled') return 'badge-paid';
+    if (status === 'Rejected') return 'badge-overdue';
+    return 'badge-pending';
+  };
+
+  return (
+    <div>
+      <div className="page-section-header" style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h2>Special Part Orders</h2>
+          <p>Track requests for parts that are currently out of stock or custom-ordered.</p>
+        </div>
+        <button className="btn-sale-primary" onClick={() => navigate('/customer/new-request')}>
+          <PlusCircle size={14} />
+          <span>New Order</span>
+        </button>
+      </div>
+
+      <div className="staff-card">
+        <div className="staff-card-header">
+          <span className="staff-card-title">My Orders</span>
+        </div>
+        <table className="staff-table">
+          <thead>
+            <tr>
+              <th>Part Name</th>
+              <th>Vehicle</th>
+              <th>Quantity</th>
+              <th>Urgency</th>
+              <th>Status</th>
+              <th>Date Requested</th>
+            </tr>
+          </thead>
+          <tbody>
+            {requests.map(r => (
+              <tr key={r.id}>
+                <td>
+                  <div style={{ fontWeight: 600, color: '#1E293B' }}>{r.part ? r.part.name : r.customPartName}</div>
+                  <div style={{ fontSize: '11px', color: '#94A3B8' }}>Order #{r.id}</div>
+                </td>
+                <td>{r.vehicle ? `${r.vehicle.make} ${r.vehicle.model}` : 'N/A'}</td>
+                <td>{r.quantity}</td>
+                <td><span className="badge-pill" style={{ background: r.urgency === 2 ? '#FEE2E2' : r.urgency === 1 ? '#FEF3C7' : '#DBEAFE', color: r.urgency === 2 ? '#B91C1C' : r.urgency === 1 ? '#B45309' : '#1D4ED8' }}>{['Low', 'Medium', 'High'][r.urgency] || r.urgency}</span></td>
+                <td><span className={`badge-pill ${getStatusCls(r.status)}`}>{typeof r.status === 'string' ? r.status : ['Pending', 'Approved', 'Rejected', 'Fulfilled'][r.status]}</span></td>
+                <td style={{ color: '#64748B' }}>{new Date(r.requestedAt).toLocaleDateString()}</td>
+              </tr>
+            ))}
+            {requests.length === 0 && (
+              <tr>
+                <td colSpan="6">
+                  <div className="empty-state">
+                    <div className="empty-state-icon">📦</div>
+                    <h4>No special orders</h4>
+                    <p>Need a part we don't have in stock? Submit a request!</p>
+                  </div>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * NEW REQUEST PAGE
+ */
+export function NewRequestPage({ user }) {
+  const navigate = useNavigate();
+  const [vehicles, setVehicles] = useState([]);
+  const [parts, setParts] = useState([]);
+  const [form, setForm] = useState({ vehicleId: '', partId: '', customPartName: '', quantity: 1, urgency: 'Medium', description: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successDialog, setSuccessDialog] = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      apiFetch(`/Customers/${user.id}/vehicles`),
+      apiFetch('/parts')
+    ]).then(([v, p]) => {
+      if (v) setVehicles(v);
+      if (p) setParts(p);
+    });
+  }, [user]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.vehicleId || (!form.partId && !form.customPartName)) return;
+    setIsSubmitting(true);
+    try {
+      const urgencyMap = { Low: 0, Medium: 1, High: 2 };
+      await apiFetch('/Service/special-part-requests', {
+        method: 'POST',
+        body: JSON.stringify({
+          customerId: user.id,
+          vehicleId: parseInt(form.vehicleId),
+          partId: form.partId ? parseInt(form.partId) : null,
+          customPartName: form.customPartName || null,
+          quantity: parseInt(form.quantity),
+          urgency: urgencyMap[form.urgency],
+          description: form.description,
+          status: 0,
+          requestedAt: new Date().toISOString()
+        })
+      });
+      setSuccessDialog(true);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div style={{ maxWidth: '700px', margin: '0 auto' }}>
+      <div className="page-section-header" style={{ marginBottom: '24px' }}>
+        <h2>Submit Special Order</h2>
+        <p>Request parts that are not in our regular inventory.</p>
+      </div>
+
+      <div className="staff-card" style={{ padding: '28px' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div>
+            <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Select Vehicle *</label>
+            <select className="search-input-field" style={{ width: '100%', height: '42px' }} value={form.vehicleId} onChange={e => setForm({...form, vehicleId: e.target.value})}>
+              <option value="">-- Select vehicle --</option>
+              {vehicles.map(v => <option key={v.id} value={v.id}>{v.make} {v.model} ({v.plateNumber})</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Part Name / Selection *</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <select className="search-input-field" style={{ height: '42px' }} value={form.partId} onChange={e => setForm({...form, partId: e.target.value, customPartName: ''})}>
+                <option value="">-- Choose existing --</option>
+                {parts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+              <input type="text" className="search-input-field" style={{ height: '42px' }} placeholder="Or enter custom part name" value={form.customPartName} onChange={e => setForm({...form, customPartName: e.target.value, partId: ''})} />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div>
+              <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Quantity *</label>
+              <input type="number" className="search-input-field" style={{ width: '100%', height: '42px' }} min="1" value={form.quantity} onChange={e => setForm({...form, quantity: e.target.value})} />
+            </div>
+            <div>
+              <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Urgency *</label>
+              <select className="search-input-field" style={{ width: '100%', height: '42px' }} value={form.urgency} onChange={e => setForm({...form, urgency: e.target.value})}>
+                <option value="Low">Low</option>
+                <option value="Medium">Medium</option>
+                <option value="High">High</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Additional Details</label>
+            <textarea className="search-input-field" style={{ width: '100%', minHeight: '80px' }} placeholder="Specify brand, part numbers, or other details..." value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+            <button type="button" className="btn-view-customer" style={{ flex: 1, padding: '12px' }} onClick={() => navigate('/customer/requests')}>Cancel</button>
+            <button type="submit" className="btn-sale-primary" style={{ flex: 1, padding: '12px' }} disabled={isSubmitting}>Submit Request</button>
+          </div>
+        </form>
+      </div>
+
+      {successDialog && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(30,58,95,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(4px)' }}>
+          <div className="staff-card" style={{ padding: '32px', maxWidth: '400px', textAlign: 'center' }}>
+            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#DCFCE7', color: '#15803D', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+              <CheckCircle2 size={32} />
+            </div>
+            <h3>Request Submitted</h3>
+            <p style={{ color: '#64748B', marginBottom: '24px' }}>We've received your special order request and will process it shortly.</p>
+            <button className="btn-sale-primary" style={{ width: '100%' }} onClick={() => navigate('/customer/requests')}>View My Requests</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * HISTORY PAGE
+ */
+export function HistoryPage({ user }) {
+  return (
+    <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+      <div className="page-section-header" style={{ marginBottom: '24px' }}>
+        <h2>Service History</h2>
+        <p>Complete records of all services and purchases made for your vehicles.</p>
+      </div>
+      <CustomerHistoryComp user={user} isEmbedded={true} />
+    </div>
+  );
+}
+
+/**
+ * MAIN EXPORT (LAYOUT WRAPPER FOR AI CHAT)
+ */
+export function CustomerDashboard({ user }) {
+  const [chatMessages, setChatMessages] = useState([
+    { sender: 'bot', text: 'Hello! I am your AI assistant. How can I help you with your vehicle today?' }
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const [showChat, setShowChat] = useState(false);
+
+  const handleChatSubmit = (e) => {
+    e.preventDefault();
+    if (!chatInput.trim()) return;
+    const userMsg = chatInput;
+    setChatMessages(prev => [...prev, { sender: 'user', text: userMsg }]);
+    setChatInput('');
+    setTimeout(() => {
+      let botResponse = "I can help you with bookings, parts, vehicles, or your history. What's on your mind?";
+      const lowerMsg = userMsg.toLowerCase();
+      if (lowerMsg.includes('oil')) botResponse = "You should schedule an oil change every 5,000 miles. Use our 'Book Service' page!";
+      else if (lowerMsg.includes('part')) botResponse = "Need something special? Check out our 'Special Orders' section.";
+      else if (lowerMsg.includes('vehicle')) botResponse = "You can add and manage multiple vehicles in your 'My Vehicles' section.";
+      setChatMessages(prev => [...prev, { sender: 'bot', text: botResponse }]);
+    }, 1000);
+  };
+
+  return (
+    <>
+      <CustomerOverview user={user} />
+
+      {/* Floating AI Widget */}
+      <div style={{ position: 'fixed', bottom: '2rem', right: '2rem', zIndex: 10000 }}>
+        {!showChat ? (
+          <button 
+            onClick={() => setShowChat(true)} 
+            style={{ 
+              width: '56px', height: '56px', borderRadius: '50%', 
+              background: 'linear-gradient(135deg, #1E3A5F 0%, #2563A8 100%)', 
+              color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 8px 24px rgba(30,58,95,0.3)', border: 'none', cursor: 'pointer',
+              transition: 'transform 0.2s'
+            }}
+            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            <MessageSquare size={24} />
+          </button>
+        ) : (
+          <div className="staff-card" style={{ width: '350px', height: '480px', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 48px rgba(30,58,95,0.25)', border: 'none' }}>
+            <div style={{ background: 'linear-gradient(135deg, #1E3A5F 0%, #2563A8 100%)', color: '#fff', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: 32, height: 32, background: 'rgba(255,255,255,0.15)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🤖</div>
+                <div style={{ fontWeight: 700, fontSize: '14px' }}>AI Assistant</div>
+              </div>
+              <button onClick={() => setShowChat(false)} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={18} /></button>
+            </div>
+            <div style={{ flex: 1, padding: '20px', overflowY: 'auto', background: '#F8FAFC', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {chatMessages.map((msg, i) => (
+                <div key={i} style={{ 
+                  alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start', 
+                  background: msg.sender === 'user' ? '#1E3A5F' : '#fff', 
+                  color: msg.sender === 'user' ? '#fff' : '#1E293B', 
+                  padding: '10px 14px', borderRadius: '14px', 
+                  maxWidth: '85%', fontSize: '13px', lineHeight: '1.5',
+                  boxShadow: msg.sender === 'user' ? 'none' : '0 2px 4px rgba(0,0,0,0.04)',
+                  border: msg.sender === 'user' ? 'none' : '1px solid #E2E8F0'
+                }}>
+                  {msg.text}
+                </div>
+              ))}
+            </div>
+            <form onSubmit={handleChatSubmit} style={{ padding: '16px', background: '#fff', borderTop: '1px solid #E2E8F0', display: 'flex', gap: '8px' }}>
+              <input 
+                type="text" 
+                value={chatInput} 
+                onChange={e => setChatInput(e.target.value)} 
+                placeholder="Type a message..." 
+                className="search-input-field"
+                style={{ flex: 1, height: '38px' }} 
+              />
+              <button type="submit" className="btn-sale-primary" style={{ width: '38px', height: '38px', padding: 0, justifyContent: 'center' }}>
+                <Send size={16} />
+              </button>
+            </form>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
