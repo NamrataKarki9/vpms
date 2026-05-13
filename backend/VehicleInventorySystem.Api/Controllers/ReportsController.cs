@@ -158,7 +158,36 @@ public class ReportsController : ControllerBase
             if (customer != null && !string.IsNullOrEmpty(customer.Email))
             {
                 string subject = "Action Required: Overdue Invoice Payment";
-                string body = $"Dear {customer.Name},\n\nThis is a reminder that your invoice #{invoice.Id} dated {invoice.Date.ToShortDateString()} for the amount of Rs. {invoice.TotalAmount} is overdue by more than a month.\n\nPlease arrange for payment as soon as possible to avoid interruption of services.\n\nThank you,\nVehicle Inventory System";
+                string body = $@"
+<!DOCTYPE html>
+<html>
+<head><meta charset='utf-8'></head>
+<body style='margin:0;padding:0;font-family:Arial,sans-serif;background:#f1f5f9'>
+  <table style='max-width:600px;margin:auto;margin-top:24px;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0'>
+    <tr><td style='background:#e11d48;padding:24px;text-align:center;color:#fff'>
+      <h1 style='margin:0;font-size:20px'>Payment Reminder</h1>
+      <p style='margin:8px 0 0;opacity:0.8'>Overdue Invoice #{invoice.Id}</p>
+    </td></tr>
+    <tr><td style='padding:24px'>
+      <p style='margin:0 0 16px'>Dear <strong>{customer.Name}</strong>,</p>
+      <p style='margin:0 0 16px;color:#475569;line-height:1.5'>
+        This is a reminder that your invoice <strong>#{invoice.Id}</strong> dated <strong>{invoice.Date.ToShortDateString()}</strong> 
+        for the amount of <strong>Rs. {invoice.TotalAmount:N2}</strong> is overdue by more than a month.
+      </p>
+      <p style='margin:0 0 24px;color:#475569;line-height:1.5'>
+        Please arrange for payment as soon as possible to avoid any interruption of services.
+      </p>
+      <div style='background:#fff1f2;padding:16px;border-radius:8px;border:1px solid #fecdd3;color:#9f1239;text-align:center;font-weight:600'>
+        Outstanding Balance: Rs. {invoice.TotalAmount:N2}
+      </div>
+      <p style='margin-top:32px;font-size:13px;color:#64748b;text-align:center'>
+        <strong>Vehicle Inventory System</strong><br>
+        If you have already made the payment, please ignore this email.
+      </p>
+    </td></tr>
+  </table>
+</body>
+</html>";
                 
                 await _emailService.SendEmailAsync(customer.Email, subject, body);
                 sentCount++;
