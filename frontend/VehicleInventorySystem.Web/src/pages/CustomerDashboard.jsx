@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../services/api.js';
 import { useToast } from '../context/ToastContext';
+import VehicleForm from '../components/forms/VehicleForm';
 
 export function CustomerDashboard({ user }) {
   const showToast = useToast();
@@ -252,8 +253,6 @@ function VehiclesPage({ vehicles, onAddVehicle, onDeleteVehicle, onBack }) {
   const [error, setError] = useState('');
   const [successDialog, setSuccessDialog] = useState(false);
 
-  const fuelTypes = ['Petrol', 'Diesel', 'Hybrid', 'Electric', 'CNG'];
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -268,6 +267,16 @@ function VehiclesPage({ vehicles, onAddVehicle, onDeleteVehicle, onBack }) {
       return;
     }
 
+    if (!form.fuelType) {
+      setError('Please select a fuel type');
+      return;
+    }
+
+    if (Number.isNaN(Number(form.mileage)) || Number(form.mileage) < 0) {
+      setError('Mileage must be 0 or greater');
+      return;
+    }
+
     try {
       await onAddVehicle({
         plateNumber: form.plateNumber.trim(),
@@ -275,7 +284,7 @@ function VehiclesPage({ vehicles, onAddVehicle, onDeleteVehicle, onBack }) {
         make: form.make.trim(),
         year: form.year,
         fuelType: form.fuelType || null,
-        mileage: form.mileage
+        mileage: Number(form.mileage)
       });
       setForm({ plateNumber: '', model: '', make: '', year: new Date().getFullYear(), fuelType: '', mileage: 0 });
       setIsAdding(false);
@@ -297,66 +306,12 @@ function VehiclesPage({ vehicles, onAddVehicle, onDeleteVehicle, onBack }) {
         <div className="card" style={{ background: '#f8fafc', marginBottom: '2rem', padding: '1.5rem' }}>
           <h3>Add New Vehicle</h3>
           <form style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div>
-              <label>License Plate Number *</label>
-              <input
-                type="text"
-                placeholder="e.g., ABC-1234"
-                value={form.plateNumber}
-                onChange={e => setForm({...form, plateNumber: e.target.value})}
-                style={{ borderColor: error && error.includes('required') ? '#ef4444' : '' }}
-              />
-            </div>
-
-            <div>
-              <label>Vehicle Make *</label>
-              <input
-                type="text"
-                placeholder="e.g., Toyota"
-                value={form.make}
-                onChange={e => setForm({...form, make: e.target.value})}
-              />
-            </div>
-
-            <div>
-              <label>Vehicle Model *</label>
-              <input
-                type="text"
-                placeholder="e.g., Camry"
-                value={form.model}
-                onChange={e => setForm({...form, model: e.target.value})}
-              />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div>
-                <label>Year *</label>
-                <input
-                  type="number"
-                  min="1900"
-                  max={new Date().getFullYear() + 1}
-                  value={form.year}
-                  onChange={e => setForm({...form, year: parseInt(e.target.value)})}
-                />
-              </div>
-              <div>
-                <label>Fuel Type</label>
-                <select value={form.fuelType} onChange={e => setForm({...form, fuelType: e.target.value})}>
-                  <option value="">Select...</option>
-                  {fuelTypes.map(ft => <option key={ft} value={ft}>{ft}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label>Current Mileage (km)</label>
-              <input
-                type="number"
-                min="0"
-                value={form.mileage}
-                onChange={e => setForm({...form, mileage: parseInt(e.target.value) || 0})}
-              />
-            </div>
+            <VehicleForm
+              value={form}
+              onChange={setForm}
+              errors={{}}
+              showMileageHint={false}
+            />
 
             {error && <p style={{ color: '#ef4444', fontSize: '0.9rem' }}>{error}</p>}
 

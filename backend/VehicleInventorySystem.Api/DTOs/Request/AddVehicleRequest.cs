@@ -20,8 +20,9 @@ public class AddVehicleRequest
     [Range(1900, 2100)]
     public int Year { get; set; }
 
+    [Required]
     [StringLength(30)]
-    public string? FuelType { get; set; } // Petrol, Diesel, Hybrid, Electric
+    public string? FuelType { get; set; } // Petrol, Diesel, Hybrid, Electric, Other
 
     [Range(0, 1000000)]
     public int Mileage { get; set; } = 0; // in kilometers

@@ -273,15 +273,7 @@ function App() {
 
   const handleRegisterCustomer = async (customerData) => {
     try {
-      let year = 2000;
-      let model = 'Unknown';
-      if (customerData.vehicle) {
-        const parts = customerData.vehicle.split(' (');
-        model = parts[0];
-        if (parts.length > 1) {
-          year = parseInt(parts[1].replace(')', ''), 10) || 2000;
-        }
-      }
+      const vehicle = customerData.vehicle || {};
 
       await authApi.registerCustomer({
         name: customerData.name,
@@ -289,7 +281,14 @@ function App() {
         password: customerData.password,
         confirmPassword: customerData.password,
         phoneNumber: customerData.phone,
-        vehicles: [{ plateNumber: customerData.plate, model, make: model.split(' ')[0] || 'Unknown', year }]
+        vehicles: [{
+          plateNumber: vehicle.plateNumber,
+          make: vehicle.make,
+          model: vehicle.model,
+          year: Number(vehicle.year),
+          fuelType: vehicle.fuelType,
+          mileage: Number(vehicle.mileage)
+        }]
       });
 
       const loginResponse = await authApi.login(customerData.email.trim(), customerData.password);
