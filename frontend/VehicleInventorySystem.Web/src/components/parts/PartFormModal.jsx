@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import VendorSearchSelect from '../VendorSearchSelect';
 
 const EMPTY_FORM = {
@@ -21,6 +21,17 @@ export default function PartFormModal({
 }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState({});
+  const activeVendors = useMemo(() => {
+    return (vendors || [])
+      .map((vendor) => ({
+        id: Number(vendor.id ?? vendor.Id ?? 0),
+        name: vendor.name ?? vendor.Name ?? '',
+        contactPerson: vendor.contactPerson ?? vendor.ContactPerson ?? '',
+        emailAddress: vendor.emailAddress ?? vendor.EmailAddress ?? '',
+        isActive: Boolean(vendor.isActive ?? vendor.IsActive ?? false),
+      }))
+      .filter((vendor) => vendor.id > 0 && vendor.name && vendor.isActive);
+  }, [vendors]);
 
   useEffect(() => {
     if (isOpen && initialPart) {
@@ -45,6 +56,8 @@ export default function PartFormModal({
   if (!isOpen) {
     return null;
   }
+
+  console.log('Vendors used in Add Part modal:', activeVendors);
 
   const handleChange = (field) => (event) => {
     setForm((current) => ({ ...current, [field]: event.target.value }));
@@ -145,7 +158,7 @@ export default function PartFormModal({
               <input type="number" min="0" step="1" value={form.stockLevel} onChange={handleChange('stockLevel')} placeholder="0" />
             </label>
             <VendorSearchSelect
-              vendors={vendors}
+              vendors={activeVendors}
               value={form.vendorId ? Number(form.vendorId) : null}
               onChange={(id) => setForm((current) => ({ ...current, vendorId: id ? String(id) : '' }))}
               label="Vendor"

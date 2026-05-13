@@ -23,7 +23,7 @@ function InventoryManager({ inventory, onNavigate, onAddPart }) {
           <div key={p.id} className="list-item">
             <div>
               <strong>{p.name}</strong>
-              <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>{p.vendor}</div>
+              <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>{p.vendorName || p.vendor || 'Unknown Vendor'}</div>
               <div style={{ fontSize: '0.8rem', color: p.stock < 10 ? 'var(--secondary)' : 'inherit' }}>
                  Stock: {p.stock} {p.stock < 10 && '(LOW)'}
               </div>

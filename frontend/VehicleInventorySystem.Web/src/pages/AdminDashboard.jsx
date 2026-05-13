@@ -3,7 +3,7 @@ import StaffManager from '../components/management/StaffManager';
 import InventoryManager from '../components/management/InventoryManager';
 import CustomerManager from '../components/management/CustomerManager';
 import Dialog from '../components/Dialog';
-import { vendorService } from '../services/vendorService';
+import { extractVendorItems, vendorService } from '../services/vendorService';
 import { useToast } from '../context/ToastContext';
 import PartFormModal from '../components/parts/PartFormModal';
 import VendorSearchSelect from '../components/VendorSearchSelect';
@@ -51,12 +51,9 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
         }
       });
       vendorService.getVendors({ pageNumber: 1, pageSize: 200, status: 'all' }).then((res) => {
-        if (Array.isArray(res)) {
-          setVendors(res);
-          return;
-        }
-        const items = Array.isArray(res?.items) ? res.items : [];
-        setVendors(items);
+        const loadedVendors = extractVendorItems(res);
+        console.log('Loaded vendors:', loadedVendors);
+        setVendors(loadedVendors);
       }).catch(() => setVendors([]));
     });
   }, [viewType]);
@@ -70,84 +67,6 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
       refreshLiveTransactions();
     }
   }, [sales]);
-  const handleSeedData = async () => {
-    if (!window.confirm('This will add 50 realistic items (10 Vendors, 40 Parts) to your database. Continue?')) return;
-    setIsSeeding(true);
-    try {
-      const { apiFetch } = await import('../services/api');
-      const seedVendors = [
-        { name: 'Global Auto Parts', email: 'sales@globalauto.com', contactPerson: 'John Global', phone: '9841000111', address: 'Kathmandu' },
-        { name: 'Elite Tires Nepal', email: 'info@elitetires.com', contactPerson: 'Sita Ram', phone: '9841000222', address: 'Pokhara' },
-        { name: 'Premium Lubricants', email: 'orders@premlub.com', contactPerson: 'Rajesh Lub', phone: '9841000333', address: 'Lalitpur' },
-        { name: 'Brake Master Ltd', email: 'support@brakemaster.com', contactPerson: 'Bimal Brake', phone: '9841000444', address: 'Butwal' },
-        { name: 'Spark Systems', email: 'tech@sparksys.com', contactPerson: 'Anjali Spark', phone: '9841000555', address: 'Biratnagar' },
-        { name: 'Duraflex Belts', email: 'sales@duraflex.com', contactPerson: 'Karan Belt', phone: '9841000666', address: 'Kathmandu' },
-        { name: 'Cooling Pros', email: 'info@coolingpros.com', contactPerson: 'Maya Cool', phone: '9841000777', address: 'Dharan' },
-        { name: 'Chassis Tech', email: 'orders@chassistech.com', contactPerson: 'Niranjan Tech', phone: '9841000888', address: 'Hetauda' },
-        { name: 'Vantage Electronics', email: 'support@vantage.com', contactPerson: 'Suman Elec', phone: '9841000999', address: 'Kathmandu' },
-        { name: 'Standard Filters', email: 'info@stdfill.com', contactPerson: 'Gita Fill', phone: '9841001111', address: 'Nepalgunj' }
-      ];
-      const createdVendors = [];
-      for (const v of seedVendors) {
-        const res = await apiFetch('/vendors', { method: 'POST', body: JSON.stringify(v) });
-        if (res) createdVendors.push(res);
-      }
-      const partTemplates = [
-        { name: 'Semi-Synthetic Oil', code: 'OIL-S', price: 2500 },
-        { name: 'Ceramic Brake Pads', code: 'BRK-C', price: 4500 },
-        { name: 'Iridium Spark Plug', code: 'SPK-I', price: 850 },
-        { name: 'Performance Air Filter', code: 'FLT-A', price: 1200 },
-        { name: 'Radial Tire 205/55R16', code: 'TIR-R', price: 8500 },
-        { name: 'Headlight Bulb H7', code: 'LGT-H7', price: 450 },
-        { name: 'Timing Belt Kit', code: 'BELT-T', price: 12500 },
-        { name: 'Radiator Coolant (5L)', code: 'COL-5', price: 1800 },
-        { name: 'Wiper Blade Set', code: 'WIP-24', price: 1100 },
-        { name: 'Heavy Duty Battery', code: 'BAT-HD', price: 15500 }
-      ];
-      const partsToSeed = [];
-      for (let i = 1; i <= 40; i++) {
-        const template = partTemplates[i % partTemplates.length];
-        const vendor = createdVendors[i % createdVendors.length];
-        partsToSeed.push({
-          name: `${template.name} - Type ${Math.ceil(i / 10)}`,
-          partCode: `${template.code}-${100 + i}`,
-          description: `High quality ${template.name}`,
-          price: template.price + (i * 50),
-          stockLevel: 10 + (i % 20),
-          vendorId: vendor.id
-        });
-      }
-      for (const p of partsToSeed) {
-        await apiFetch('/parts', { method: 'POST', body: JSON.stringify(p) });
-      }
-
-      // Seed 5 Customers
-      const seedCustomers = [
-        { name: 'Aaysha Kandel', email: 'aaysha@gmail.com', plate: 'BA 1 PA 1234', phone: '9801112223' },
-        { name: 'Suman Shrestha', email: 'suman@outlook.com', plate: 'BA 2 PA 5678', phone: '9803334445' },
-        { name: 'Prativa Rai', email: 'prativa@gmail.com', plate: 'BA 3 PA 9012', phone: '9805556667' },
-        { name: 'Bibek Thapa', email: 'bibek@yahoo.com', plate: 'BA 4 PA 3456', phone: '9807778889' },
-        { name: 'Nisha Gurung', email: 'nisha@gmail.com', plate: 'BA 5 PA 7890', phone: '9809990001' }
-      ];
-
-      for (const c of seedCustomers) {
-        await apiFetch('/auth/register/customer', {
-          method: 'POST',
-          body: JSON.stringify({
-            name: c.name,
-            email: c.email,
-            phoneNumber: c.phone,
-            password: 'password',
-            confirmPassword: 'password'
-          })
-        });
-      }
-
-      showToast('success', 'System fully populated with Vendors, Parts, and Sample Customers!');
-      window.location.reload();
-    } catch (err) { showToast('error', 'Seeding partially failed.'); }
-    finally { setIsSeeding(false); }
-  };
 
   const handleAdminAddPart = async (payload) => {
     setIsAddPartSaving(true);
@@ -157,8 +76,21 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
         method: 'POST',
         body: JSON.stringify(payload)
       });
-      const vendorName = vendors.find(v => v.id === payload.vendorId)?.name || 'Unknown Vendor';
-      onUpdateInventory([...inventory, { id: newPart.id, name: newPart.name, stock: newPart.stockLevel, price: newPart.price, vendor: vendorName }]);
+      const vendorName = vendors.find(v => v.id === Number(payload.vendorId))?.name || 'Unknown Vendor';
+      onUpdateInventory([
+        ...inventory,
+        {
+          id: newPart.id ?? newPart.Id,
+          name: newPart.name ?? newPart.Name,
+          stock: newPart.stockLevel ?? newPart.StockLevel,
+          stockLevel: newPart.stockLevel ?? newPart.StockLevel,
+          price: newPart.price ?? newPart.Price,
+          vendorId: newPart.vendorId ?? newPart.VendorId ?? payload.vendorId,
+          vendorName: newPart.vendorName ?? newPart.VendorName ?? vendorName,
+          vendor: newPart.vendorName ?? newPart.VendorName ?? vendorName,
+          partCode: newPart.partCode ?? newPart.PartCode
+        }
+      ]);
       showToast('success', 'Part created successfully.');
       setIsAddPartModalOpen(false);
     } catch (error) {
@@ -273,44 +205,6 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
               {liveTransactionsError && !isLiveTransactionsLoading && (
                 <p style={{ textAlign: 'center', padding: '0.5rem', color: '#ef4444' }}>{liveTransactionsError}</p>
               )}
-            </div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          <StaffManager userRole="Admin" staffList={staffList} onNavigate={setAdminRoute} onRemove={onRemoveStaff} onUpdate={onUpdateStaff} />
-          <div id="customers"><CustomerManager customers={customerList} onNavigate={setAdminRoute} onRemove={onRemoveCustomer} onEdit={onUpdateCustomer} /></div>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          <div className="card" id="stats">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3>Live Financials</h3>
-              <button onClick={handleSeedData} className="btn-small" style={{ background: isSeeding ? '#64748b' : 'var(--secondary)' }} disabled={isSeeding}>
-                {isSeeding ? 'Seeding...' : 'Seed Data'}
-              </button>
-              <select value={viewType} onChange={e => setViewType(e.target.value)} style={{ width: 'auto', padding: '0.4rem', marginBottom: 0 }}>
-                <option value="daily">Daily</option>
-                <option value="monthly">Monthly</option>
-                <option value="yearly">Yearly</option>
-              </select>
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '1rem' }}>
-              <thead><tr><th>Period</th><th>Count</th><th>Revenue</th></tr></thead>
-              <tbody><tr><td style={{ textTransform: 'capitalize' }}>{viewType}</td><td>{report.InvoiceCount ?? 0}</td><td>Rs. {(report.TotalRevenue ?? 0).toFixed(2)}</td></tr></tbody>
-            </table>
-          </div>
-          <div id="vendors" className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3>Partners & Vendors</h3>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={onOpenVendorManagement} className="btn-small" style={{ background: '#dbeafe', color: '#1d4ed8' }}>Vendor Management</button>
-              </div>
-            </div>
-            <div className="data-list">
-              {vendors.slice(0, 5).map(v => (
-                <div key={v.id} className="list-item"><span>{v.name}</span><span className="badge">Active</span></div>
-              ))}
-              {vendors.length === 0 && <p style={{ opacity: 0.5 }}>No vendors found.</p>}
-              {vendors.length > 5 && <p style={{ textAlign: 'center', fontSize: '0.8rem', opacity: 0.5, marginTop: '0.5rem' }}>+ {vendors.length - 5} more partners...</p>}
             </div>
           </div>
         </div>
@@ -516,12 +410,11 @@ function InventoryPurchasePage({ inventory, onUpdate, onBack, onRefreshTransacti
   const [purchaseData, setPurchaseData] = useState({ partId: '', quantity: '', vendorId: '' });
   const [vendors, setVendors] = useState([]);
   useEffect(() => {
-    import('../services/api').then(({ apiFetch }) =>
-      apiFetch('/vendors?pageSize=200').then((res) => {
-        const items = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
-        setVendors(items);
-      })
-    );
+    vendorService.getVendors({ pageSize: 200, status: 'active' }).then((res) => {
+      const loadedVendors = extractVendorItems(res).filter((vendor) => vendor.isActive);
+      console.log('Loaded vendors:', loadedVendors);
+      setVendors(loadedVendors);
+    }).catch(() => setVendors([]));
   }, []);
   const handlePurchase = async (e) => {
     e.preventDefault();
@@ -782,7 +675,7 @@ function FullInventoryPage({ inventory, onBack }) {
       <div className="data-list">
         {inventory.map(p => (
           <div key={p.id} className="list-item">
-            <div><strong>{p.name}</strong><br />Vendor: {p.vendor}</div>
+            <div><strong>{p.name}</strong><br />Vendor: {p.vendorName || p.vendor || 'Unknown Vendor'}</div>
             <div>Rs. {p.price}<br /><span className="badge">{p.stock} Stock</span></div>
           </div>
         ))}

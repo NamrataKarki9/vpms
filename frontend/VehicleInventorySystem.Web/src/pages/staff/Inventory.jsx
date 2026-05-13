@@ -62,53 +62,19 @@ const Inventory = ({ parts = [] }) => {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(p => {
-              const isLow = p.stock < 10;
-              const isCritical = p.stock <= 3;
-              const stockPct = Math.min((p.stock / 20) * 100, 100);
-              return (
-                <tr key={p.id}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ width: 32, height: 32, borderRadius: '8px', background: isLow ? '#FEE2E2' : '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Package size={14} color={isLow ? '#B91C1C' : '#15803D'} />
-                      </div>
-                      <span style={{ fontWeight: 600, color: '#1E293B' }}>{p.name}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <code style={{ background: '#F1F5F9', color: '#475569', padding: '3px 8px', borderRadius: '5px', fontSize: '11px', fontWeight: 600 }}>
-                      {p.partCode || `P-${p.id}`}
-                    </code>
-                  </td>
-                  <td style={{ color: '#64748B' }}>{p.vendor || '—'}</td>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div className="stock-bar-track" style={{ width: '70px' }}>
-                        <div className="stock-bar-fill" style={{
-                          width: `${stockPct}%`,
-                          background: isCritical ? '#EF4444' : isLow ? '#F59E0B' : '#10B981'
-                        }} />
-                      </div>
-                      <span className={`badge-pill ${isCritical ? 'badge-overdue' : isLow ? 'badge-credit' : 'badge-paid'}`}>
-                        {p.stock} units
-                      </span>
-                    </div>
-                  </td>
-                  <td style={{ fontWeight: 600, color: '#1E293B' }}>Rs. {p.price?.toFixed(2)}</td>
-                  <td style={{ color: '#475569' }}>Rs. {((p.price || 0) * (p.stock || 0)).toLocaleString()}</td>
-                </tr>
-              );
-            })}
-            {filtered.length === 0 && (
-              <tr><td colSpan="6">
-                <div className="empty-state">
-                  <div className="empty-state-icon">📦</div>
-                  <h4>No Parts Found</h4>
-                  <p>{search ? `No results for "${search}"` : 'No parts in the inventory.'}</p>
-                </div>
-              </td></tr>
-            )}
+            {parts.map(p => (
+              <tr key={p.id}>
+                <td><strong>{p.name}</strong></td>
+                <td><code style={{ fontSize: '11px', color: '#666' }}>{p.partCode || `P-${p.id}`}</code></td>
+                <td>{p.vendorName || p.vendor || 'Unknown Vendor'}</td>
+                <td>
+                  <span className="badge-pill" style={{ background: p.stock < 10 ? '#FCEBEB' : '#EAF3DE', color: p.stock < 10 ? '#A32D2D' : '#3B6D11' }}>
+                    {p.stock} units
+                  </span>
+                </td>
+                <td>Rs. {p.price?.toFixed(2)}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

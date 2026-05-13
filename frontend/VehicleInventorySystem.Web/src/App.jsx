@@ -65,29 +65,34 @@ function App() {
     if (!activeUser) return;
     setIsLoading(true);
     try {
-      const [partsRes, salesRes] = await Promise.all([
-        apiFetch('/parts'),
-        apiFetch('/Transactions/sales')
-      ]);
+      if (activeUser.role === ROLES.ADMIN || activeUser.role === ROLES.STAFF) {
+        const [partsRes, salesRes] = await Promise.all([
+          apiFetch('/parts'),
+          apiFetch('/Transactions/sales')
+        ]);
 
-      const parts = Array.isArray(partsRes) ? partsRes : [];
-      setInventory(parts.map((p) => ({
-        id: p.id,
-        name: p.name || '',
-        stock: p.stockLevel || 0,
-        price: p.price || 0,
-        vendor: p.vendorName || 'Unknown Vendor',
-        partCode: p.partCode || ''
-      })));
+        const parts = Array.isArray(partsRes) ? partsRes : [];
+        setInventory(parts.map((p) => ({
+          id: p.id ?? p.Id,
+          name: p.name ?? p.Name ?? '',
+          stock: p.stockLevel ?? p.StockLevel ?? 0,
+          stockLevel: p.stockLevel ?? p.StockLevel ?? 0,
+          price: p.price ?? p.Price ?? 0,
+          vendorId: p.vendorId ?? p.VendorId ?? 0,
+          vendorName: p.vendorName ?? p.VendorName ?? '',
+          vendor: p.vendorName ?? p.VendorName ?? 'Unknown Vendor',
+          partCode: p.partCode ?? p.PartCode ?? ''
+        })));
 
-      const sales = Array.isArray(salesRes) ? salesRes : [];
-      setSalesHistory(sales.map((s) => ({
-        id: s.id,
-        customerName: s.customerName,
-        total: s.totalAmount,
-        date: new Date(s.date).toLocaleDateString(),
-        paymentStatus: s.paymentStatus
-      })));
+        const sales = Array.isArray(salesRes) ? salesRes : [];
+        setSalesHistory(sales.map((s) => ({
+          id: s.id,
+          customerName: s.customerName,
+          total: s.totalAmount,
+          date: new Date(s.date).toLocaleDateString(),
+          paymentStatus: s.paymentStatus
+        })));
+      }
 
       if (activeUser.role === ROLES.ADMIN) {
         const usersRes = await apiFetch('/users');
@@ -118,6 +123,9 @@ function App() {
           vehicleInfo: c.vehicles?.length > 0 ? c.vehicles[0] : null
         })));
         setAppointments(apptsRes || []);
+      } else if (activeUser.role === ROLES.CUSTOMER) {
+        setInventory([]);
+        setSalesHistory([]);
       }
     } catch (error) {
       console.error('Data load error:', error);
@@ -156,6 +164,29 @@ function App() {
     }
   };
 
+  const handleAddStaff = async (staffPayload) => {
+    try {
+      await authApi.createStaff(staffPayload);
+      showToast('success', 'Staff member created successfully.');
+      await loadAllData(user);
+      return true;
+    } catch (error) {
+      showToast('error', error.message || 'Failed to create staff member.');
+      return false;
+    }
+  };
+
+  const handleUpdateCustomer = (updatedCustomer) => {
+    setCustomerList((current) =>
+      current.map((customer) => (customer.id === updatedCustomer.id ? { ...customer, ...updatedCustomer } : customer))
+    );
+  };
+
+  const handleRemoveCustomer = async (customerId) => {
+    await authApi.toggleUserStatus(customerId);
+    setCustomerList((current) => current.filter((customer) => customer.id !== customerId));
+  };
+
   const isStaffSection = location.pathname.startsWith('/staff');
 
   return (
@@ -164,7 +195,7 @@ function App() {
       
       <main className={isStaffSection ? "" : "main-content"}>
         <Routes>
-          <Route path="/" element={user ? <Navigate to={user.role === ROLES.STAFF ? "/staff/dashboard" : "/admin"} /> : <Navigate to="/login" />} />
+          <Route path="/" element={user ? <Navigate to={user.role === ROLES.STAFF ? "/staff/dashboard" : (user.role === ROLES.ADMIN ? "/admin" : "/customer")} /> : <Navigate to="/login" />} />
           <Route path="/login" element={<LoginPage onLogin={handleLogin} onSignUp={() => navigate('/signup')} onForgotPassword={() => navigate('/forgot-password')} />} />
           <Route path="/signup" element={<SignupPage onComplete={handleLogin} onBack={() => navigate('/login')} onAddCustomer={() => {}} />} />
           
@@ -185,7 +216,22 @@ function App() {
           )}
 
           {/* Admin and Customer fallbacks */}
-          <Route path="/admin" element={user?.role === ROLES.ADMIN ? <AdminDashboard staffList={staffList} sales={salesHistory} inventory={inventory} customerList={customerList} /> : <Navigate to="/" />} />
+          <Route
+            path="/admin"
+            element={user?.role === ROLES.ADMIN ? (
+              <AdminDashboard
+                staffList={staffList}
+                onAddStaff={handleAddStaff}
+                sales={salesHistory}
+                inventory={inventory}
+                onUpdateInventory={setInventory}
+                customerList={customerList}
+                onRemoveCustomer={handleRemoveCustomer}
+                onUpdateCustomer={handleUpdateCustomer}
+                onOpenVendorManagement={() => navigate('/vendors')}
+              />
+            ) : <Navigate to="/" />}
+          />
           <Route path="/customer" element={user?.role === ROLES.CUSTOMER ? <CustomerDashboard user={user} sales={salesHistory} /> : <Navigate to="/" />} />
           <Route path="/parts" element={user?.role === ROLES.ADMIN ? <MainLayout><PartsPage /></MainLayout> : <Navigate to="/" />} />
           <Route path="/vendors" element={user?.role === ROLES.ADMIN ? <MainLayout><VendorPage /></MainLayout> : <Navigate to="/" />} />

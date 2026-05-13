@@ -309,9 +309,7 @@ public class VendorService : IVendorService
             PhoneNumber = vendor.PhoneNumber,
             EmailAddress = vendor.EmailAddress,
             Address = vendor.Address,
-            IsActive = vendor.IsActive,
-            CreatedAt = vendor.CreatedAt,
-            UpdatedAt = vendor.UpdatedAt
+            IsActive = vendor.IsActive
         };
     }
 }
