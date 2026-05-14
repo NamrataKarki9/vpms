@@ -1,18 +1,28 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Plus, ChevronRight } from 'lucide-react';
+import { Bell, ChevronRight } from 'lucide-react';
 
 const ROUTE_CRUMBS = {
   '/staff/dashboard': [{ label: 'Dashboard' }],
   '/staff/customers/segments': [{ label: 'Customers', path: '/staff/customers' }, { label: 'Reports' }],
   '/staff/customers': [{ label: 'Customers' }],
   '/staff/sales/new': [{ label: 'Sales' }, { label: 'New Sale' }],
+  '/staff/transactions': [{ label: 'Transactions' }],
   '/staff/invoices': [{ label: 'Invoices' }],
   '/staff/parts': [{ label: 'Inventory' }, { label: 'Parts' }],
   '/staff/appointments': [{ label: 'Appointments' }],
+  '/admin': [{ label: 'Admin Dashboard' }],
+  '/admin/staff': [{ label: 'Users & Access' }],
+  '/admin/customers': [{ label: 'Customers' }],
+  '/admin/inventory': [{ label: 'Inventory' }],
+  '/admin/inventory/purchase': [{ label: 'Purchase Orders' }],
+  '/admin/transactions': [{ label: 'Sales' }],
+  '/admin/reports': [{ label: 'Reports' }],
+  '/vendors': [{ label: 'Vendors' }],
+  '/parts': [{ label: 'Parts Catalog' }],
 };
 
-const StaffTopBar = () => {
+const TopBar = ({ user }) => {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -23,12 +33,51 @@ const StaffTopBar = () => {
       crumbs = [{ label: 'Customers', path: '/staff/customers' }, { label: 'Profile' }];
     } else if (location.pathname.startsWith('/staff/invoices/')) {
       crumbs = [{ label: 'Invoices', path: '/staff/invoices' }, { label: 'Detail' }];
+    } else if (location.pathname.startsWith('/admin/customers/')) {
+       crumbs = [{ label: 'Customers', path: '/admin/customers' }, { label: 'Details' }];
     } else {
-      crumbs = [{ label: 'Staff Portal' }];
+      crumbs = [{ label: 'Portal' }];
     }
   }
 
-  const pageTitle = crumbs[crumbs.length - 1]?.label || 'Portal';
+  const isAdminPortal =
+    location.pathname.startsWith('/admin') ||
+    location.pathname.startsWith('/vendors') ||
+    location.pathname.startsWith('/parts');
+  const initials = (user?.name || 'AD').split(' ').map((word) => word[0]).join('').slice(0, 2).toUpperCase();
+
+  if (isAdminPortal) {
+    return (
+      <header className="staff-topbar admin-topbar">
+        <div className="admin-topbar-left">
+          <div className="admin-breadcrumbs">
+            {crumbs.map((crumb, i) => (
+              <React.Fragment key={i}>
+                {i > 0 && <ChevronRight size={14} color="#CBD5E1" />}
+                {crumb.path ? (
+                  <button type="button" onClick={() => navigate(crumb.path)} className="admin-breadcrumb-link">
+                    {crumb.label}
+                  </button>
+                ) : (
+                  <span className="admin-breadcrumb-current">{crumb.label}</span>
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+
+        <div className="admin-topbar-actions">
+          <button type="button" className="admin-icon-btn" aria-label="Notifications">
+            <Bell size={16} />
+            <span className="admin-notification-dot" />
+          </button>
+          <div className="admin-profile-avatar" title={user?.name || 'Admin'}>
+            {initials}
+          </div>
+        </div>
+      </header>
+    );
+  }
 
   return (
     <header style={{
@@ -70,19 +119,10 @@ const StaffTopBar = () => {
         }}>
           {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
         </div>
-
-        {/* New Sale CTA */}
-        <button
-          onClick={() => navigate('/staff/sales/new')}
-          className="btn-sale-primary"
-          style={{ height: '36px' }}
-        >
-          <Plus size={14} />
-          <span>New Sale</span>
-        </button>
       </div>
     </header>
   );
 };
 
-export default StaffTopBar;
+export default TopBar;
+

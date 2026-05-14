@@ -2,7 +2,8 @@ import React from 'react';
 
 function StatCard({ title, value, accent, hint }) {
   return (
-    <div className="vendor-stat-card card">
+    <div className="metric-card vendor-stat-card">
+      <span className="metric-card-accent" style={{ background: accent }} />
       <div className="vendor-stat-top">
         <span className="vendor-stat-title">{title}</span>
         <span className="vendor-stat-accent" style={{ background: accent }} />

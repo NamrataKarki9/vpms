@@ -6,11 +6,11 @@ import '../../styles/staff.css';
 
 const StaffLayout = ({ user }) => {
   return (
-    <div className="staff-shell">
+    <div className={`staff-shell ${user?.role === 'Admin' ? 'admin-shell' : ''}`}>
       <StaffSidebar user={user} />
       
       <div className="staff-body">
-        <StaffTopBar />
+        <StaffTopBar user={user} />
         
         <main className="staff-content">
           <Outlet />

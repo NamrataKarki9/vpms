@@ -1,4 +1,5 @@
 import React from 'react';
+import { Pencil, Power } from 'lucide-react';
 
 const LOW_STOCK_THRESHOLD = 5;
 
@@ -20,9 +21,9 @@ function formatPrice(value) {
 
 export default function PartsTable({ parts, onEdit, onToggleStatus }) {
   return (
-    <div className="vendor-table-card card">
+    <div className="vendor-table-card staff-card">
       <div className="vendor-table-wrap">
-        <table className="vendor-table">
+        <table className="staff-table vendor-table">
           <thead>
             <tr>
               <th>Part Name</th>
@@ -62,16 +63,16 @@ export default function PartsTable({ parts, onEdit, onToggleStatus }) {
                   <td><StatusBadge isActive={part.isActive} /></td>
                   <td>
                     <div className="vendor-actions">
-                      <button type="button" className="icon-btn" onClick={() => onEdit(part.id)} aria-label={`Edit ${part.name}`}>
-                        Edit
+                      <button type="button" className="btn-view-customer icon-btn" onClick={() => onEdit(part.id)} aria-label={`Edit ${part.name}`}>
+                        <Pencil size={14} /> Edit
                       </button>
                       <button
                         type="button"
-                        className={`icon-btn ${part.isActive ? 'danger' : 'success'}`}
+                        className={`btn-send-reminder icon-btn ${part.isActive ? 'danger' : 'success'}`}
                         onClick={() => onToggleStatus(part)}
                         aria-label={`${part.isActive ? 'Deactivate' : 'Reactivate'} ${part.name}`}
                       >
-                        {part.isActive ? 'Deactivate' : 'Reactivate'}
+                        <Power size={14} /> {part.isActive ? 'Deactivate' : 'Reactivate'}
                       </button>
                     </div>
                   </td>

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { X } from 'lucide-react';
 import VendorSearchSelect from '../VendorSearchSelect';
 
 const EMPTY_FORM = {
@@ -56,8 +57,6 @@ export default function PartFormModal({
   if (!isOpen) {
     return null;
   }
-
-  console.log('Vendors used in Add Part modal:', activeVendors);
 
   const handleChange = (field) => (event) => {
     setForm((current) => ({ ...current, [field]: event.target.value }));
@@ -123,7 +122,7 @@ export default function PartFormModal({
   return (
     <div className="modal-overlay" role="presentation" onClick={onClose}>
       <div
-        className="modal-card card"
+        className="modal-card staff-card"
         role="dialog"
         aria-modal="true"
         aria-labelledby="part-modal-title"
@@ -134,8 +133,8 @@ export default function PartFormModal({
             <h2 id="part-modal-title">{isEditing ? 'Edit Part' : 'Add Part'}</h2>
             <p>{isEditing ? 'Update the part details below.' : 'Create a new part record.'}</p>
           </div>
-          <button type="button" className="icon-btn modal-close-btn" onClick={onClose} aria-label="Close modal">
-            ×
+          <button type="button" className="btn-icon-square modal-close-btn" onClick={onClose} aria-label="Close modal">
+            <X size={16} />
           </button>
         </div>
 
@@ -143,19 +142,19 @@ export default function PartFormModal({
           <div className="vendor-form-grid">
             <label>
               <span>Name</span>
-              <input type="text" value={form.name} onChange={handleChange('name')} placeholder="Part name" />
+              <input className="search-input-field" type="text" value={form.name} onChange={handleChange('name')} placeholder="Part name" />
             </label>
             <label>
               <span>Part Code</span>
-              <input type="text" value={form.partCode} onChange={handleChange('partCode')} placeholder="PRT-001" />
+              <input className="search-input-field" type="text" value={form.partCode} onChange={handleChange('partCode')} placeholder="PRT-001" />
             </label>
             <label>
               <span>Price</span>
-              <input type="number" min="0" step="0.01" value={form.price} onChange={handleChange('price')} placeholder="0.00" />
+              <input className="search-input-field" type="number" min="0" step="0.01" value={form.price} onChange={handleChange('price')} placeholder="0.00" />
             </label>
             <label>
               <span>Initial Stock Level</span>
-              <input type="number" min="0" step="1" value={form.stockLevel} onChange={handleChange('stockLevel')} placeholder="0" />
+              <input className="search-input-field" type="number" min="0" step="1" value={form.stockLevel} onChange={handleChange('stockLevel')} placeholder="0" />
             </label>
             <VendorSearchSelect
               vendors={activeVendors}
@@ -165,7 +164,7 @@ export default function PartFormModal({
             />
             <label className="vendor-form-full">
               <span>Description</span>
-              <textarea value={form.description} onChange={handleChange('description')} placeholder="Part description" rows={4} />
+              <textarea className="search-input-field" value={form.description} onChange={handleChange('description')} placeholder="Part description" rows={4} />
             </label>
           </div>
 
@@ -178,10 +177,10 @@ export default function PartFormModal({
           )}
 
           <div className="modal-actions">
-            <button type="button" className="btn-secondary" onClick={onClose}>
+            <button type="button" className="btn-view-customer" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" disabled={isSaving}>
+            <button type="submit" className="btn-sale-primary" disabled={isSaving}>
               {isSaving ? 'Saving...' : isEditing ? 'Update Part' : 'Create Part'}
             </button>
           </div>

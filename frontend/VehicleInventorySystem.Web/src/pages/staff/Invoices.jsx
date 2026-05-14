@@ -11,6 +11,14 @@ const getPaymentLabel = (status) => {
   return { label: status || 'N/A', cls: 'badge-pending' };
 };
 
+const getInvoiceId = (invoice) =>
+  invoice?.id ??
+  invoice?.invoiceId ??
+  invoice?.invoiceNo ??
+  invoice?.invoiceNumber ??
+  invoice?.transactionId ??
+  '';
+
 const Invoices = ({ sales: propSales = [] }) => {
   const showToast = useToast();
   const navigate = useNavigate();
@@ -27,7 +35,7 @@ const Invoices = ({ sales: propSales = [] }) => {
         const data = await apiFetch('/Transactions/sales');
         if (data) {
           setSales(data.map(s => ({
-            id: s.id,
+            id: getInvoiceId(s),
             customerName: s.customerName,
             customerEmail: s.customerEmail,
             total: s.totalAmount,
@@ -45,14 +53,20 @@ const Invoices = ({ sales: propSales = [] }) => {
   }, []);
 
   const filtered = sales.filter(s => {
+    const id = getInvoiceId(s);
     const matchSearch = (s.customerName || '').toLowerCase().includes(search.toLowerCase()) ||
-      String(s.id).includes(search);
+      String(id).includes(search);
     const matchStatus = filterStatus === 'all' || s.paymentStatus === filterStatus;
     return matchSearch && matchStatus;
   });
 
   const handleEmail = async (id, e) => {
     e.stopPropagation();
+    if (!id) {
+      showToast('error', 'This invoice cannot be emailed because it has no invoice ID.');
+      return;
+    }
+
     setEmailingId(id);
     try {
       await apiFetch(`/Transactions/${id}/email`, { method: 'POST' });
@@ -62,6 +76,16 @@ const Invoices = ({ sales: propSales = [] }) => {
     } finally {
       setEmailingId(null);
     }
+  };
+
+  const handleViewInvoice = (invoice) => {
+    const id = getInvoiceId(invoice);
+    if (!id) {
+      showToast('error', 'This invoice cannot be opened because it has no invoice ID.');
+      return;
+    }
+
+    navigate(`/staff/invoices/${id}`);
   };
 
   // Summary stats
@@ -144,6 +168,7 @@ const Invoices = ({ sales: propSales = [] }) => {
             <span style={{ color: '#64748B', fontSize: '14px' }}>Loading invoices...</span>
           </div>
         ) : (
+          <div className="staff-table-scroll">
           <table className="staff-table">
             <thead>
               <tr>
@@ -156,20 +181,21 @@ const Invoices = ({ sales: propSales = [] }) => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(t => {
+              {filtered.map((t, index) => {
+                const id = getInvoiceId(t);
                 const { label, cls } = getPaymentLabel(t.paymentStatus);
                 return (
                   <tr
-                    key={t.id}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => navigate(`/staff/invoices/${t.id}`)}
+                    key={id || `${t.customerName || 'invoice'}-${t.date || index}`}
+                    style={{ cursor: id ? 'pointer' : 'default' }}
+                    onClick={() => handleViewInvoice(t)}
                   >
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <div style={{ width: 32, height: 32, borderRadius: '8px', background: '#EBF2FB', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                           <FileText size={14} color="#1E3A5F" />
                         </div>
-                        <span style={{ fontWeight: 700, color: '#1E3A5F', fontSize: '13px' }}>#{t.id}</span>
+                        <span style={{ fontWeight: 700, color: '#1E3A5F', fontSize: '13px' }}>{id ? `#${id}` : 'No ID'}</span>
                       </div>
                     </td>
                     <td>
@@ -190,32 +216,33 @@ const Invoices = ({ sales: propSales = [] }) => {
                     <td onClick={e => e.stopPropagation()}>
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button
-                          onClick={e => handleEmail(t.id, e)}
-                          disabled={emailingId === t.id}
+                          onClick={e => handleEmail(id, e)}
+                          disabled={!id || emailingId === id}
                           title="Send Invoice Email"
                           style={{
                             display: 'inline-flex', alignItems: 'center', gap: '5px',
                             padding: '5px 12px', borderRadius: '6px', border: '1px solid #E2E8F0',
-                            background: emailingId === t.id ? '#F1F5F9' : '#fff', color: '#1E3A5F',
-                            cursor: emailingId === t.id ? 'not-allowed' : 'pointer',
+                            background: emailingId === id ? '#F1F5F9' : '#fff', color: '#1E3A5F',
+                            cursor: !id || emailingId === id ? 'not-allowed' : 'pointer',
                             fontSize: '12px', fontWeight: 600, transition: 'all 0.15s',
                           }}
-                          onMouseEnter={e => { if (emailingId !== t.id) e.currentTarget.style.background = '#EBF2FB'; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = emailingId === t.id ? '#F1F5F9' : '#fff'; }}
+                          onMouseEnter={e => { if (id && emailingId !== id) e.currentTarget.style.background = '#EBF2FB'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = emailingId === id ? '#F1F5F9' : '#fff'; }}
                         >
                           <Mail size={12} />
-                          {emailingId === t.id ? 'Sending...' : 'Email'}
+                          {emailingId === id ? 'Sending...' : 'Email'}
                         </button>
                         <button
-                          onClick={() => navigate(`/staff/invoices/${t.id}`)}
+                          onClick={() => handleViewInvoice(t)}
+                          disabled={!id}
                           title="View Invoice Detail"
                           style={{
                             display: 'inline-flex', alignItems: 'center', gap: '5px',
                             padding: '5px 12px', borderRadius: '6px', border: '1px solid #E2E8F0',
                             background: '#fff', color: '#64748B',
-                            cursor: 'pointer', fontSize: '12px', fontWeight: 600, transition: 'all 0.15s',
+                            cursor: id ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: 600, transition: 'all 0.15s',
                           }}
-                          onMouseEnter={e => { e.currentTarget.style.background = '#F1F5F9'; }}
+                          onMouseEnter={e => { if (id) e.currentTarget.style.background = '#F1F5F9'; }}
                           onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
                         >
                           <Eye size={12} />
@@ -237,6 +264,7 @@ const Invoices = ({ sales: propSales = [] }) => {
               )}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

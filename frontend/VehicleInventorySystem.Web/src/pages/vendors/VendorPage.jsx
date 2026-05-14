@@ -4,6 +4,7 @@ import VendorFilters from '../../components/vendors/VendorFilters';
 import VendorStatsCards from '../../components/vendors/VendorStatsCards';
 import VendorTable from '../../components/vendors/VendorTable';
 import VendorFormModal from '../../components/vendors/VendorFormModal';
+import { Plus } from 'lucide-react';
 
 const EMPTY_VENDORS = [];
 
@@ -40,7 +41,6 @@ export default function VendorPage() {
         status: appliedStatusFilter,
       });
       const normalized = extractVendorItems(response);
-      console.log('Loaded vendors:', normalized);
       setVendors(normalized);
       setTotalItems(response?.totalItems ?? response?.TotalItems ?? normalized.length);
       setTotalPages(response?.totalPages ?? response?.TotalPages ?? 1);
@@ -214,13 +214,13 @@ export default function VendorPage() {
 
   return (
     <div className="vendor-page">
-      <header className="vendor-page-hero card">
+      <header className="page-section-header vendor-page-hero">
         <div className="vendor-hero-copy">
-          <h1>Vendor Management</h1>
-          <p>Oversee global supply chain partners and fulfillment metrics.</p>
+          <h2>Vendor Management</h2>
+          <p>Manage supplier records, contact details, and purchase availability.</p>
         </div>
-        <button type="button" className="vendor-hero-action" onClick={openAddModal}>
-          + Add Vendor
+        <button type="button" className="btn-sale-primary vendor-hero-action" onClick={openAddModal}>
+          <Plus size={15} /> Add Vendor
         </button>
       </header>
 
@@ -274,6 +274,7 @@ export default function VendorPage() {
           <label htmlFor="vendor-page-size">Page size</label>
           <select
             id="vendor-page-size"
+            className="search-input-field"
             value={pageSize}
             onChange={(event) => {
               setPageSize(Number(event.target.value));
@@ -288,7 +289,7 @@ export default function VendorPage() {
       </div>
 
       {isLoading ? (
-        <div className="card vendor-loading">Loading vendor records...</div>
+        <div className="staff-card vendor-loading">Loading vendor records...</div>
       ) : (
         <VendorTable
           vendors={vendors}
@@ -353,7 +354,7 @@ export default function VendorPage() {
               </p>
             </div>
             <div className="vendor-status-actions">
-              <button type="button" className="btn-secondary" onClick={closeStatusModal} disabled={isUpdatingStatus}>
+              <button type="button" className="btn-view-customer" onClick={closeStatusModal} disabled={isUpdatingStatus}>
                 Cancel
               </button>
               <button

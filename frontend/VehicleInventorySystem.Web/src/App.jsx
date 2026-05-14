@@ -18,7 +18,6 @@ import { SignupPage } from './pages/SignupPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { VerifyOtpPage } from './pages/VerifyOtpPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
-import MainLayout from './layout/MainLayout';
 import VendorPage from './pages/vendors/VendorPage';
 import PartsPage from './pages/parts/PartsPage';
 import { useToast } from './context/ToastContext';
@@ -93,13 +92,18 @@ function App() {
           partCode: p.partCode ?? p.PartCode ?? ''
         })));
 
-        const sales = Array.isArray(salesRes) ? salesRes : [];
+        let salesArray = salesRes;
+        if (salesRes && !Array.isArray(salesRes)) {
+          salesArray = salesRes.data || salesRes.items || salesRes.transactions || salesRes.results || salesRes.value || [];
+        }
+        const sales = Array.isArray(salesArray) ? salesArray : [];
         setSalesHistory(sales.map((s) => ({
           id: s.id,
           customerName: s.customerName,
           total: s.totalAmount,
-          date: new Date(s.date).toLocaleDateString(),
-          paymentStatus: s.paymentStatus
+          date: s.date,
+          paymentStatus: s.paymentStatus,
+          items: s.items || s.Items || s.transactionItems || s.TransactionItems || []
         })));
       }
 
@@ -199,7 +203,11 @@ function App() {
 
   const isStaffSection = location.pathname.startsWith('/staff');
   const isCustomerSection = location.pathname.startsWith('/customer');
-  const hideGlobalNav = isStaffSection || isCustomerSection;
+  const isAdminPortalSection =
+    location.pathname.startsWith('/admin') ||
+    location.pathname.startsWith('/vendors') ||
+    location.pathname.startsWith('/parts');
+  const hideGlobalNav = isStaffSection || isCustomerSection || isAdminPortalSection;
 
   return (
     <div className="app-container">
@@ -221,6 +229,7 @@ function App() {
               <Route path="customers/:id" element={<CustomerDetail />} />
               <Route path="customers" element={<Customers customers={customerList} />} />
               <Route path="sales/new" element={<Sales customers={customerList} parts={inventory} onProcessSale={handleProcessSale} />} />
+              <Route path="transactions" element={<Invoices />} />
               <Route path="invoices/:id" element={<InvoiceDetail />} />
               <Route path="invoices" element={<Invoices />} />
               <Route path="parts" element={<Inventory parts={inventory} />} />
@@ -228,24 +237,127 @@ function App() {
             </Route>
           )}
 
-          {/* Admin and Customer fallbacks */}
-          <Route
-            path="/admin"
-            element={user?.role === ROLES.ADMIN ? (
-              <AdminDashboard
-                staffList={staffList}
-                onAddStaff={handleAddStaff}
-                sales={salesHistory}
-                inventory={inventory}
-                onUpdateInventory={setInventory}
-                customerList={customerList}
-                onRemoveCustomer={handleRemoveCustomer}
-                onUpdateCustomer={handleUpdateCustomer}
-                onOpenVendorManagement={() => navigate('/vendors')}
-              />
-            ) : <Navigate to="/" />}
-          />
+          {/* Admin Section with Layout Overhaul */}
+          {user?.role === ROLES.ADMIN && (
+            <Route path="/admin" element={<StaffLayout user={user} />}>
+              <Route index element={
+                <AdminDashboard
+                  staffList={staffList}
+                  onAddStaff={handleAddStaff}
+                  sales={salesHistory}
+                  inventory={inventory}
+                  onUpdateInventory={setInventory}
+                  customerList={customerList}
+                  onRemoveCustomer={handleRemoveCustomer}
+                  onUpdateCustomer={handleUpdateCustomer}
+                  onOpenVendorManagement={() => navigate('/vendors')}
+                  view="main"
+                />
+              } />
+              <Route path="staff/add" element={
+                <AdminDashboard
+                  staffList={staffList}
+                  onAddStaff={handleAddStaff}
+                  sales={salesHistory}
+                  inventory={inventory}
+                  onUpdateInventory={setInventory}
+                  customerList={customerList}
+                  onRemoveCustomer={handleRemoveCustomer}
+                  onUpdateCustomer={handleUpdateCustomer}
+                  onOpenVendorManagement={() => navigate('/vendors')}
+                  view="add-staff"
+                />
+              } />
+              <Route path="staff" element={
+                <AdminDashboard
+                  staffList={staffList}
+                  onAddStaff={handleAddStaff}
+                  sales={salesHistory}
+                  inventory={inventory}
+                  onUpdateInventory={setInventory}
+                  customerList={customerList}
+                  onRemoveCustomer={handleRemoveCustomer}
+                  onUpdateCustomer={handleUpdateCustomer}
+                  onOpenVendorManagement={() => navigate('/vendors')}
+                  view="view-all-staff"
+                />
+              } />
+              <Route path="customers" element={
+                <AdminDashboard
+                  staffList={staffList}
+                  onAddStaff={handleAddStaff}
+                  sales={salesHistory}
+                  inventory={inventory}
+                  onUpdateInventory={setInventory}
+                  customerList={customerList}
+                  onRemoveCustomer={handleRemoveCustomer}
+                  onUpdateCustomer={handleUpdateCustomer}
+                  onOpenVendorManagement={() => navigate('/vendors')}
+                  view="manage-customers"
+                />
+              } />
+              <Route path="inventory/purchase" element={
+                <AdminDashboard
+                  staffList={staffList}
+                  onAddStaff={handleAddStaff}
+                  sales={salesHistory}
+                  inventory={inventory}
+                  onUpdateInventory={setInventory}
+                  customerList={customerList}
+                  onRemoveCustomer={handleRemoveCustomer}
+                  onUpdateCustomer={handleUpdateCustomer}
+                  onOpenVendorManagement={() => navigate('/vendors')}
+                  view="manage-inventory"
+                />
+              } />
+              <Route path="inventory" element={
+                <AdminDashboard
+                  staffList={staffList}
+                  onAddStaff={handleAddStaff}
+                  sales={salesHistory}
+                  inventory={inventory}
+                  onUpdateInventory={setInventory}
+                  customerList={customerList}
+                  onRemoveCustomer={handleRemoveCustomer}
+                  onUpdateCustomer={handleUpdateCustomer}
+                  onOpenVendorManagement={() => navigate('/vendors')}
+                  view="view-all-inventory"
+                />
+              } />
+              <Route path="transactions" element={
+                <AdminDashboard
+                  staffList={staffList}
+                  onAddStaff={handleAddStaff}
+                  sales={salesHistory}
+                  inventory={inventory}
+                  onUpdateInventory={setInventory}
+                  customerList={customerList}
+                  onRemoveCustomer={handleRemoveCustomer}
+                  onUpdateCustomer={handleUpdateCustomer}
+                  onOpenVendorManagement={() => navigate('/vendors')}
+                  view="transactions"
+                />
+              } />
+              <Route path="reports" element={
+                <AdminDashboard
+                  staffList={staffList}
+                  onAddStaff={handleAddStaff}
+                  sales={salesHistory}
+                  inventory={inventory}
+                  onUpdateInventory={setInventory}
+                  customerList={customerList}
+                  onRemoveCustomer={handleRemoveCustomer}
+                  onUpdateCustomer={handleUpdateCustomer}
+                  onOpenVendorManagement={() => navigate('/vendors')}
+                  view="reports"
+                />
+              } />
+
+            </Route>
+          )}
+
           {/* Customer Section with Layout Overhaul */}
+
           {user?.role === ROLES.CUSTOMER && (
             <Route path="/customer" element={<CustomerLayout user={user} />}>
               <Route index element={<CustomerOverview user={user} />} />
@@ -257,8 +369,12 @@ function App() {
               <Route path="history" element={<HistoryPage user={user} />} />
             </Route>
           )}
-          <Route path="/parts" element={user?.role === ROLES.ADMIN ? <MainLayout><PartsPage /></MainLayout> : <Navigate to="/" />} />
-          <Route path="/vendors" element={user?.role === ROLES.ADMIN ? <MainLayout><VendorPage /></MainLayout> : <Navigate to="/" />} />
+          <Route path="/parts" element={user?.role === ROLES.ADMIN ? <StaffLayout user={user} /> : <Navigate to="/" />}>
+            <Route index element={<PartsPage />} />
+          </Route>
+          <Route path="/vendors" element={user?.role === ROLES.ADMIN ? <StaffLayout user={user} /> : <Navigate to="/" />}>
+            <Route index element={<VendorPage />} />
+          </Route>
           
           <Route path="/forgot-password" element={<ForgotPasswordPage onContinue={() => navigate('/verify-otp')} onBack={() => navigate('/login')} />} />
           <Route path="/verify-otp" element={<VerifyOtpPage onContinue={() => navigate('/reset-password')} onBack={() => navigate('/forgot-password')} />} />
