@@ -1,4 +1,5 @@
 import React from 'react';
+import { Pencil, Power } from 'lucide-react';
 
 function StatusBadge({ isActive }) {
   return <span className={`vendor-status-badge ${isActive ? 'is-active' : 'is-inactive'}`}>{isActive ? 'Active' : 'Inactive'}</span>;
@@ -6,9 +7,9 @@ function StatusBadge({ isActive }) {
 
 export default function VendorTable({ vendors, onEdit, onToggleStatus }) {
   return (
-    <div className="vendor-table-card card">
+    <div className="vendor-table-card staff-card">
       <div className="vendor-table-wrap">
-        <table className="vendor-table">
+        <table className="staff-table vendor-table">
           <thead>
             <tr>
               <th>Vendor Name</th>
@@ -39,16 +40,16 @@ export default function VendorTable({ vendors, onEdit, onToggleStatus }) {
                 <td><StatusBadge isActive={vendor.isActive} /></td>
                 <td>
                   <div className="vendor-actions">
-                    <button type="button" className="icon-btn" onClick={() => onEdit(vendor.id)} aria-label={`Edit ${vendor.name}`}>
-                      Edit
+                    <button type="button" className="btn-view-customer icon-btn" onClick={() => onEdit(vendor.id)} aria-label={`Edit ${vendor.name}`}>
+                      <Pencil size={14} /> Edit
                     </button>
                     <button
                       type="button"
-                      className={`icon-btn ${vendor.isActive ? 'danger' : 'success'}`}
+                      className={`btn-send-reminder icon-btn ${vendor.isActive ? 'danger' : 'success'}`}
                       onClick={() => onToggleStatus(vendor)}
                       aria-label={`${vendor.isActive ? 'Deactivate' : 'Reactivate'} ${vendor.name}`}
                     >
-                      {vendor.isActive ? 'Deactivate' : 'Reactivate'}
+                      <Power size={14} /> {vendor.isActive ? 'Deactivate' : 'Reactivate'}
                     </button>
                   </div>
                 </td>

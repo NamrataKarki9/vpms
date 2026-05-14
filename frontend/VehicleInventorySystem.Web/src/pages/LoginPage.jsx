@@ -73,6 +73,7 @@ export function LoginPage({ onLogin, onSignUp, onForgotPassword }) {
                 <Mail className="auth-input-icon" size={18} />
                 <input
                   type="email"
+                  autoComplete="username"
                   placeholder="name@company.com"
                   className={`auth-input ${errors.email ? 'error' : ''}`}
                   value={email}
@@ -103,6 +104,7 @@ export function LoginPage({ onLogin, onSignUp, onForgotPassword }) {
                 <Lock className="auth-input-icon" size={18} />
                 <input
                   type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
                   placeholder="••••••••"
                   className={`auth-input ${errors.password ? 'error' : ''}`}
                   value={password}

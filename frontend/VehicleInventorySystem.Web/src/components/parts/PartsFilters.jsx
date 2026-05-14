@@ -1,4 +1,5 @@
 import React from 'react';
+import { Search, X } from 'lucide-react';
 
 const STATUS_OPTIONS = [
   { label: 'All', value: 'all' },
@@ -13,31 +14,29 @@ export default function PartsFilters({
   statusFilter,
   onStatusChange,
   onSearch,
-  onInputSearch,
   onClear,
   canClearFilters,
 }) {
   return (
-    <form className="vendor-toolbar card" onSubmit={onSearch}>
+    <form className="vendor-toolbar staff-card" onSubmit={onSearch}>
       <div className="vendor-search-wrap">
         <input
           type="search"
           placeholder="Search by part name, code, vendor, or description..."
           value={searchTerm}
           onChange={(event) => onSearchChange(event.target.value)}
-          onSearch={onInputSearch}
-          className="vendor-search"
+          className="vendor-search search-input-field"
         />
-        <button type="submit" className="vendor-search-button vendor-search-button-search">
-          Search
+        <button type="submit" className="btn-sale-primary vendor-search-button vendor-search-button-search">
+          <Search size={15} /> Search
         </button>
         <button
           type="button"
-          className="vendor-search-button vendor-search-button-clear"
+          className="btn-view-customer vendor-search-button vendor-search-button-clear"
           onClick={onClear}
           disabled={!canClearFilters}
         >
-          Clear
+          <X size={15} /> Clear
         </button>
       </div>
 

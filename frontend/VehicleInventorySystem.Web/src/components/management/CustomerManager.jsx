@@ -1,47 +1,58 @@
-import React, { useState } from 'react';
+import React from 'react';
 
 function CustomerManager({ customers, onNavigate }) {
 
-
   return (
-    <div className="management-card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', alignItems: 'center' }}>
-        <div>
-          <h3 style={{ margin: 0 }}>Customer Database</h3>
-          <p style={{ fontSize: '0.85rem', opacity: 0.6, margin: 0 }}>Overview of registered customers.</p>
-        </div>
-        <button onClick={() => onNavigate('manage-customers')} className="btn-small" style={{ background: '#f1f5f9', color: '#0f172a' }}>View All</button>
+    <div className="staff-card">
+      <div className="staff-card-header">
+        <div className="staff-card-title">Customer Database Overview</div>
+        <button onClick={() => onNavigate('manage-customers')} className="btn-view-customer">View All</button>
       </div>
 
-      <div className="data-list">
-        {customers.length === 0 ? (
-          <p style={{ opacity: 0.5, textAlign: 'center', padding: '2rem' }}>No customers registered yet.</p>
-        ) : (
-          customers.slice(0, 5).map(c => (
-            <div key={c.id} className="list-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-              <div>
-                <strong style={{ fontSize: '1.1rem', color: 'var(--primary)' }}>{c.name}</strong>
-                <div style={{ fontSize: '0.85rem' }}>
-                  <span style={{ opacity: 0.6 }}>Vehicle: </span>
-                  {c.vehicleInfo ? (
-                    <span style={{ fontWeight: 600 }}>
-                      {c.vehicleInfo.make?.toLowerCase().includes(c.vehicleInfo.model?.toLowerCase()) || c.vehicleInfo.model?.toLowerCase().includes(c.vehicleInfo.make?.toLowerCase()) 
-                        ? c.vehicleInfo.make 
-                        : `${c.vehicleInfo.make} ${c.vehicleInfo.model}`} ({c.vehicleInfo.year}) | Plate: {c.vehicleInfo.plateNumber}
-                    </span>
-                  ) : (
-                    <span style={{ opacity: 0.5 }}>No vehicle added</span>
-                  )}
-                  {c.vehicleCount > 1 && <span className="badge" style={{ marginLeft: '5px', fontSize: '0.65rem' }}>+{c.vehicleCount - 1} more</span>}
-                </div>
-                <div style={{ fontSize: '0.85rem' }}>
-                  <span style={{ opacity: 0.6 }}>Total Spend: </span>Rs. {c.spend?.toFixed(2) || '0.00'}
-                </div>
-              </div>
-            </div>
-            </div>
-          ))
+      <div className="staff-card-body">
+        <table className="staff-table">
+          <thead>
+            <tr>
+              <th>Customer</th>
+              <th>Vehicle info</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(customers || []).slice(0, 5).map(c => (
+              <tr key={c.id}>
+                <td>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div className="avatar-circle" style={{ width: '28px', height: '28px', fontSize: '10px' }}>{(c.name || 'U')[0].toUpperCase()}</div>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 600 }}>{c.name}</div>
+                      <div style={{ fontSize: '11px', color: '#94A3B8' }}>{c.phone || c.email || 'No contact'}</div>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div style={{ fontSize: '12px', color: '#64748B' }}>
+                    {c.vehicleInfo ? (
+                      `${c.vehicleInfo.make} ${c.vehicleInfo.model}`
+                    ) : (
+                      c.plate || 'N/A'
+                    )}
+                  </div>
+                </td>
+                <td>
+                  <span className="badge-pill badge-paid" style={{ fontSize: '10px' }}>Active</span>
+                </td>
+              </tr>
+            ))}
+            {(customers || []).length === 0 && (
+              <tr><td colSpan="3" style={{ padding: '24px', textAlign: 'center', color: '#64748B' }}>No customers registered.</td></tr>
+            )}
+          </tbody>
+        </table>
+        {(customers || []).length > 5 && (
+           <div style={{ padding: '12px', textAlign: 'center', fontSize: '11px', color: '#94A3B8', borderTop: '1px solid #F1F5F9' }}>
+             + {customers.length - 5} more customers in database.
+           </div>
         )}
       </div>
     </div>

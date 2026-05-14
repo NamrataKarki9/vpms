@@ -3,38 +3,54 @@ import React, { useState } from 'react';
 function InventoryManager({ inventory, onNavigate, onAddPart }) {
 
   return (
-    <div className="management-card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-        <h3>Inventory & Stock Purchases</h3>
+    <div className="staff-card">
+      <div className="staff-card-header">
+        <div className="staff-card-title">Inventory & Stock Control</div>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <button onClick={() => onNavigate('view-all-inventory')} className="btn-small" style={{ background: '#f1f5f9', color: '#0f172a', border: '1px solid #e2e8f0' }}>View All</button>
-          <button onClick={onAddPart} className="btn-small" style={{ background: '#10b981', color: '#fff' }}>
+          <button onClick={() => onNavigate('view-all-inventory')} className="btn-view-customer">View All</button>
+          <button onClick={onAddPart} className="btn-view-customer" style={{ background: '#DBEAFE', color: '#1D4ED8' }}>
             + New Part
           </button>
-          <button onClick={() => onNavigate('manage-inventory')} className="btn-small" style={{ background: 'var(--primary)', color: '#fff' }}>
+          <button onClick={() => onNavigate('manage-inventory')} className="btn-view-customer" style={{ background: '#1E293B', color: '#fff' }}>
             + Purchase
           </button>
         </div>
       </div>
 
-      <div className="data-list">
-        {inventory.length === 0 && <p style={{ opacity: 0.5, textAlign: 'center', padding: '1rem' }}>No parts registered yet.</p>}
-        {inventory.slice(0, 5).map(p => (
-          <div key={p.id} className="list-item">
-            <div>
-              <strong>{p.name}</strong>
-              <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>{p.vendorName || p.vendor || 'Unknown Vendor'}</div>
-              <div style={{ fontSize: '0.8rem', color: p.stock < 10 ? 'var(--secondary)' : 'inherit' }}>
-                 Stock: {p.stock} {p.stock < 10 && '(LOW)'}
-              </div>
-            </div>
-            <span>Rs. {p.price}</span>
-          </div>
-        ))}
-        {inventory.length > 5 && <p style={{ textAlign: 'center', fontSize: '0.8rem', opacity: 0.5, marginTop: '0.5rem' }}>+ {inventory.length - 5} more items in database.</p>}
+      <div className="staff-card-body">
+        <table className="staff-table">
+          <thead>
+            <tr>
+              <th>Part Name</th>
+              <th>Vendor</th>
+              <th>Stock</th>
+              <th>Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(inventory || []).slice(0, 5).map(p => (
+              <tr key={p.id}>
+                <td><div style={{ fontWeight: 600, fontSize: '13px' }}>{p.name}</div></td>
+                <td><div style={{ fontSize: '12px', color: '#64748B' }}>{p.vendorName || p.vendor || 'Unknown Vendor'}</div></td>
+                <td>
+                   <span className={`badge-pill ${p.stock < 10 ? 'badge-overdue' : 'badge-paid'}`} style={{ minWidth: '40px', textAlign: 'center' }}>
+                     {p.stock}
+                   </span>
+                </td>
+                <td><strong style={{ fontSize: '13px' }}>Rs. {p.price.toLocaleString()}</strong></td>
+              </tr>
+            ))}
+            {(inventory || []).length === 0 && (
+              <tr><td colSpan="4" style={{ padding: '24px', textAlign: 'center', color: '#64748B' }}>No parts registered.</td></tr>
+            )}
+          </tbody>
+        </table>
+        {(inventory || []).length > 5 && (
+           <div style={{ padding: '12px', textAlign: 'center', fontSize: '11px', color: '#94A3B8', borderTop: '1px solid #F1F5F9' }}>
+             + {inventory.length - 5} more items in database.
+           </div>
+        )}
       </div>
-
-
     </div>
   );
 }

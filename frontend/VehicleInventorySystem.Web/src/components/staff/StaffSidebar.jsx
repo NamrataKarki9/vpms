@@ -9,12 +9,15 @@ import {
   Package,
   CalendarClock,
   Wrench,
-  LogOut
+  LogOut,
+  ClipboardList,
+  Settings
 } from 'lucide-react';
 import { clearStoredUser } from '../../services/api';
 
-const StaffSidebar = ({ user }) => {
+const Sidebar = ({ user }) => {
   const navigate = useNavigate();
+  const isAdmin = user?.role === 'Admin';
 
   const handleLogout = () => {
     clearStoredUser();
@@ -25,7 +28,7 @@ const StaffSidebar = ({ user }) => {
   const NavItem = ({ to, icon: Icon, label }) => (
     <NavLink
       to={to}
-      end={to === '/staff/customers'}
+      end={to === (isAdmin ? '/admin' : '/staff/customers') || to === '/admin/inventory'}
       className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
     >
       <Icon size={15} strokeWidth={2} />
@@ -33,31 +36,58 @@ const StaffSidebar = ({ user }) => {
     </NavLink>
   );
 
-  const initials = (user?.name || 'ST').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  const initials = (user?.name || 'US').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
   return (
     <aside className="staff-sidebar">
       {/* Logo */}
       <div className="sidebar-logo">
         <div className="logo-text">
-          <div className="logo-icon">🔧</div>
+          <div className="logo-icon"><Wrench size={17} strokeWidth={2.3} /></div>
           <span>AutoParts Pro</span>
         </div>
-        <div className="logo-sub">Staff Portal</div>
+        <div className="logo-sub">{isAdmin ? 'Admin Portal' : 'Staff Portal'}</div>
       </div>
 
       {/* Nav */}
       <div style={{ flex: 1, paddingBottom: '12px' }}>
-        <div className="nav-section-label">Main</div>
-        <NavItem to="/staff/dashboard" icon={LayoutDashboard} label="Dashboard" />
-        <NavItem to="/staff/customers" icon={Users} label="Customers" />
-        <NavItem to="/staff/customers/segments" icon={BarChart2} label="Customer Reports" />
-        <NavItem to="/staff/sales/new" icon={ShoppingCart} label="Sales" />
-        <NavItem to="/staff/invoices" icon={FileText} label="Invoices" />
+        <div className="nav-section-label">{isAdmin ? 'Navigation' : 'Main'}</div>
+        {isAdmin ? (
+          <>
+            <NavItem to="/admin" icon={LayoutDashboard} label="Dashboard" />
+            <NavItem to="/vendors" icon={Wrench} label="Vendors" />
+            <NavItem to="/admin/inventory" icon={Package} label="Inventory" />
+            <NavItem to="/admin/inventory/purchase" icon={ClipboardList} label="Purchase Orders" />
+            <NavItem to="/admin/transactions" icon={ShoppingCart} label="Sales" />
+            <NavItem to="/admin/customers" icon={Users} label="Customers" />
+            <NavItem to="/admin/reports" icon={BarChart2} label="Reports" />
+            <div className="nav-link nav-link-disabled" aria-disabled="true">
+              <Settings size={15} strokeWidth={2} />
+              <span>Settings</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <NavItem to="/staff/dashboard" icon={LayoutDashboard} label="Dashboard" />
+            <NavItem to="/staff/customers" icon={Users} label="Customers" />
+            <NavItem to="/staff/customers/segments" icon={BarChart2} label="Customer Reports" />
+            <NavItem to="/staff/sales/new" icon={ShoppingCart} label="Sales" />
+            <NavItem to="/staff/invoices" icon={FileText} label="Invoices" />
+          </>
+        )}
 
-        <div className="nav-section-label">Inventory</div>
-        <NavItem to="/staff/parts" icon={Package} label="Parts" />
-        <NavItem to="/staff/appointments" icon={CalendarClock} label="Appointments" />
+        <div className="nav-section-label">{isAdmin ? 'Operations' : 'Inventory'}</div>
+        {isAdmin ? (
+          <>
+            <NavItem to="/parts" icon={Package} label="Parts Catalog" />
+            <NavItem to="/admin/staff" icon={Users} label="Staff" />
+          </>
+        ) : (
+          <>
+            <NavItem to="/staff/parts" icon={Package} label="Parts" />
+            <NavItem to="/staff/appointments" icon={CalendarClock} label="Appointments" />
+          </>
+        )}
       </div>
 
       {/* Footer */}
@@ -66,9 +96,9 @@ const StaffSidebar = ({ user }) => {
         <div className="avatar-circle">{initials}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: '13px', fontWeight: 700, color: '#1E293B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {user?.name || 'Staff User'}
+            {user?.name || 'User'}
           </div>
-          <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '1px' }}>Staff Member</div>
+          <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '1px' }}>{user?.role || 'Member'}</div>
         </div>
       </div>
 
@@ -104,4 +134,5 @@ const StaffSidebar = ({ user }) => {
   );
 };
 
-export default StaffSidebar;
+export default Sidebar;
+

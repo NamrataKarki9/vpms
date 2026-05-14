@@ -5,6 +5,7 @@ import PartsFilters from '../../components/parts/PartsFilters';
 import PartsStatsCards from '../../components/parts/PartsStatsCards';
 import PartsTable from '../../components/parts/PartsTable';
 import PartFormModal from '../../components/parts/PartFormModal';
+import { Plus } from 'lucide-react';
 
 const EMPTY_PARTS = [];
 const EMPTY_VENDORS = [];
@@ -88,7 +89,6 @@ export default function PartsPage() {
     try {
       const response = await vendorService.getVendors({ pageNumber: 1, pageSize: 200, status: 'all' });
       const loadedVendors = extractVendorItems(response);
-      console.log('Loaded vendors:', loadedVendors);
       setVendors(loadedVendors);
     } catch (error) {
       showToast('error', extractErrorMessage(error));
@@ -289,13 +289,13 @@ export default function PartsPage() {
 
   return (
     <div className="vendor-page parts-page">
-      <header className="vendor-page-hero card">
+      <header className="page-section-header vendor-page-hero">
         <div className="vendor-hero-copy">
-          <h1>Parts Management</h1>
+          <h2>Parts Management</h2>
           <p>Track parts catalog, stock levels, and vendor assignments in one place.</p>
         </div>
-        <button type="button" className="vendor-hero-action" onClick={openAddModal}>
-          + Add Part
+        <button type="button" className="btn-sale-primary vendor-hero-action" onClick={openAddModal}>
+          <Plus size={15} /> Add Part
         </button>
       </header>
 
@@ -355,6 +355,7 @@ export default function PartsPage() {
           <label htmlFor="part-page-size">Page size</label>
           <select
             id="part-page-size"
+            className="search-input-field"
             value={pageSize}
             onChange={(event) => {
               setPageSize(Number(event.target.value));
@@ -369,7 +370,7 @@ export default function PartsPage() {
       </div>
 
       {isLoading ? (
-        <div className="card vendor-loading">Loading part records...</div>
+        <div className="staff-card vendor-loading">Loading part records...</div>
       ) : (
         <PartsTable
           parts={pagedParts}
@@ -435,7 +436,7 @@ export default function PartsPage() {
               </p>
             </div>
             <div className="vendor-status-actions">
-              <button type="button" className="btn-secondary" onClick={closeStatusModal} disabled={isUpdatingStatus}>
+              <button type="button" className="btn-view-customer" onClick={closeStatusModal} disabled={isUpdatingStatus}>
                 Cancel
               </button>
               <button

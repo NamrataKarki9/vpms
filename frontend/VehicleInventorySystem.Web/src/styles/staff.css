@@ -18,6 +18,8 @@ body {
 /* ── SHELL LAYOUT ────────────────────────────── */
 .staff-shell {
   display: flex;
+  width: 100%;
+  min-width: 0;
   height: 100vh;
   overflow: hidden;
   background: #F0F4F8;
@@ -40,6 +42,7 @@ body {
 
 .staff-body {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -60,6 +63,7 @@ body {
 
 .staff-content {
   flex: 1;
+  min-width: 0;
   overflow-y: auto;
   padding: 28px;
   background: #F0F4F8;
@@ -260,7 +264,15 @@ body {
 /* ── TABLE STYLES ─────────────────────────────── */
 .staff-table {
   width: 100%;
+  min-width: 760px;
   border-collapse: collapse;
+}
+
+.staff-table-scroll {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .staff-table thead {
@@ -309,6 +321,7 @@ body {
   background: #fff;
   border: 1px solid #E2E8F0;
   border-radius: 14px;
+  min-width: 0;
   overflow: hidden;
   box-shadow: 0 1px 6px rgba(30,58,95,0.06);
 }
@@ -319,6 +332,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
   background: #FAFBFD;
 }
 
@@ -331,6 +345,72 @@ body {
 
 .staff-card-body {
   padding: 0;
+  min-width: 0;
+}
+
+.report-heading-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  min-width: 0;
+}
+
+.report-period-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.report-period-controls--header {
+  flex-shrink: 0;
+}
+
+.report-period-label {
+  margin: 0;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.report-period-controls--header .report-period-label {
+  color: rgba(255,255,255,0.82);
+}
+
+.report-period-select.search-input-field {
+  width: auto;
+  min-width: 210px;
+  height: 38px;
+  margin: 0;
+  background: #fff;
+  color: #1E293B;
+}
+
+.date-range-box {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-width: min(100%, 430px);
+}
+
+.date-range-box .search-input-field {
+  width: 100%;
+  height: 38px;
+  margin: 0;
+  background: #fff;
+}
+
+.report-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 24px;
 }
 
 /* ── METRIC CARDS ─────────────────────────────── */
@@ -516,4 +596,334 @@ body {
   border-radius: 50%;
   display: inline-block;
   margin-right: 6px;
+}
+
+/* Admin shell refinements */
+.admin-shell {
+  background: #f3f6fb;
+}
+
+.admin-shell .staff-sidebar {
+  width: 248px;
+  min-width: 248px;
+  background: #ffffff;
+  border-right: 1px solid #dfe7f1;
+  box-shadow: 1px 0 16px rgba(15, 23, 42, 0.05);
+}
+
+.admin-shell .sidebar-logo {
+  padding: 22px 20px 18px;
+  background: #ffffff;
+  border-bottom: 1px solid #e5edf6;
+}
+
+.admin-shell .logo-text {
+  color: #0f172a;
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.admin-shell .logo-icon {
+  background: #eaf2ff;
+  color: #1d4ed8;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px #d7e6fb;
+}
+
+.admin-shell .logo-sub {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.admin-shell .nav-section-label {
+  padding: 18px 18px 8px;
+  color: #94a3b8;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.admin-shell .nav-link {
+  width: calc(100% - 24px);
+  min-height: 38px;
+  margin: 3px 12px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  color: #475569;
+  gap: 10px;
+  font-weight: 650;
+}
+
+.admin-shell .nav-link:hover {
+  background: #f3f7fc;
+  color: #0f172a;
+}
+
+.admin-shell .nav-link.active {
+  background: #e8f1ff;
+  color: #1d4ed8;
+  box-shadow: inset 3px 0 0 #1e3a8a;
+}
+
+.admin-shell .nav-link-disabled,
+.admin-shell .nav-link-disabled:hover {
+  background: transparent;
+  color: #94a3b8;
+  cursor: default;
+  opacity: 0.72;
+}
+
+.admin-shell .staff-content {
+  padding: 24px;
+  background: #f3f6fb;
+}
+
+.admin-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  min-height: 64px;
+  height: auto;
+  padding: 12px 24px;
+  gap: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid #dfe7f1;
+  box-shadow: 0 1px 10px rgba(15, 23, 42, 0.04);
+}
+
+.admin-topbar-left,
+.admin-topbar-actions,
+.admin-breadcrumbs {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.admin-topbar-left {
+  flex: 1;
+}
+
+.admin-breadcrumbs {
+  gap: 6px;
+}
+
+.admin-breadcrumb-link {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: #64748b;
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-breadcrumb-link:hover {
+  background: transparent;
+  color: #1d4ed8;
+  box-shadow: none;
+  transform: none;
+}
+
+.admin-breadcrumb-current {
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-topbar-actions {
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.admin-search {
+  width: clamp(260px, 30vw, 420px);
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid #d9e3ee;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.admin-search input {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+  font-size: 13px;
+  outline: 0;
+  box-shadow: none;
+}
+
+.admin-search input::placeholder {
+  color: #94a3b8;
+}
+
+.admin-icon-btn,
+.admin-primary-action,
+.admin-profile-avatar {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.admin-icon-btn {
+  position: relative;
+  width: 40px;
+  padding: 0;
+  border: 1px solid #d9e3ee;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #475569;
+  box-shadow: none;
+}
+
+.admin-icon-btn:hover {
+  background: #f8fafc;
+  color: #1d4ed8;
+  box-shadow: none;
+  transform: none;
+}
+
+.admin-notification-dot {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  width: 7px;
+  height: 7px;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  background: #ef4444;
+}
+
+.admin-primary-action {
+  gap: 7px;
+  padding: 0 14px;
+  border: 1px solid #1e3a8a;
+  border-radius: 10px;
+  background: #1e3a8a;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 750;
+  box-shadow: 0 8px 18px rgba(30, 58, 138, 0.2);
+}
+
+.admin-primary-action:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  box-shadow: 0 10px 22px rgba(29, 78, 216, 0.24);
+  transform: translateY(-1px);
+}
+
+.admin-profile-avatar {
+  width: 40px;
+  border-radius: 999px;
+  background: #e8f1ff;
+  color: #1e3a8a;
+  border: 1px solid #cfe0f7;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+@media (max-width: 900px) {
+  .staff-shell {
+    flex-direction: column;
+    min-height: 100vh;
+    height: auto;
+    overflow: visible;
+  }
+
+  .staff-sidebar {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    max-height: none;
+  }
+
+  .staff-body {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .staff-content {
+    overflow: visible;
+    padding: 18px;
+  }
+
+  .staff-topbar,
+  .staff-card-header,
+  .report-heading-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .report-period-controls,
+  .report-period-controls--header {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .report-period-select.search-input-field,
+  .date-range-box {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .staff-content {
+    padding: 14px;
+  }
+
+  .page-section-header {
+    padding: 20px;
+  }
+
+  .date-range-box {
+    grid-template-columns: 1fr;
+  }
+
+  .date-range-box .report-generate-btn {
+    width: 100%;
+  }
+
+  .staff-table {
+    min-width: 720px;
+  }
+}
+
+@media (max-width: 900px) {
+  .admin-shell .staff-sidebar {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .admin-topbar-actions {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .admin-search {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-shell .staff-content {
+    padding: 14px;
+  }
+
+  .admin-primary-action {
+    flex: 1;
+  }
 }

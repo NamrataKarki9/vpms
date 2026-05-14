@@ -33,6 +33,7 @@ export default function VendorSearchSelect({ vendors, value, onChange, label }) 
     <label>
       {label && <span>{label}</span>}
       <input
+        className="search-input-field"
         type="search"
         placeholder="Search vendors..."
         value={searchValue}
