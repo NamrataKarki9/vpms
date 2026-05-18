@@ -11,7 +11,7 @@ import VendorSearchSelect from '../components/VendorSearchSelect';
 import { ExportFinancialReportPdf } from "../utils/Pdf/FinancialReportPdf";
 import { ExportCustomerReportPdf } from "../utils/Pdf/CustomerReportPdf";
 import TransactionsTable from '../components/staff/TransactionsTable';
-import { Download, FileSpreadsheet, FileText } from 'lucide-react';
+import { Download, FileText } from 'lucide-react';
 import '../styles/admin-dashboard.css';
 
 import {
@@ -264,7 +264,7 @@ const buildReportQuery = ({ period, startDate, endDate }) => {
 };
 
 const getReportPeriodLabel = (filter) => {
-  if (filter.period === 'custom') return 'Custom';
+  if (filter.period === 'custom') return 'Custom Date Range';
   return filter.period.charAt(0).toUpperCase() + filter.period.slice(1);
 };
 
@@ -554,22 +554,19 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
   const handleReportPeriodChange = (event) => {
     const nextPeriod = event.target.value;
     setReportPeriod(nextPeriod);
-    setAppliedReportFilter(buildFilterFromPeriod(nextPeriod, fromDate, toDate));
+
+    if (nextPeriod !== CUSTOM_REPORT_PERIOD) {
+      setAppliedReportFilter(buildFilterFromPeriod(nextPeriod));
+    }
   };
 
   const handleCustomDateChange = (field) => (event) => {
     const value = event.target.value;
-    const nextFromDate = field === 'startDate' ? value : fromDate;
-    const nextToDate = field === 'endDate' ? value : toDate;
 
     if (field === 'startDate') {
       setFromDate(value);
     } else {
       setToDate(value);
-    }
-
-    if (reportPeriod === CUSTOM_REPORT_PERIOD) {
-      setAppliedReportFilter(buildFilterFromPeriod(reportPeriod, nextFromDate, nextToDate));
     }
   };
 
@@ -582,17 +579,6 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
     }
 
     setAppliedReportFilter(buildFilterFromPeriod(CUSTOM_REPORT_PERIOD, fromDate, toDate));
-  };
-
-  const handleGenerateReport = (event) => {
-    event?.preventDefault();
-
-    if (reportPeriod === CUSTOM_REPORT_PERIOD) {
-      handleGenerateCustomReport(event);
-      return;
-    }
-
-    setAppliedReportFilter(buildFilterFromPeriod(reportPeriod));
   };
 
   const canExportFinancialReport = hasFinancialReportLoaded && !isFinancialReportLoading;
@@ -608,7 +594,7 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
   };
 
   const renderReportPeriodControls = (placement = 'card') => (
-    <div className="admin-filter-bar">
+    <div className="admin-filter-stack">
       <div className="admin-filter-field">
         <span className="admin-filter-label">Report Period</span>
         <select
@@ -618,12 +604,14 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
           className="admin-filter-select"
         >
           {REPORT_PERIODS.map((period) => (
-            <option key={period} value={period}>{period}</option>
+            <option key={period} value={period}>
+              {period === CUSTOM_REPORT_PERIOD ? 'Custom Date Range' : period}
+            </option>
           ))}
         </select>
       </div>
       {reportPeriod === CUSTOM_REPORT_PERIOD && (
-        <>
+        <form className="admin-custom-range-box" onSubmit={handleGenerateCustomReport}>
           <div className="admin-filter-field">
             <span className="admin-filter-label">From Date</span>
             <input type="date" value={fromDate} onChange={handleCustomDateChange('startDate')} className="admin-filter-input" aria-label="From Date" />
@@ -632,9 +620,9 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
             <span className="admin-filter-label">To Date</span>
             <input type="date" value={toDate} min={fromDate || undefined} onChange={handleCustomDateChange('endDate')} className="admin-filter-input" aria-label="To Date" />
           </div>
-        </>
+          <button type="submit" className="admin-generate-btn">Generate Report</button>
+        </form>
       )}
-      <button type="button" className="admin-generate-btn" onClick={handleGenerateReport}>Generate Report</button>
     </div>
   );
 
@@ -642,12 +630,14 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
     <div className="admin-card admin-financials-card" id="stats">
       <div className="admin-card-header">
         <div className="admin-card-title-block">
-          <h3 className="admin-card-title">Financial Performance</h3>
+          <h3 className="admin-card-title">Live Financials</h3>
           <p className="admin-card-subtitle">Revenue, activity count, and annual totals from live transactions.</p>
         </div>
       </div>
       <div className="admin-card-body">
-        {renderReportPeriodControls('financials')}
+        <div className="admin-filter-section">
+          {renderReportPeriodControls('financials')}
+        </div>
         <div className="admin-results-section">
           <div className="admin-section-heading">
             <span className="admin-section-label">Report Results</span>
@@ -691,7 +681,7 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
               onClick={() => ExportFinancialReportPdf({ ...report, period: appliedReportFilter.period, revenue: filteredTransactionRevenue, count: filteredTransactions.length }, appliedReportFilter.period, "Admin", appliedReportFilter)}
             >
               <FileText size={13} />
-              <span>Export Financial PDF</span>
+              <span>Export Financial Report PDF</span>
             </button>
             <button
               className="admin-export-btn admin-export-btn--customer"
@@ -699,11 +689,7 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
               onClick={() => ExportCustomerReportPdf(adminCustomerReport, "customer-summary", "Admin", appliedReportFilter)}
             >
               <Download size={13} />
-              <span>Export Customer PDF</span>
-            </button>
-            <button className="admin-export-btn admin-export-btn--csv" disabled title="CSV export is not connected to an existing dashboard workflow.">
-              <FileSpreadsheet size={13} />
-              <span>Download CSV</span>
+              <span>Export Customer Report PDF</span>
             </button>
           </div>
         </div>

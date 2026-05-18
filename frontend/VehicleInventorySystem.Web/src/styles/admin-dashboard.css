@@ -92,14 +92,17 @@
 /* ── FINANCIALS CARD ──────────────────────────────── */
 .admin-financials-card { }
 
-.admin-filter-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 14px 20px;
-  border-bottom: 1px solid #F1F5F9;
+.admin-filter-section {
+  padding: 16px 20px;
+  border-bottom: 1px solid #E8ECF0;
   background: #FAFCFF;
+}
+
+.admin-filter-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
 }
 
 .admin-filter-field {
@@ -142,6 +145,19 @@
 .admin-filter-select { min-width: 150px; }
 .admin-filter-input  { min-width: 130px; }
 
+.admin-custom-range-box {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  width: fit-content;
+  max-width: 100%;
+  padding: 12px;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  background: #FFFFFF;
+}
+
 .admin-filter-select:focus,
 .admin-filter-input:focus {
   border-color: #2563A8;
@@ -152,7 +168,7 @@
   padding: 0 14px;
   background: #1E3A5F;
   color: #fff;
-  border: none;
+  border: 1px solid #1E3A5F;
   border-radius: 7px;
   font-size: 12px;
   font-weight: 600;
@@ -166,14 +182,15 @@
 
 .admin-generate-btn:hover {
   background: #162F4D;
+  border-color: #162F4D;
   transform: none;
   box-shadow: none;
 }
 
 /* Report Results section inside Financials */
 .admin-results-section {
-  padding: 16px 20px;
-  border-bottom: 1px solid #F1F5F9;
+  padding: 18px 20px;
+  border-bottom: 1px solid #E8ECF0;
 }
 
 .admin-section-heading {
@@ -266,7 +283,7 @@
 
 /* Export section */
 .admin-export-section {
-  padding: 14px 20px;
+  padding: 18px 20px 20px;
 }
 
 .admin-export-actions {
@@ -280,7 +297,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 13px;
+  padding: 0 13px;
   border-radius: 7px;
   font-size: 12px;
   font-weight: 600;
@@ -289,10 +306,14 @@
   border: 1px solid transparent;
   transition: opacity 0.15s, background 0.15s;
   box-shadow: none;
-  height: 32px;
+  height: 34px;
 }
 
-.admin-export-btn:hover { opacity: 0.88; transform: none; box-shadow: none; }
+.admin-export-btn:hover {
+  background: #F8FAFC;
+  transform: none;
+  box-shadow: none;
+}
 
 .admin-export-btn:disabled,
 .admin-export-btn:disabled:hover {
@@ -302,21 +323,15 @@
 }
 
 .admin-export-btn--financial {
-  background: #DCFCE7;
-  border-color: #BBF7D0;
-  color: #166534;
+  background: #FFFFFF;
+  border-color: #CBD5E1;
+  color: #334155;
 }
 
 .admin-export-btn--customer {
-  background: #DBEAFE;
-  border-color: #BFDBFE;
-  color: #1D4ED8;
-}
-
-.admin-export-btn--csv {
-  background: #F1F5F9;
-  border-color: #E2E8F0;
-  color: #64748B;
+  background: #FFFFFF;
+  border-color: #CBD5E1;
+  color: #334155;
 }
 
 /* ── VENDOR CARD ──────────────────────────────────── */
@@ -649,9 +664,17 @@
 }
 
 @media (max-width: 600px) {
-  .admin-filter-bar { gap: 8px; }
+  .admin-filter-section { padding: 14px 16px; }
   .admin-filter-select,
   .admin-filter-input { min-width: 0; width: 100%; }
+  .admin-custom-range-box {
+    width: 100%;
+    padding: 12px;
+  }
+  .admin-custom-range-box .admin-filter-field,
+  .admin-custom-range-box .admin-generate-btn {
+    width: 100%;
+  }
   .admin-metrics-row { grid-template-columns: 1fr; }
   .admin-metric-cell { border-right: none; border-bottom: 1px solid #E8ECF0; }
   .admin-metric-cell:last-child { border-bottom: none; }
