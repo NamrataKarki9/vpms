@@ -448,7 +448,7 @@ public class UserService : IUserService
             Role = user.Role.ToString(),
             IsActive = user.IsActive,
             CreatedAt = user.CreatedAt,
-            Vehicles = user.Vehicles?.Select(v => new VehicleResponse
+            Vehicles = user.Vehicles?.Where(v => v.DeletedAt == null).Select(v => new VehicleResponse
             {
                 Id = v.Id,
                 PlateNumber = v.PlateNumber,
