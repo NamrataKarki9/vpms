@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { authApi } from '../services/api';
+import { useToast } from '../context/ToastContext';
 import { Mail, Lock, Eye, EyeOff, LogIn, AlertCircle } from 'lucide-react';
 import '../styles/auth.css';
 
 export function LoginPage({ onLogin, onSignUp, onForgotPassword }) {
+  const showToast = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -35,13 +37,15 @@ export function LoginPage({ onLogin, onSignUp, onForgotPassword }) {
     setIsLoading(true);
     try {
       const user = await authApi.login(email.trim(), password);
-      onLogin({
+      const userData = {
         id: user.id ?? user.Id,
         name: user.fullName ?? user.FullName ?? user.name ?? user.Name,
         email: user.emailAddress ?? user.EmailAddress ?? user.email ?? user.Email,
         role: user.role ?? user.Role,
         token: user.token ?? user.Token
-      });
+      };
+      showToast('success', `Welcome back, ${userData.name}!`);
+      onLogin(userData);
     } catch (err) {
       setLoginError(err.message || 'Invalid email or password.');
     } finally {
@@ -101,7 +105,6 @@ export function LoginPage({ onLogin, onSignUp, onForgotPassword }) {
                 </button>
               </div>
               <div className="auth-input-wrapper">
-                <Lock className="auth-input-icon" size={18} />
                 <input
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"

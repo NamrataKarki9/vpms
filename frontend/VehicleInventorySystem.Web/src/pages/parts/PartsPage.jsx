@@ -272,6 +272,12 @@ export default function PartsPage() {
     setPageNumber(1);
   };
 
+  const handleStatusFilterChange = (status) => {
+    setDraftStatusFilter(status);
+    setAppliedStatusFilter(status);
+    setPageNumber(1);
+  };
+
   const handleClearFilters = (event) => {
     event.preventDefault();
     clearPartFilters();
@@ -303,7 +309,7 @@ export default function PartsPage() {
         searchTerm={searchInput}
         onSearchChange={setSearchInput}
         statusFilter={draftStatusFilter}
-        onStatusChange={setDraftStatusFilter}
+        onStatusChange={handleStatusFilterChange}
         onSearch={handleSearch}
         onInputSearch={handleSearchInputClear}
         onClear={handleClearFilters}

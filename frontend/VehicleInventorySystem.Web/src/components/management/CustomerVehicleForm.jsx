@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useToast } from '../../context/ToastContext';
 import VehicleForm from '../forms/VehicleForm';
+import { User, Phone, Mail, Lock, Eye, EyeOff, ChevronRight, CheckCircle } from 'lucide-react';
 
 function CustomerVehicleForm({ onRegister }) {
   const showToast = useToast();
@@ -36,7 +37,11 @@ function CustomerVehicleForm({ onRegister }) {
 
   const validatePassword = (passwordVal) => {
     if (!passwordVal.trim()) return 'Password is required';
-    if (passwordVal.length < 6) return 'At least 6 characters';
+    if (passwordVal.length < 8) return 'At least 8 characters required';
+    if (!/\d/.test(passwordVal)) return 'Must include a number (0-9)';
+    if (!/[a-z]/.test(passwordVal)) return 'Must include lowercase letter (a-z)';
+    if (!/[A-Z]/.test(passwordVal)) return 'Must include uppercase letter (A-Z)';
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(passwordVal)) return 'Must include special character (!@#$%^&*...)';
     return '';
   };
 
@@ -75,28 +80,34 @@ function CustomerVehicleForm({ onRegister }) {
     return '';
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     if (e) e.preventDefault();
     if (onRegister) {
-      onRegister({
+      const result = await onRegister({
         name: formData.name,
-        phone: formData.phone,
         email: formData.email,
+        phoneNumber: formData.phone,
         password: formData.password,
-        vehicle: {
-          plateNumber: formData.plateNumber,
-          make: formData.make,
-          model: formData.model,
-          year: parseInt(formData.year, 10),
-          fuelType: formData.fuelType,
-          mileage: Number(formData.mileage)
-        }
+        confirmPassword: formData.password,
+        vehicles: [
+          {
+            plateNumber: formData.plateNumber,
+            make: formData.make,
+            model: formData.model,
+            year: parseInt(formData.year, 10),
+            fuelType: formData.fuelType,
+            mileage: Number(formData.mileage)
+          }
+        ]
       });
+      
+      if (result) {
+        showToast('success', `${formData.name} registered with vehicle ${formData.plateNumber}`);
+        setStep(1);
+        setFormData({ name: '', phone: '', email: '', password: '', plateNumber: '', make: '', model: '', year: new Date().getFullYear(), fuelType: '', mileage: 0 });
+        setErrors({ name: '', phone: '', email: '', password: '', plateNumber: '', make: '', model: '', year: '', fuelType: '', mileage: '' });
+      }
     }
-    showToast('success', `${formData.name} registered with vehicle ${formData.plateNumber}`);
-    setStep(1);
-    setFormData({ name: '', phone: '', email: '', password: '', plateNumber: '', make: '', model: '', year: new Date().getFullYear(), fuelType: '', mileage: 0 });
-    setErrors({ name: '', phone: '', email: '', password: '', plateNumber: '', make: '', model: '', year: '', fuelType: '', mileage: '' });
   };
 
   const canProceedStep1 = () => {
@@ -199,9 +210,8 @@ function CustomerVehicleForm({ onRegister }) {
             <div className="auth-form-group">
               <label className="auth-label">Create Password</label>
               <div className="auth-input-wrapper">
-                <Lock className="auth-input-icon" size={18} />
                 <input 
-                  type={showPassword ? "text" : "password"} placeholder="Minimum 6 characters" 
+                  type={showPassword ? "text" : "password"} placeholder="Minimum 8 characters" 
                   className={`auth-input ${errors.password ? 'error' : ''}`}
                   value={formData.password} 
                   onChange={e => {

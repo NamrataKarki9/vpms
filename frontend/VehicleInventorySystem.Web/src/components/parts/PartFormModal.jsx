@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import VendorSearchSelect from '../VendorSearchSelect';
+import { useToast } from '../../context/ToastContext';
 
 const EMPTY_FORM = {
   name: '',
@@ -20,8 +21,8 @@ export default function PartFormModal({
   onSubmit,
   isSaving,
 }) {
+  const showToast = useToast();
   const [form, setForm] = useState(EMPTY_FORM);
-  const [errors, setErrors] = useState({});
   const activeVendors = useMemo(() => {
     return (vendors || [])
       .map((vendor) => ({
@@ -44,13 +45,11 @@ export default function PartFormModal({
         stockLevel: Number.isFinite(Number(initialPart.stockLevel)) ? String(initialPart.stockLevel) : '',
         vendorId: initialPart.vendorId ? String(initialPart.vendorId) : '',
       });
-      setErrors({});
       return;
     }
 
     if (isOpen && !initialPart) {
       setForm(EMPTY_FORM);
-      setErrors({});
     }
   }, [isOpen, initialPart]);
 
@@ -63,45 +62,53 @@ export default function PartFormModal({
   };
 
   const validate = () => {
-    const nextErrors = {};
     const trimmedName = form.name.trim();
     const trimmedCode = form.partCode.trim();
     const priceValue = Number(form.price);
     const stockValue = Number(form.stockLevel);
     const vendorValue = Number(form.vendorId);
 
+    // Validate in priority order and show toast for first error
     if (!trimmedName) {
-      nextErrors.name = 'Name is required.';
+      showToast('error', 'Name is required.');
+      return false;
     }
 
     if (!trimmedCode) {
-      nextErrors.partCode = 'Part code is required.';
+      showToast('error', 'Part code is required.');
+      return false;
     }
 
     if (form.price === '' || Number.isNaN(priceValue)) {
-      nextErrors.price = 'Price is required.';
+      showToast('error', 'Price is required.');
+      return false;
     } else if (priceValue < 0) {
-      nextErrors.price = 'Price must be 0 or greater.';
+      showToast('error', 'Price must be 0 or greater.');
+      return false;
     }
 
     if (form.stockLevel === '' || Number.isNaN(stockValue)) {
-      nextErrors.stockLevel = 'Stock level is required.';
+      showToast('error', 'Stock level is required.');
+      return false;
     } else if (stockValue < 0) {
-      nextErrors.stockLevel = 'Stock level must be 0 or greater.';
+      showToast('error', 'Stock level must be 0 or greater.');
+      return false;
     }
 
     if (!form.vendorId || Number.isNaN(vendorValue) || vendorValue <= 0) {
-      nextErrors.vendorId = 'Vendor is required.';
+      showToast('error', 'Vendor is required.');
+      return false;
     }
 
-    setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+    return true;
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    console.log('PartFormModal handleSubmit called');
 
     if (!validate()) {
+      console.log('Validation failed');
       return;
     }
 
@@ -114,10 +121,17 @@ export default function PartFormModal({
       vendorId: Number(form.vendorId),
     };
 
-    await onSubmit(payload);
-  };
+    console.log('Payload:', payload);
 
-  const errorMessages = Object.values(errors);
+    try {
+      console.log('Calling onSubmit');
+      await onSubmit(payload);
+      console.log('onSubmit completed successfully');
+    } catch (error) {
+      console.error('Error submitting part form:', error);
+      showToast('error', error?.message || 'Failed to submit form.');
+    }
+  };
 
   return (
     <div className="modal-overlay" role="presentation" onClick={onClose}>
@@ -167,14 +181,6 @@ export default function PartFormModal({
               <textarea className="search-input-field" value={form.description} onChange={handleChange('description')} placeholder="Part description" rows={4} />
             </label>
           </div>
-
-          {errorMessages.length > 0 && (
-            <div className="form-error">
-              {errorMessages.map((message) => (
-                <div key={message}>{message}</div>
-              ))}
-            </div>
-          )}
 
           <div className="modal-actions">
             <button type="button" className="btn-view-customer" onClick={onClose}>

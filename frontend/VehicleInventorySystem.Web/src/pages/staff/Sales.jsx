@@ -66,19 +66,53 @@ const Sales = ({ customers, parts, onProcessSale }) => {
   const selectedCustomer = customers.find(c => c.id === parseInt(selectedCust));
 
   const handleAddToCart = () => {
-    if (!selectedPart) return;
-    if (!selectedVehicle) return showToast('error', 'Please select a vehicle first.');
+    // Step 1: Validate customer selection
+    if (!selectedCust) {
+      showToast('error', 'Please choose a customer.');
+      return;
+    }
+
+    // Step 2: Validate vehicle selection
+    if (!selectedVehicle) {
+      showToast('error', 'Please choose a vehicle.');
+      return;
+    }
+
+    // Step 3: Validate part selection
+    if (!selectedPart) {
+      showToast('error', 'Please choose a part.');
+      return;
+    }
+
+    // Step 4: Validate quantity
+    const qty = parseInt(quantity);
+    if (isNaN(qty) || qty <= 0) {
+      showToast('error', 'Please enter a valid quantity (greater than 0).');
+      return;
+    }
+
     const part = parts.find(p => p.id === parseInt(selectedPart));
-    if (!part) return;
-    if (part.stock < parseInt(quantity)) return showToast('error', `Insufficient stock! Only ${part.stock} available.`);
+    if (!part) {
+      showToast('error', 'Selected part not found.');
+      return;
+    }
+
+    // Step 5: Validate stock
+    if (part.stock < qty) {
+      showToast('error', `Insufficient stock! Only ${part.stock} available.`);
+      return;
+    }
+
+    // Add to cart
     const existing = cart.find(c => c.id === part.id);
     if (existing) {
-      setCart(cart.map(c => c.id === part.id ? { ...c, quantity: c.quantity + parseInt(quantity) } : c));
+      setCart(cart.map(c => c.id === part.id ? { ...c, quantity: c.quantity + qty } : c));
     } else {
-      setCart([...cart, { ...part, quantity: parseInt(quantity) }]);
+      setCart([...cart, { ...part, quantity: qty }]);
     }
     setSelectedPart('');
     setQuantity(1);
+    showToast('success', `${part.name} added to cart.`);
   };
 
   const handleRemove = (id) => setCart(cart.filter(c => c.id !== id));
@@ -91,6 +125,86 @@ const Sales = ({ customers, parts, onProcessSale }) => {
     return { payNow: 0, credit: 0 };
   };
   const { payNow, credit } = getCalc();
+
+  const validatePurchaseForm = () => {
+    // Step 1: Check if customer is selected
+    if (!selectedCust) {
+      showToast('error', 'Please choose a customer.');
+      return false;
+    }
+
+    // Step 2: Check if vehicle is selected
+    if (!selectedVehicle) {
+      showToast('error', 'Please choose a vehicle.');
+      return false;
+    }
+
+    // Step 3: Check if parts are added to cart
+    if (cart.length === 0) {
+      showToast('error', 'Please add at least one part to the cart.');
+      return false;
+    }
+
+    // Step 4: Check if payment status is selected
+    if (!paymentStatus) {
+      showToast('error', 'Please select a payment type.');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleProceedToReview = () => {
+    if (validatePurchaseForm()) {
+      setStep(1);
+    }
+  };
+
+  const validateServiceForm = () => {
+    // Step 1: Check if customer is selected
+    if (!selectedCust) {
+      showToast('error', 'Please choose a customer .');
+      return false;
+    }
+
+    // Step 2: Check if vehicle is selected
+    if (!selectedVehicle) {
+      showToast('error', 'Please choose a vehicle .');
+      return false;
+    }
+
+    // Step 3: Check if service type is selected
+    if (!serviceForm.serviceType) {
+      showToast('error', 'Please select a service type.');
+      return false;
+    }
+
+    // Step 4: Check if service date is selected
+    if (!serviceForm.serviceDate) {
+      showToast('error', 'Please select a service date.');
+      return false;
+    }
+
+    // Step 5: Check if service charge is entered
+    if (!serviceForm.serviceCharge || parseFloat(serviceForm.serviceCharge) <= 0) {
+      showToast('error', 'Please enter a valid service charge.');
+      return false;
+    }
+
+    // Step 6: Check if payment type is selected
+    if (!paymentStatus) {
+      showToast('error', 'Please select a payment type.');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleProceedServiceToReview = () => {
+    if (validateServiceForm()) {
+      setStep(1);
+    }
+  };
 
   const handleComplete = async () => {
     setIsProcessing(true);
@@ -465,7 +579,21 @@ const Sales = ({ customers, parts, onProcessSale }) => {
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={{ fontSize: '12px', color: '#64748B', fontWeight: 600, display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Qty</label>
-                  <input type="number" min="1" value={quantity} onChange={e => setQuantity(e.target.value)} className="search-input-field" style={{ width: '100%' }} />
+                  <input 
+                    type="number" 
+                    min="1" 
+                    value={quantity} 
+                    onChange={e => {
+                      const val = e.target.value;
+                      if (val === '' || val === '0') {
+                        setQuantity('1');
+                      } else if (!isNaN(val) && parseInt(val) > 0) {
+                        setQuantity(val);
+                      }
+                    }} 
+                    className="search-input-field" 
+                    style={{ width: '100%' }} 
+                  />
                 </div>
                 <div style={{ alignSelf: 'flex-end' }}>
                   <button onClick={handleAddToCart} className="btn-sale-primary" style={{ height: '38px' }}>
@@ -532,7 +660,7 @@ const Sales = ({ customers, parts, onProcessSale }) => {
               </div>
 
               <button
-                onClick={() => setStep(1)}
+                onClick={handleProceedToReview}
                 disabled={!paymentStatus || !selectedCust || !selectedVehicle || cart.length === 0}
                 className="btn-sale-primary"
                 style={{ width: '100%', height: '46px', justifyContent: 'center', fontSize: '14px' }}
@@ -627,7 +755,7 @@ const Sales = ({ customers, parts, onProcessSale }) => {
               )}
 
               <button
-                onClick={() => setStep(1)}
+                onClick={handleProceedServiceToReview}
                 disabled={!selectedCust || !selectedVehicle || !serviceForm.serviceType || !serviceForm.serviceDate || !serviceForm.serviceCharge || !paymentStatus}
                 className="btn-sale-primary"
                 style={{ width: '100%', height: '46px', justifyContent: 'center', fontSize: '14px' }}

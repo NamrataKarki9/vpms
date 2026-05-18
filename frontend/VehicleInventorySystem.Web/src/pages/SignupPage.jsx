@@ -1,11 +1,36 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import CustomerVehicleForm from '../components/management/CustomerVehicleForm';
-import { ArrowLeft } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
 import '../styles/auth.css';
 
 const ROLES = { CUSTOMER: 'Customer' };
 
-export function SignupPage({ onComplete, onBack, onAddCustomer }) {
+export function SignupPage({ onAddCustomer }) {
+  const navigate = useNavigate();
+  const showToast = useToast();
+
+  const handleRegistrationComplete = async (data) => {
+    try {
+      const savedCustomer = await onAddCustomer(data);
+      if (savedCustomer) {
+        showToast('success', 'Registration successful! Redirecting to login...');
+        // Redirect to login page after successful registration
+        setTimeout(() => {
+          navigate('/login', { 
+            state: { 
+              message: `Registration successful! Please log in with your email: ${savedCustomer.email}` 
+            } 
+          });
+        }, 1500);
+        return savedCustomer;
+      }
+    } catch (error) {
+      showToast('error', error.message || 'Registration failed');
+      return null;
+    }
+  };
+
   return (
     <div className="auth-wrapper" style={{ minHeight: '100vh', padding: '40px 20px' }}>
       <div className="auth-card" style={{ maxWidth: '500px' }}>
@@ -16,16 +41,11 @@ export function SignupPage({ onComplete, onBack, onAddCustomer }) {
         </div>
         
         <div className="auth-body">
-          <CustomerVehicleForm onRegister={async (data) => {
-            const savedCustomer = await onAddCustomer(data);
-            if (savedCustomer) {
-              onComplete({ ...savedCustomer, role: savedCustomer.role || ROLES.CUSTOMER });
-            }
-          }} />
+          <CustomerVehicleForm onRegister={handleRegistrationComplete} />
           
           <div className="auth-footer">
             <span className="auth-text-muted">Already have an account? </span>
-            <button onClick={onBack} className="auth-link">Sign In Instead</button>
+            <button onClick={() => navigate('/login')} className="auth-link">Sign In Instead</button>
           </div>
         </div>
       </div>

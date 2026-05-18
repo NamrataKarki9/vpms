@@ -190,6 +190,17 @@ function App() {
     }
   };
 
+  const handleAddCustomer = async (customerData) => {
+    try {
+      const response = await authApi.registerCustomer(customerData);
+      showToast('success', 'Registration successful! Please log in with your credentials.');
+      return response;
+    } catch (error) {
+      showToast('error', error.message || 'Failed to register customer.');
+      return null;
+    }
+  };
+
   const handleUpdateCustomer = (updatedCustomer) => {
     setCustomerList((current) =>
       current.map((customer) => (customer.id === updatedCustomer.id ? { ...customer, ...updatedCustomer } : customer))
@@ -218,7 +229,7 @@ function App() {
         <Routes>
           <Route path="/" element={user ? <Navigate to={user.role === ROLES.STAFF ? "/staff/dashboard" : (user.role === ROLES.ADMIN ? "/admin" : "/customer")} /> : <Navigate to="/login" />} />
           <Route path="/login" element={<LoginPage onLogin={handleLogin} onSignUp={() => navigate('/signup')} onForgotPassword={() => navigate('/forgot-password')} />} />
-          <Route path="/signup" element={<SignupPage onComplete={handleLogin} onBack={() => navigate('/login')} onAddCustomer={() => {}} />} />
+          <Route path="/signup" element={<SignupPage onAddCustomer={handleAddCustomer} />} />
           
           {/* Staff Section with Layout Overhaul */}
           {user?.role === ROLES.STAFF && (

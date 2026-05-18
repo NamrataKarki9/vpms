@@ -16,7 +16,7 @@ public class CreateCustomerRequest
     public string PhoneNumber { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Password is required")]
-    [StringLength(255, MinimumLength = 6, ErrorMessage = "Password must be at least 6 characters")]
+    [StringLength(255, MinimumLength = 8, ErrorMessage = "Password must be at least 8 characters and include uppercase, lowercase, number, and special character")]
     public string Password { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Confirm password is required")]

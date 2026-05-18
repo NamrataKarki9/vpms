@@ -4,14 +4,16 @@ import StaffManager from '../components/management/StaffManager';
 import InventoryManager from '../components/management/InventoryManager';
 import CustomerManager from '../components/management/CustomerManager';
 import Dialog from '../components/Dialog';
-import { extractVendorItems, vendorService } from '../services/vendorService';
+import { extractVendorItems, normalizeVendor, vendorService } from '../services/vendorService';
 import { useToast } from '../context/ToastContext';
 import PartFormModal from '../components/parts/PartFormModal';
 import VendorSearchSelect from '../components/VendorSearchSelect';
+import StaffFilters from '../components/staff/StaffFilters';
 import { ExportFinancialReportPdf } from "../utils/Pdf/FinancialReportPdf";
 import { ExportCustomerReportPdf } from "../utils/Pdf/CustomerReportPdf";
 import TransactionsTable from '../components/staff/TransactionsTable';
-import { Download, FileText } from 'lucide-react';
+import StaffStatsCards from '../components/staff/StaffStatsCards';
+import { Download, FileText, AlertCircle, Plus, Edit2, Trash2 } from 'lucide-react';
 import '../styles/admin-dashboard.css';
 
 import {
@@ -520,15 +522,36 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
   useEffect(() => { setTxPage(1); }, [appliedReportFilter]);
 
   const handleAdminAddPart = async (payload) => {
+    console.log('handleAdminAddPart called with payload:', payload);
     setIsAddPartSaving(true);
+    
+    // Safety timeout to ensure modal closes
+    const timeoutId = setTimeout(() => {
+      console.warn('Operation taking too long, closing modal');
+      setIsAddPartModalOpen(false);
+      setIsAddPartSaving(false);
+    }, 30000); // 30 second timeout
+
     try {
       const { apiFetch } = await import('../services/api');
+      console.log('Creating part with API...');
       const newPart = await apiFetch('/parts', {
         method: 'POST',
         body: JSON.stringify(payload)
       });
+
+      clearTimeout(timeoutId);
+      console.log('API response:', newPart);
+
+      if (!newPart) {
+        console.error('No response from API');
+        showToast('error', 'Failed to create part: No response from server.');
+        setIsAddPartSaving(false);
+        return;
+      }
+
       const vendorName = vendors.find(v => v.id === Number(payload.vendorId))?.name || 'Unknown Vendor';
-      onUpdateInventory([
+      const updatedInventory = [
         ...inventory,
         {
           id: newPart.id ?? newPart.Id,
@@ -541,13 +564,25 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
           vendor: newPart.vendorName ?? newPart.VendorName ?? vendorName,
           partCode: newPart.partCode ?? newPart.PartCode
         }
-      ]);
+      ];
+      
+      console.log('Updated inventory:', updatedInventory);
+      onUpdateInventory(updatedInventory);
+      console.log('Inventory updated, closing modal');
       showToast('success', 'Part created successfully.');
       setIsAddPartModalOpen(false);
-    } catch (error) {
-      showToast('error', error?.message || 'Failed to create part.');
-    } finally {
       setIsAddPartSaving(false);
+      console.log('Modal closed');
+    } catch (error) {
+      clearTimeout(timeoutId);
+      console.error('Error creating part:', error);
+      showToast('error', error?.message || 'Failed to create part.');
+      setIsAddPartSaving(false);
+      // Ensure modal closes even on error
+      setTimeout(() => {
+        console.log('Force closing modal due to error');
+        setIsAddPartModalOpen(false);
+      }, 2000);
     }
   };
 
@@ -892,11 +927,12 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
     );
   };
 
-  if (currentView === 'add-staff') return <AddStaffPage onAdd={onAddStaff} onBack={() => navigate(-1)} />;
-  if (currentView === 'manage-inventory') return <InventoryPurchasePage inventory={inventory} onUpdate={onUpdateInventory} onBack={() => navigate(-1)} onRefreshTransactions={refreshLiveTransactions} />;
+  if (currentView === 'add-staff') return <AddStaffPage onAdd={onAddStaff} onBack={() => setAdminRoute('main')} />;
+  if (currentView === 'manage-inventory') return <InventoryPurchasePage inventory={inventory} vendors={vendors} onUpdate={onUpdateInventory} onBack={() => navigate(-1)} onRefreshTransactions={refreshLiveTransactions} />;
   if (currentView === 'manage-customers') return <CustomerManagementPage customers={customerList} onRemove={onRemoveCustomer} onUpdate={onUpdateCustomer} onBack={() => navigate(-1)} />;
   if (currentView === 'view-all-inventory') return <FullInventoryPage inventory={inventory} onBack={() => navigate(-1)} />;
-  if (currentView === 'view-all-staff') return <FullStaffPage staffList={staffList} onBack={() => navigate(-1)} />;
+  if (currentView === 'view-all-staff') return <FullStaffPage staffList={staffList} onNavigate={setAdminRoute} onBack={() => setAdminRoute('main')} onRemove={onRemoveStaff} onUpdate={onUpdateStaff} onAddStaff={onAddStaff} />;
+  if (currentView === 'add-staff-from-staff') return <AddStaffPage onAdd={onAddStaff} onBack={() => setAdminRoute('view-all-staff')} />;
   if (currentView === 'transactions') {
     return <div className="admin-dashboard-page">{renderLiveTransactionsCard()}</div>;
   }
@@ -1151,19 +1187,46 @@ function AddStaffPage({ onAdd, onBack }) {
   );
 }
 
-function InventoryPurchasePage({ inventory, onUpdate, onBack, onRefreshTransactions }) {
+function InventoryPurchasePage({ inventory, vendors, onUpdate, onBack, onRefreshTransactions }) {
   const showToast = useToast();
   const [purchaseData, setPurchaseData] = useState({ partId: '', quantity: '', vendorId: '' });
-  const [vendors, setVendors] = useState([]);
-  useEffect(() => {
-    vendorService.getVendors({ pageSize: 200, status: 'active' }).then((res) => {
-      const loadedVendors = extractVendorItems(res).filter((vendor) => vendor.isActive);
-      console.log('Loaded vendors:', loadedVendors);
-      setVendors(loadedVendors);
-    }).catch(() => setVendors([]));
-  }, []);
+  const [errors, setErrors] = useState({ partId: '', quantity: '', vendorId: '' });
+
+  const validateForm = () => {
+    const newErrors = { partId: '', quantity: '', vendorId: '' };
+
+    if (!purchaseData.partId) {
+      newErrors.partId = 'Please select a part';
+    }
+
+    if (!purchaseData.quantity) {
+      newErrors.quantity = 'Quantity is required';
+    } else if (isNaN(purchaseData.quantity) || parseInt(purchaseData.quantity) <= 0) {
+      newErrors.quantity = 'Quantity must be a number greater than 0';
+    }
+
+    if (!purchaseData.vendorId) {
+      newErrors.vendorId = 'Please select a vendor';
+    }
+
+    setErrors(newErrors);
+    return Object.values(newErrors).every((err) => err === '');
+  };
+
+  const handleInputChange = (field, value) => {
+    setPurchaseData({ ...purchaseData, [field]: value });
+    if (errors[field]) {
+      setErrors({ ...errors, [field]: '' });
+    }
+  };
+
   const handlePurchase = async (e) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+
     const part = inventory.find(p => p.id === parseInt(purchaseData.partId));
     if (!part) return;
     try {
@@ -1197,20 +1260,79 @@ function InventoryPurchasePage({ inventory, onUpdate, onBack, onRefreshTransacti
       <div className="staff-card-body" style={{ padding: '20px' }}>
         <form onSubmit={handlePurchase} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div>
-            <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>Select Part</label>
-            <select required onChange={e => setPurchaseData({ ...purchaseData, partId: e.target.value })} value={purchaseData.partId} className="search-input-field" style={{ width: '100%', height: '38px', margin: 0 }}>
+            <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>
+              Select Part {errors.partId && <span style={{ color: '#DC2626' }}>*</span>}
+            </label>
+            <select 
+              onChange={e => handleInputChange('partId', e.target.value)} 
+              value={purchaseData.partId} 
+              className="search-input-field" 
+              style={{ 
+                width: '100%', 
+                height: '38px', 
+                margin: 0,
+                borderColor: errors.partId ? '#DC2626' : undefined,
+                backgroundColor: errors.partId ? '#FEF2F2' : undefined,
+              }}
+            >
               <option value="">Select Part</option>
               {inventory.map(p => <option key={p.id} value={p.id}>{p.name} (Current: {p.stock})</option>)}
             </select>
+            {errors.partId && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#DC2626', fontSize: '12px', marginTop: '4px' }}>
+                <AlertCircle size={14} />
+                {errors.partId}
+              </div>
+            )}
           </div>
+          
           <div>
-            <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>Quantity</label>
-            <input type="number" placeholder="Quantity" required onChange={e => setPurchaseData({ ...purchaseData, quantity: e.target.value })} value={purchaseData.quantity} className="search-input-field" style={{ width: '100%', height: '38px', margin: 0 }} />
+            <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>
+              Quantity {errors.quantity && <span style={{ color: '#DC2626' }}>*</span>}
+            </label>
+            <input 
+              type="number" 
+              placeholder="e.g., 10" 
+              onChange={e => handleInputChange('quantity', e.target.value)} 
+              value={purchaseData.quantity} 
+              className="search-input-field" 
+              style={{ 
+                width: '100%', 
+                height: '38px', 
+                margin: 0,
+                borderColor: errors.quantity ? '#DC2626' : undefined,
+                backgroundColor: errors.quantity ? '#FEF2F2' : undefined,
+              }} 
+            />
+            {errors.quantity && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#DC2626', fontSize: '12px', marginTop: '4px' }}>
+                <AlertCircle size={14} />
+                {errors.quantity}
+              </div>
+            )}
           </div>
+          
           <div>
-            <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>Vendor</label>
-            <VendorSearchSelect vendors={vendors} value={purchaseData.vendorId ? Number(purchaseData.vendorId) : null} onChange={(id) => setPurchaseData({ ...purchaseData, vendorId: id ? String(id) : '' })} />
+            <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>
+              Vendor {errors.vendorId && <span style={{ color: '#DC2626' }}>*</span>}
+            </label>
+            <VendorSearchSelect 
+              vendors={vendors} 
+              value={purchaseData.vendorId ? Number(purchaseData.vendorId) : null} 
+              onChange={(id) => handleInputChange('vendorId', id ? String(id) : '')}
+              style={{
+                borderColor: errors.vendorId ? '#DC2626' : undefined,
+                backgroundColor: errors.vendorId ? '#FEF2F2' : undefined,
+              }}
+            />
+            {errors.vendorId && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#DC2626', fontSize: '12px', marginTop: '4px' }}>
+                <AlertCircle size={14} />
+                {errors.vendorId}
+              </div>
+            )}
           </div>
+          
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '4px' }}>
             <button type="button" onClick={onBack} className="btn-view-customer" style={{ background: '#F1F5F9', color: '#475569' }}>Cancel</button>
             <button type="submit" className="btn-sale-primary">Complete Purchase</button>
@@ -1450,44 +1572,251 @@ function FullInventoryPage({ inventory, onBack }) {
   );
 }
 
-function FullStaffPage({ staffList, onBack }) {
+function FullStaffPage({ staffList, onNavigate, onBack, onRemove, onUpdate, onAddStaff }) {
+  const [searchInput, setSearchInput] = useState('');
+  const [draftStatusFilter, setDraftStatusFilter] = useState('all');
+  const [appliedStatusFilter, setAppliedStatusFilter] = useState('all');
+  const [submittedSearchTerm, setSubmittedSearchTerm] = useState('');
+  const [pageNumber, setPageNumber] = useState(1);
+  const [showAddStaffForm, setShowAddStaffForm] = useState(false);
+  const PAGE_SIZE = 5;
+
+  const stats = useMemo(() => {
+    const active = staffList.filter((staff) => staff.isActive).length;
+    return {
+      total: staffList.length,
+      active,
+      inactive: staffList.length - active,
+    };
+  }, [staffList]);
+
+  const clearStaffFilters = () => {
+    setSearchInput('');
+    setDraftStatusFilter('all');
+    setSubmittedSearchTerm('');
+    setAppliedStatusFilter('all');
+    setPageNumber(1);
+  };
+
+  useEffect(() => {
+    if (searchInput.trim() === '') {
+      clearStaffFilters();
+    }
+  }, [searchInput]);
+
+  const filteredStaff = useMemo(() => {
+    let result = [...staffList];
+    const term = submittedSearchTerm.trim().toLowerCase();
+
+    if (term) {
+      result = result.filter((staff) => {
+        const searchable = [
+          staff.name,
+          staff.email,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return searchable.includes(term);
+      });
+    }
+
+    if (appliedStatusFilter === 'active') {
+      result = result.filter((staff) => staff.isActive);
+    } else if (appliedStatusFilter === 'inactive') {
+      result = result.filter((staff) => !staff.isActive);
+    }
+
+    return result;
+  }, [staffList, submittedSearchTerm, appliedStatusFilter]);
+
+  const totalItems = filteredStaff.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  
+  const pagedStaff = useMemo(() => {
+    const start = (pageNumber - 1) * PAGE_SIZE;
+    return filteredStaff.slice(start, start + PAGE_SIZE);
+  }, [filteredStaff, pageNumber]);
+
+  const hasNextPage = pageNumber < totalPages;
+  const hasPreviousPage = pageNumber > 1;
+
+  useEffect(() => {
+    if (pageNumber > totalPages) {
+      setPageNumber(totalPages);
+    }
+  }, [pageNumber, totalPages]);
+
+  const handleSearch = (event) => {
+    event.preventDefault();
+    const nextSearchTerm = searchInput.trim();
+    const nextStatusFilter = draftStatusFilter;
+
+    setSubmittedSearchTerm(nextSearchTerm);
+    setAppliedStatusFilter(nextStatusFilter);
+    setPageNumber(1);
+  };
+
+  const handleStatusFilterChange = (status) => {
+    setDraftStatusFilter(status);
+    setAppliedStatusFilter(status);
+    setPageNumber(1);
+  };
+
+  const handleClearFilters = (event) => {
+    event.preventDefault();
+    clearStaffFilters();
+  };
+
+  const handleSearchInputClear = (event) => {
+    if (event.target.value === '') {
+      clearStaffFilters();
+    }
+  };
+
+  const canClearFilters = Boolean(
+    searchInput.trim() || submittedSearchTerm || appliedStatusFilter !== 'all' || draftStatusFilter !== 'all'
+  );
+
+  const handleDeleteStaff = async (staffId) => {
+    if (window.confirm('Are you sure you want to delete this staff member?')) {
+      onRemove(staffId);
+    }
+  };
+
   return (
-    <div className="staff-card" style={{ maxWidth: '960px', margin: 'auto' }}>
-      <div className="staff-card-header">
-        <div>
-          <div className="staff-card-title">System Staff Directory</div>
-          <p style={{ fontSize: '12px', color: '#94A3B8', margin: '2px 0 0' }}>All registered staff members and their roles.</p>
+    <>
+      <div style={{ maxWidth: '1200px', margin: 'auto', paddingBottom: '40px' }}>
+      <div className="staff-card" style={{ marginBottom: '24px' }}>
+        <div className="staff-card-header">
+          <div>
+            <div className="staff-card-title">System Staff Directory</div>
+            <p style={{ fontSize: '12px', color: '#94A3B8', margin: '2px 0 0' }}>All registered staff members and their roles.</p>
+          </div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button onClick={() => setShowAddStaffForm(true)} className="btn-sale-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Plus size={15} /> Add Staff
+            </button>
+            <button onClick={onBack} className="btn-view-customer" style={{ background: '#F1F5F9', color: '#475569' }}>← Back</button>
+          </div>
         </div>
-        <button onClick={onBack} className="btn-view-customer" style={{ background: '#F1F5F9', color: '#475569' }}>← Back to Dashboard</button>
       </div>
-      <div className="staff-card-body">
-        <table className="staff-table">
-          <thead>
-            <tr>
-              <th>Member</th>
-              <th>Email</th>
-              <th>Role</th>
-            </tr>
-          </thead>
-          <tbody>
-            {staffList.map(s => (
-              <tr key={s.id}>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div className="avatar-circle" style={{ width: '28px', height: '28px', fontSize: '10px' }}>{s.name[0].toUpperCase()}</div>
-                    <div style={{ fontSize: '13px', fontWeight: 600 }}>{s.name}</div>
-                  </div>
-                </td>
-                <td><div style={{ fontSize: '12px', color: '#64748B' }}>{s.email}</div></td>
-                <td><span className="badge-pill badge-loyalty">{s.role}</span></td>
+
+      <StaffFilters
+        searchTerm={searchInput}
+        onSearchChange={setSearchInput}
+        statusFilter={draftStatusFilter}
+        onStatusChange={handleStatusFilterChange}
+        onSearch={handleSearch}
+        onInputSearch={handleSearchInputClear}
+        onClear={handleClearFilters}
+        canClearFilters={canClearFilters}
+      />
+
+      <StaffStatsCards total={stats.total} active={stats.active} inactive={stats.inactive} />
+
+      <div className="vendor-section-header" style={{ marginTop: '24px' }}>
+        <div>
+          <h2>Staff Directory</h2>
+          <p>{`Showing ${pagedStaff.length} of ${totalItems} staff member${totalItems === 1 ? '' : 's'}.`}</p>
+        </div>
+      </div>
+
+      <div className="staff-card">
+        <div className="staff-card-body">
+          <table className="staff-table">
+            <thead>
+              <tr>
+                <th>Member</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th style={{ width: '120px', textAlign: 'right' }}>Actions</th>
               </tr>
-            ))}
-            {staffList.length === 0 && (
-              <tr><td colSpan="3" style={{ padding: '28px', textAlign: 'center', color: '#94A3B8' }}>No staff members found.</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {pagedStaff.map(s => (
+                <tr key={s.id}>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div className="avatar-circle" style={{ width: '28px', height: '28px', fontSize: '10px', background: '#2563eb', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{s.name[0].toUpperCase()}</div>
+                      <div style={{ fontSize: '13px', fontWeight: 600 }}>{s.name}</div>
+                    </div>
+                  </td>
+                  <td><div style={{ fontSize: '12px', color: '#64748B' }}>{s.email}</div></td>
+                  <td><span className="badge-pill badge-loyalty">{s.role}</span></td>
+                  <td>
+                    <span className={`badge-pill ${s.isActive ? 'badge-paid' : 'badge-overdue'}`}>
+                      {s.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={() => onUpdate(s)}
+                        className="btn-icon-small"
+                        title="Edit staff"
+                        style={{ background: '#E0F2FE', color: '#0369a1', padding: '6px 8px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteStaff(s.id)}
+                        className="btn-icon-small"
+                        title="Delete staff"
+                        style={{ background: '#FEE2E2', color: '#dc2626', padding: '6px 8px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {pagedStaff.length === 0 && (
+                <tr><td colSpan="5" style={{ padding: '28px', textAlign: 'center', color: '#94A3B8' }}>No staff members found.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
+
+      {totalPages > 1 && (
+        <div className="vendor-pagination" style={{ marginTop: '20px' }}>
+          <div className="vendor-pagination-meta">
+            <span className="vendor-pagination-count">Total staff: {totalItems}</span>
+            <span className="vendor-pagination-summary">Page {pageNumber} of {totalPages}</span>
+          </div>
+          <div className="vendor-pagination-actions">
+            <button
+              type="button"
+              className="btn-secondary vendor-pagination-button vendor-pagination-button-previous"
+              onClick={() => setPageNumber((current) => Math.max(1, current - 1))}
+              disabled={!hasPreviousPage}
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              className="btn-secondary vendor-pagination-button vendor-pagination-button-next"
+              onClick={() => setPageNumber((current) => current + 1)}
+              disabled={!hasNextPage}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
+
+    {showAddStaffForm && (
+      <div className="modal-overlay" onClick={() => setShowAddStaffForm(false)}>
+        <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+          <div style={{ maxWidth: '640px' }}>
+            <AddStaffPage onAdd={onAddStaff} onBack={() => setShowAddStaffForm(false)} />
+          </div>
+        </div>
+      </div>
+    )}
+  </>
   );
 }
