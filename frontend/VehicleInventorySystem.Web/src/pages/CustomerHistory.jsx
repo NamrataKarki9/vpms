@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../services/api.js';
 import { useToast } from '../context/ToastContext';
 
+const isCompletedService = (service) => String(service?.status || '').toLowerCase() === 'completed';
+
 export function CustomerHistory({ user, onBack }) {
   const showToast = useToast();
   const [vehicles, setVehicles] = useState([]);
@@ -47,10 +49,12 @@ export function CustomerHistory({ user, onBack }) {
   };
 
   const getFilteredServiceHistory = () => {
+    const completedServices = serviceHistory.filter(isCompletedService);
+
     if (selectedServiceVehicleId === 'all') {
-      return serviceHistory;
+      return completedServices;
     }
-    return serviceHistory.filter(x => x.vehicleId === parseInt(selectedServiceVehicleId));
+    return completedServices.filter(x => x.vehicleId === parseInt(selectedServiceVehicleId));
   };
 
   const filteredPurchaseHistory = getFilteredPurchaseHistory();

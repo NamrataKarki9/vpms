@@ -360,6 +360,8 @@ public class TransactionsController : ControllerBase
                 i.Id,
                 CustomerName = i.Customer != null ? i.Customer.Name : "Walk-in",
                 CustomerEmail = i.Customer != null ? i.Customer.Email : "",
+                InvoiceNumber = i.Items.Any() ? $"INV-{i.Id:D6}" : $"SVC-{i.Id:D6}",
+                InvoiceKind = i.Items.Any() ? "Sale" : "Service",
                 i.Date,
                 TotalAmount = i.TotalAmount,
                 PaymentStatus = i.PaymentStatus,
@@ -376,7 +378,7 @@ public class TransactionsController : ControllerBase
     }
 
     // F14: Admin - Recent live transactions (sales + purchases)
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Staff")]
     [HttpGet("recent")]
     public async Task<ActionResult<IEnumerable<object>>> GetRecentTransactions()
     {
@@ -399,6 +401,11 @@ public class TransactionsController : ControllerBase
                 totalAmount = i.TotalAmount,
                 itemCount = i.Items.Count,
                 isPaid = i.IsPaid,
+                items = i.Items.Select(ii => new {
+                    partName = ii.Part != null ? ii.Part.Name : "Unknown Part",
+                    ii.Quantity,
+                    ii.UnitPrice
+                }),
                 summary = i.Type == InvoiceType.Sale
                     ? $"Sale to {(i.Customer != null ? i.Customer.Name : "Walk-in")}" 
                     : $"Purchase from {(i.Vendor != null ? i.Vendor.Name : "Unknown Vendor")}"

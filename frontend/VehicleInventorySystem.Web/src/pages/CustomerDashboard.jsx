@@ -15,7 +15,9 @@ import {
   MessageSquare,
   X,
   Send,
-  TrendingUp
+  TrendingUp,
+  Eye,
+  Edit
 } from 'lucide-react';
 import { apiFetch } from '../services/api.js';
 import { useToast } from '../context/ToastContext';
@@ -29,6 +31,31 @@ const METRIC_COLORS = [
   { from: '#7C3AED', to: '#9333EA', light: '#EDE9FE', text: '#6D28D9' }, // Purple
   { from: '#B45309', to: '#D97706', light: '#FEF3C7', text: '#B45309' }, // Amber
 ];
+
+const toAppointmentDateTime = (appointment) => {
+  const rawDate = appointment?.appointmentDate || appointment?.serviceDate;
+  if (!rawDate) return null;
+
+  const dateString = typeof rawDate === 'string' ? rawDate : new Date(rawDate).toISOString();
+  const datePart = dateString.includes('T') ? dateString.split('T')[0] : dateString;
+  const timePart = String(appointment?.appointmentTime || '00:00').slice(0, 5);
+  const parsed = new Date(`${datePart}T${timePart}:00`);
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const isFutureAppointment = (appointment) => {
+  const appointmentDateTime = toAppointmentDateTime(appointment);
+  return appointmentDateTime ? appointmentDateTime > new Date() : false;
+};
+
+const isUpcomingAppointment = (appointment) => {
+  return appointment?.status !== 'Cancelled' && appointment?.status !== 'Completed' && isFutureAppointment(appointment);
+};
+
+const isCompletedService = (service) => {
+  return String(service?.status || '').toLowerCase() === 'completed';
+};
 
 /**
  * CUSTOMER OVERVIEW (DASHBOARD MAIN VIEW)
@@ -66,10 +93,12 @@ export function CustomerOverview({ user }) {
 
   const metrics = [
     { label: "My Vehicles", value: vehicles.length, sub: "Registered in garage", icon: Car, color: METRIC_COLORS[0], path: '/customer/vehicles' },
-    { label: "Bookings", value: appointments.filter(a => a.status !== 'Cancelled').length, sub: "Upcoming services", icon: CalendarClock, color: METRIC_COLORS[1], path: '/customer/appointments' },
+    { label: "Bookings", value: appointments.filter(isUpcomingAppointment).length, sub: "Upcoming services", icon: CalendarClock, color: METRIC_COLORS[1], path: '/customer/appointments' },
     { label: "Special Orders", value: partRequests.length, sub: "Active part requests", icon: Package, color: METRIC_COLORS[2], path: '/customer/requests' },
-    { label: "Total Visits", value: history.length, sub: "Complete history", icon: HistoryIcon, color: METRIC_COLORS[3], path: '/customer/history' },
+    { label: "Total Visits", value: history.filter(isCompletedService).length, sub: "Complete history", icon: HistoryIcon, color: METRIC_COLORS[3], path: '/customer/history' },
   ];
+
+  const upcomingAppointments = appointments.filter(isUpcomingAppointment);
 
   return (
     <div className="customer-dashboard-overview">
@@ -107,7 +136,7 @@ export function CustomerOverview({ user }) {
             <button className="btn-view-customer" onClick={() => navigate('/customer/appointments')}>Manage All</button>
           </div>
           <div className="staff-card-body">
-            {appointments.filter(a => a.status !== 'Cancelled').slice(0, 3).map(a => (
+            {upcomingAppointments.slice(0, 3).map(a => (
               <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid #F1F5F9' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div style={{ width: 36, height: 36, borderRadius: '10px', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -121,7 +150,7 @@ export function CustomerOverview({ user }) {
                 <span className="badge-pill badge-loyalty">Confirmed</span>
               </div>
             ))}
-            {appointments.filter(a => a.status !== 'Cancelled').length === 0 && (
+            {upcomingAppointments.length === 0 && (
               <div className="empty-state">
                 <div className="empty-state-icon">📅</div>
                 <h4>No Bookings</h4>
@@ -182,6 +211,12 @@ export function VehiclesPage({ user }) {
   const [form, setForm] = useState({ plateNumber: '', model: '', make: '', year: new Date().getFullYear(), fuelType: '', mileage: 0 });
   const [error, setError] = useState('');
   const [successDialog, setSuccessDialog] = useState(false);
+  const [viewingVehicle, setViewingVehicle] = useState(null);
+  const [editingVehicle, setEditingVehicle] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [editError, setEditError] = useState('');
+  const [deleteConfirmDialog, setDeleteConfirmDialog] = useState({ isOpen: false, vehicleId: null, vehicleName: '' });
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     loadVehicles();
@@ -221,12 +256,61 @@ export function VehiclesPage({ user }) {
   };
 
   const handleDeleteVehicle = async (id) => {
-    if (!window.confirm('Are you sure you want to remove this vehicle?')) return;
+    const vehicle = vehicles.find(v => v.id === id);
+    if (vehicle) {
+      setDeleteConfirmDialog({ isOpen: true, vehicleId: id, vehicleName: `${vehicle.make} ${vehicle.model}` });
+      setDeleteError('');
+    }
+  };
+
+  const handleConfirmDelete = async () => {
     try {
-      await apiFetch(`/Customers/${user.id}/vehicles/${id}`, { method: 'DELETE' });
-      setVehicles(prev => prev.filter(v => v.id !== id));
+      await apiFetch(`/Customers/${user.id}/vehicles/${deleteConfirmDialog.vehicleId}`, { method: 'DELETE' });
+      setVehicles(prev => prev.filter(v => v.id !== deleteConfirmDialog.vehicleId));
+      setDeleteConfirmDialog({ isOpen: false, vehicleId: null, vehicleName: '' });
     } catch (err) {
-      alert('Failed to delete vehicle');
+      setDeleteError(err.message || 'Failed to delete vehicle');
+    }
+  };
+
+  const handleEditClick = (vehicle) => {
+    setEditingVehicle(vehicle);
+    setEditForm({
+      plateNumber: vehicle.plateNumber,
+      model: vehicle.model,
+      make: vehicle.make,
+      year: vehicle.year,
+      fuelType: vehicle.fuelType || '',
+      mileage: vehicle.mileage
+    });
+    setEditError('');
+  };
+
+  const handleEditSubmit = async () => {
+    setEditError('');
+    if (!editForm.plateNumber.trim() || !editForm.model.trim() || !editForm.make.trim()) {
+      setEditError('Please fill in all required fields');
+      return;
+    }
+    try {
+      const updated = {
+        ...editingVehicle,
+        plateNumber: editForm.plateNumber.trim(),
+        model: editForm.model.trim(),
+        make: editForm.make.trim(),
+        year: editForm.year,
+        fuelType: editForm.fuelType || null,
+        mileage: Number(editForm.mileage)
+      };
+      await apiFetch(`/Customers/${user.id}/vehicles/${editingVehicle.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(updated)
+      });
+      setVehicles(prev => prev.map(v => v.id === editingVehicle.id ? updated : v));
+      setEditingVehicle(null);
+      setSuccessDialog(true);
+    } catch (err) {
+      setEditError(err.message || 'Failed to update vehicle');
     }
   };
 
@@ -279,13 +363,29 @@ export function VehiclesPage({ user }) {
                   <div style={{ fontSize: '14px', fontWeight: 700, color: '#1E293B' }}>{v.mileage?.toLocaleString()} km</div>
                 </div>
               </div>
-              <button 
-                onClick={() => handleDeleteVehicle(v.id)} 
-                style={{ width: '100%', background: '#FFF5F5', color: '#B91C1C', border: '1px solid #FCA5A5', padding: '8px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
-              >
-                <Trash2 size={12} style={{ marginRight: '6px' }} />
-                Remove Vehicle
-              </button>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                <button 
+                  onClick={() => setViewingVehicle(v)} 
+                  style={{ background: '#DBEAFE', color: '#1D4ED8', border: '1px solid #93C5FD', padding: '8px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                >
+                  <Eye size={12} />
+                  View
+                </button>
+                <button 
+                  onClick={() => handleEditClick(v)} 
+                  style={{ background: '#FEF3C7', color: '#B45309', border: '1px solid #FCD34D', padding: '8px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                >
+                  <Edit size={12} />
+                  Edit
+                </button>
+                <button 
+                  onClick={() => handleDeleteVehicle(v.id)} 
+                  style={{ background: '#FFF5F5', color: '#B91C1C', border: '1px solid #FCA5A5', padding: '8px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                >
+                  <Trash2 size={12} />
+                  Remove
+                </button>
+              </div>
             </div>
           </div>
         ))}
@@ -304,9 +404,173 @@ export function VehiclesPage({ user }) {
             <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#DCFCE7', color: '#15803D', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
               <CheckCircle2 size={32} />
             </div>
-            <h3 style={{ marginBottom: '12px' }}>Vehicle Added!</h3>
-            <p style={{ color: '#64748B', marginBottom: '24px' }}>Your vehicle has been registered successfully.</p>
-            <button className="btn-sale-primary" style={{ width: '100%' }} onClick={() => setSuccessDialog(false)}>Great, Thanks!</button>
+            <h3 style={{ marginBottom: '12px' }}>Vehicle Updated!</h3>
+            <p style={{ color: '#64748B', marginBottom: '24px' }}>Your vehicle has been updated successfully.</p>
+            <button className="btn-sale-primary" style={{ width: '100%' }} onClick={() => setSuccessDialog(false)}>Continue</button>
+          </div>
+        </div>
+      )}
+
+      {viewingVehicle && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(30,58,95,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(4px)' }}>
+          <div className="staff-card" style={{ padding: '32px', maxWidth: '500px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h3>Vehicle Details</h3>
+              <button onClick={() => setViewingVehicle(null)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px' }}>
+              <div>
+                <div style={{ fontSize: '11px', color: '#94A3B8', textTransform: 'uppercase', marginBottom: '4px' }}>Make</div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: '#1E293B' }}>{viewingVehicle.make}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '11px', color: '#94A3B8', textTransform: 'uppercase', marginBottom: '4px' }}>Model</div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: '#1E293B' }}>{viewingVehicle.model}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '11px', color: '#94A3B8', textTransform: 'uppercase', marginBottom: '4px' }}>Year</div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: '#1E293B' }}>{viewingVehicle.year}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '11px', color: '#94A3B8', textTransform: 'uppercase', marginBottom: '4px' }}>Plate Number</div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: '#1E293B' }}>{viewingVehicle.plateNumber}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '11px', color: '#94A3B8', textTransform: 'uppercase', marginBottom: '4px' }}>Fuel Type</div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: '#1E293B' }}>{viewingVehicle.fuelType || 'N/A'}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '11px', color: '#94A3B8', textTransform: 'uppercase', marginBottom: '4px' }}>Mileage</div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: '#1E293B' }}>{viewingVehicle.mileage?.toLocaleString()} km</div>
+              </div>
+            </div>
+            <button 
+              onClick={() => setViewingVehicle(null)} 
+              className="btn-sale-primary" 
+              style={{ width: '100%', padding: '10px' }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {editingVehicle && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(30,58,95,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(4px)' }}>
+          <div className="staff-card" style={{ padding: '32px', maxWidth: '500px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h3>Edit Vehicle</h3>
+              <button onClick={() => setEditingVehicle(null)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748B', display: 'block', marginBottom: '6px' }}>Make</label>
+                <input 
+                  type="text" 
+                  value={editForm.make} 
+                  onChange={(e) => setEditForm({...editForm, make: e.target.value})}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '13px' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748B', display: 'block', marginBottom: '6px' }}>Model</label>
+                <input 
+                  type="text" 
+                  value={editForm.model} 
+                  onChange={(e) => setEditForm({...editForm, model: e.target.value})}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '13px' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748B', display: 'block', marginBottom: '6px' }}>Year</label>
+                <input 
+                  type="number" 
+                  value={editForm.year} 
+                  onChange={(e) => setEditForm({...editForm, year: parseInt(e.target.value)})}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '13px' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748B', display: 'block', marginBottom: '6px' }}>Plate Number</label>
+                <input 
+                  type="text" 
+                  value={editForm.plateNumber} 
+                  onChange={(e) => setEditForm({...editForm, plateNumber: e.target.value})}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '13px' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748B', display: 'block', marginBottom: '6px' }}>Fuel Type</label>
+                <input 
+                  type="text" 
+                  value={editForm.fuelType} 
+                  onChange={(e) => setEditForm({...editForm, fuelType: e.target.value})}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '13px' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748B', display: 'block', marginBottom: '6px' }}>Mileage (km)</label>
+                <input 
+                  type="number" 
+                  value={editForm.mileage} 
+                  onChange={(e) => setEditForm({...editForm, mileage: parseInt(e.target.value) || 0})}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '13px' }}
+                />
+              </div>
+            </div>
+            {editError && <p style={{ color: '#ef4444', fontSize: '13px', marginBottom: '16px' }}>{editError}</p>}
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button 
+                onClick={() => setEditingVehicle(null)} 
+                className="btn-view-customer" 
+                style={{ flex: 1, padding: '10px' }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleEditSubmit} 
+                className="btn-sale-primary" 
+                style={{ flex: 1, padding: '10px' }}
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirmDialog.isOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(30,58,95,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(4px)' }}>
+          <div className="staff-card" style={{ padding: '32px', maxWidth: '400px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h3 style={{ margin: 0 }}>Remove Vehicle</h3>
+              <button onClick={() => setDeleteConfirmDialog({ isOpen: false, vehicleId: null, vehicleName: '' })} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>
+                <X size={20} />
+              </button>
+            </div>
+            <p style={{ color: '#64748B', marginBottom: '24px', fontSize: '14px' }}>
+              Are you sure you want to remove <strong>{deleteConfirmDialog.vehicleName}</strong> from your garage? This action cannot be undone.
+            </p>
+            {deleteError && <p style={{ color: '#ef4444', fontSize: '13px', marginBottom: '16px' }}>{deleteError}</p>}
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button 
+                onClick={() => setDeleteConfirmDialog({ isOpen: false, vehicleId: null, vehicleName: '' })} 
+                className="btn-view-customer" 
+                style={{ flex: 1, padding: '10px' }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleConfirmDelete} 
+                style={{ flex: 1, padding: '10px', background: '#FFF5F5', color: '#B91C1C', border: '1px solid #FCA5A5', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Remove Vehicle
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -323,8 +587,9 @@ export function AppointmentsPage({ user }) {
   const [appointments, setAppointments] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [cancelDialog, setCancelDialog] = useState({ isOpen: false, id: null, name: '' });
-  const [rescheduleDialog, setRescheduleDialog] = useState({ isOpen: false, id: null, newDate: '' });
+  const [rescheduleDialog, setRescheduleDialog] = useState({ isOpen: false, id: null, newDate: '', newTime: '09:00' });
   const [rescheduleError, setRescheduleError] = useState('');
+  const timeSlots = ['09:00', '10:00', '11:00', '12:00', '14:00', '15:00', '16:00'];
   const [successDialog, setSuccessDialog] = useState({ isOpen: false, message: '' });
 
   useEffect(() => {
@@ -341,7 +606,7 @@ export function AppointmentsPage({ user }) {
   };
 
   const handleCancelClick = (a) => {
-    if (new Date(a.appointmentDate) < new Date()) {
+    if (!isUpcomingAppointment(a)) {
       showToast('error', 'Past appointments cannot be cancelled.');
       return;
     }
@@ -360,23 +625,22 @@ export function AppointmentsPage({ user }) {
   };
 
   const handleConfirmReschedule = async () => {
-    if (!rescheduleDialog.newDate) {
+    if (!rescheduleDialog.newDate || !rescheduleDialog.newTime) {
       setRescheduleError('Please select a new date and time.');
       return;
     }
     try {
       const appointment = appointments.find(a => a.id === rescheduleDialog.id);
-      const [dateStr, timeStr] = rescheduleDialog.newDate.split('T');
       const updated = {
         ...appointment,
-        appointmentDate: dateStr + 'T00:00:00Z',
-        appointmentTime: timeStr + ':00',
+        appointmentDate: rescheduleDialog.newDate + 'T00:00:00Z',
+        appointmentTime: rescheduleDialog.newTime + ':00',
         rescheduleCount: (appointment.rescheduleCount || 0) + 1
       };
       await apiFetch(`/Service/appointments/${updated.id}`, { method: 'PUT', body: JSON.stringify(updated) });
       setAppointments(prev => prev.map(a => a.id === updated.id ? updated : a));
       setSuccessDialog({ isOpen: true, message: 'Appointment rescheduled!' });
-      setRescheduleDialog({ isOpen: false, id: null, newDate: '' });
+      setRescheduleDialog({ isOpen: false, id: null, newDate: '', newTime: '09:00' });
     } catch (err) {
       setRescheduleError(err.message || 'Failed to reschedule');
     }
@@ -410,7 +674,7 @@ export function AppointmentsPage({ user }) {
             </tr>
           </thead>
           <tbody>
-            {appointments.filter(a => a.status !== 'Cancelled').map(a => {
+            {appointments.filter(isUpcomingAppointment).map(a => {
               const vehicle = vehicles.find(v => v.id === a.vehicleId);
               return (
                 <tr key={a.id}>
@@ -433,14 +697,14 @@ export function AppointmentsPage({ user }) {
                   <td><span className="badge-pill badge-loyalty">Confirmed</span></td>
                   <td>
                     <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                      <button className="btn-view-customer" onClick={() => setRescheduleDialog({ isOpen: true, id: a.id, newDate: '' })}>Reschedule</button>
+                      <button className="btn-view-customer" onClick={() => setRescheduleDialog({ isOpen: true, id: a.id, newDate: '', newTime: '09:00' })}>Reschedule</button>
                       <button className="btn-view-customer" style={{ background: '#FFF5F5', color: '#B91C1C' }} onClick={() => handleCancelClick(a)}>Cancel</button>
                     </div>
                   </td>
                 </tr>
               );
             })}
-            {appointments.filter(a => a.status !== 'Cancelled').length === 0 && (
+            {appointments.filter(isUpcomingAppointment).length === 0 && (
               <tr>
                 <td colSpan="5">
                   <div className="empty-state">
@@ -472,19 +736,46 @@ export function AppointmentsPage({ user }) {
       {/* Reschedule Dialog */}
       {rescheduleDialog.isOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(30,58,95,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(4px)' }}>
-          <div className="staff-card" style={{ padding: '32px', maxWidth: '400px', width: '100%', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+          <div className="staff-card" style={{ padding: '32px', maxWidth: '450px', width: '100%', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
             <h3 style={{ marginBottom: '12px' }}>Reschedule</h3>
             <p style={{ color: '#64748B', marginBottom: '20px' }}>Select a new date and time for your service.</p>
-            <input 
-              type="datetime-local" 
-              className="search-input-field"
-              style={{ width: '100%', marginBottom: '16px', height: '40px' }}
-              value={rescheduleDialog.newDate}
-              onChange={e => { setRescheduleDialog({ ...rescheduleDialog, newDate: e.target.value }); setRescheduleError(''); }}
-            />
+            
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>New Date *</label>
+              <input 
+                type="date" 
+                className="search-input-field"
+                style={{ width: '100%', height: '42px' }}
+                min={new Date().toISOString().split('T')[0]}
+                value={rescheduleDialog.newDate}
+                onChange={e => { setRescheduleDialog({ ...rescheduleDialog, newDate: e.target.value }); setRescheduleError(''); }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Preferred Time Slot *</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {timeSlots.map(t => (
+                  <button 
+                    key={t} 
+                    type="button"
+                    onClick={() => setRescheduleDialog({ ...rescheduleDialog, newTime: t })}
+                    style={{
+                      padding: '8px 16px', borderRadius: '8px', border: '1px solid #E2E8F0',
+                      background: rescheduleDialog.newTime === t ? '#1E3A5F' : '#fff',
+                      color: rescheduleDialog.newTime === t ? '#fff' : '#64748B',
+                      fontSize: '12px', fontWeight: 600, cursor: 'pointer', transition: '0.2s'
+                    }}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {rescheduleError && <p style={{ color: '#EF4444', fontSize: '12px', marginBottom: '16px' }}>{rescheduleError}</p>}
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button className="btn-view-customer" style={{ flex: 1 }} onClick={() => setRescheduleDialog({ isOpen: false, id: null, newDate: '' })}>Cancel</button>
+              <button className="btn-view-customer" style={{ flex: 1 }} onClick={() => setRescheduleDialog({ isOpen: false, id: null, newDate: '', newTime: '09:00' })}>Cancel</button>
               <button className="btn-sale-primary" style={{ flex: 1 }} onClick={handleConfirmReschedule}>Update Booking</button>
             </div>
           </div>

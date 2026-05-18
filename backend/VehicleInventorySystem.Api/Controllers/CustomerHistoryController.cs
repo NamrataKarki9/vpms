@@ -27,7 +27,32 @@ public class CustomerHistoryController : ControllerBase
     public async Task<ActionResult<List<VehicleResponse>>> GetCustomerVehicles(int customerId)
     {
         var vehicles = await _context.Vehicles
-            .Where(v => v.CustomerId == customerId)
+            .AsNoTracking()
+            .Where(v => v.CustomerId == customerId && v.DeletedAt == null)
+            .OrderBy(v => v.PlateNumber)
+            .Select(v => new VehicleResponse
+            {
+                Id = v.Id,
+                PlateNumber = v.PlateNumber,
+                Model = v.Model,
+                Make = v.Make,
+                Year = v.Year,
+                FuelType = v.FuelType,
+                Mileage = v.Mileage
+            })
+            .ToListAsync();
+
+        return Ok(vehicles);
+    }
+
+    // DEBUG: return active (non-deleted) vehicles for a customer without auth
+    [AllowAnonymous]
+    [HttpGet("debug/{customerId}/vehicles-active")]
+    public async Task<ActionResult> GetCustomerVehiclesActive(int customerId)
+    {
+        var vehicles = await _context.Vehicles
+            .AsNoTracking()
+            .Where(v => v.CustomerId == customerId && v.DeletedAt == null)
             .OrderBy(v => v.PlateNumber)
             .Select(v => new VehicleResponse
             {
@@ -79,9 +104,16 @@ public class CustomerHistoryController : ControllerBase
     [HttpGet("{customerId}/service-history")]
     public async Task<ActionResult<List<ServiceHistoryResponse>>> GetServiceHistory(int customerId)
     {
-        var serviceHistory = await _context.Appointments
+        var now = DateTime.UtcNow;
+
+        var completedAppointments = await _context.Appointments
             .Include(a => a.Vehicle)
             .Where(a => a.CustomerId == customerId && a.Status == AppointmentStatus.Completed)
+            .AsNoTracking()
+            .ToListAsync();
+
+        var serviceHistory = completedAppointments
+            .Where(a => a.AppointmentDate.Date.Add(a.AppointmentTime) <= now)
             .OrderByDescending(a => a.AppointmentDate)
             .Select(a => new ServiceHistoryResponse
             {
@@ -95,7 +127,7 @@ public class CustomerHistoryController : ControllerBase
                 Status = a.Status.ToString(),
                 Cost = a.Cost
             })
-            .ToListAsync();
+            .ToList();
 
         return Ok(serviceHistory);
     }

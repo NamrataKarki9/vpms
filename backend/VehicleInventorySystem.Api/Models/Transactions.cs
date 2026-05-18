@@ -9,6 +9,7 @@ public class Vehicle
     public int Year { get; set; }
     public string? FuelType { get; set; } // Petrol, Diesel, Hybrid, Electric, etc.
     public int Mileage { get; set; } = 0; // in kilometers
+    public DateTime? DeletedAt { get; set; } // Soft delete timestamp
     
     public int CustomerId { get; set; }
     public User? Customer { get; set; }

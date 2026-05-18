@@ -36,7 +36,7 @@ public class CustomersController : ControllerBase
             var pattern = $"%{search}%";
             query = query.Where(u =>
                 EF.Functions.ILike(u.Name, pattern) ||
-                (u.Vehicles != null && u.Vehicles.Any(v => EF.Functions.ILike(v.PlateNumber, pattern))));
+                (u.Vehicles != null && u.Vehicles.Any(v => EF.Functions.ILike(v.PlateNumber, pattern) && v.DeletedAt == null)));
         }
 
         var totalItems = await query.CountAsync();
@@ -53,7 +53,7 @@ public class CustomersController : ControllerBase
                 u.PhoneNumber,
                 u.IsActive,
                 u.CreatedAt,
-                Vehicles = u.Vehicles!.Select(v => new {
+                Vehicles = u.Vehicles!.Where(v => v.DeletedAt == null).Select(v => new {
                     v.Id, v.PlateNumber, v.Model, v.Make, v.Year, v.FuelType, v.Mileage
                 })
             })
@@ -84,7 +84,7 @@ public class CustomersController : ControllerBase
                 u.PhoneNumber,
                 u.IsActive,
                 u.CreatedAt,
-                Vehicles = u.Vehicles!.Select(v => new {
+                Vehicles = u.Vehicles!.Where(v => v.DeletedAt == null).Select(v => new {
                     v.Id, v.PlateNumber, v.Model, v.Make, v.Year, v.FuelType, v.Mileage
                 })
             })
@@ -108,9 +108,9 @@ public class CustomersController : ControllerBase
         if (customer == null)
             return NotFound(new { message = "Customer not found" });
 
-        // Check if vehicle with same plate already exists for this customer
+        // Check if vehicle with same plate already exists for this customer (excluding soft-deleted)
         var existingVehicle = await _context.Vehicles
-            .FirstOrDefaultAsync(v => v.CustomerId == customerId && v.PlateNumber == request.PlateNumber);
+            .FirstOrDefaultAsync(v => v.CustomerId == customerId && v.PlateNumber == request.PlateNumber && v.DeletedAt == null);
         
         if (existingVehicle != null)
             return BadRequest(new { message = "Vehicle with this plate number already exists" });
@@ -134,16 +134,54 @@ public class CustomersController : ControllerBase
 
     // F12: Customers - Get all vehicles for a customer
     [HttpGet("{customerId}/vehicles")]
-    public async Task<ActionResult<IEnumerable<Vehicle>>> GetVehicles(int customerId)
+    public async Task<ActionResult<IEnumerable<object>>> GetVehicles(int customerId)
     {
         var customer = await _context.Users.FindAsync(customerId);
         if (customer == null)
             return NotFound(new { message = "Customer not found" });
 
         var vehicles = await _context.Vehicles
-            .Where(v => v.CustomerId == customerId)
+            .AsNoTracking()
+            .Where(v => v.CustomerId == customerId && v.DeletedAt == null)
+            .Select(v => new {
+                v.Id,
+                v.PlateNumber,
+                v.Model,
+                v.Make,
+                v.Year,
+                v.FuelType,
+                v.Mileage,
+                v.CustomerId
+            })
             .ToListAsync();
         
+        return Ok(vehicles);
+    }
+
+    // DEBUG: returns raw vehicle records (including DeletedAt) for troubleshooting
+    [AllowAnonymous]
+    [HttpGet("debug/{customerId}/vehicles-raw")]
+    public async Task<ActionResult> GetVehiclesRaw(int customerId)
+    {
+        var customer = await _context.Users.FindAsync(customerId);
+        if (customer == null)
+            return NotFound(new { message = "Customer not found" });
+
+        var vehicles = await _context.Vehicles
+            .AsNoTracking()
+            .Where(v => v.CustomerId == customerId)
+            .Select(v => new {
+                v.Id,
+                v.PlateNumber,
+                v.Model,
+                v.Make,
+                v.Year,
+                v.FuelType,
+                v.Mileage,
+                v.DeletedAt
+            })
+            .ToListAsync();
+
         return Ok(vehicles);
     }
 
@@ -155,7 +193,7 @@ public class CustomersController : ControllerBase
             return BadRequest(new { message = "Invalid vehicle data", errors = ModelState });
 
         var vehicle = await _context.Vehicles.FindAsync(vehicleId);
-        if (vehicle == null || vehicle.CustomerId != customerId)
+        if (vehicle == null || vehicle.CustomerId != customerId || vehicle.DeletedAt != null)
             return NotFound(new { message = "Vehicle not found" });
 
         vehicle.PlateNumber = request.PlateNumber.Trim();
@@ -171,15 +209,16 @@ public class CustomersController : ControllerBase
         return Ok(new { message = "Vehicle updated successfully", vehicle });
     }
 
-    // F12: Customers - Delete vehicle
+    // F12: Customers - Delete vehicle (soft delete)
     [HttpDelete("{customerId}/vehicles/{vehicleId}")]
     public async Task<ActionResult> DeleteVehicle(int customerId, int vehicleId)
     {
         var vehicle = await _context.Vehicles.FindAsync(vehicleId);
-        if (vehicle == null || vehicle.CustomerId != customerId)
+        if (vehicle == null || vehicle.CustomerId != customerId || vehicle.DeletedAt != null)
             return NotFound(new { message = "Vehicle not found" });
 
-        _context.Vehicles.Remove(vehicle);
+        vehicle.DeletedAt = DateTime.UtcNow;
+        _context.Vehicles.Update(vehicle);
         await _context.SaveChangesAsync();
         
         return Ok(new { message = "Vehicle deleted successfully" });
@@ -187,16 +226,27 @@ public class CustomersController : ControllerBase
 
     // F10: Staff - Search customers by vehicle number, phone, ID, or name
     [HttpGet("search")]
-    public async Task<ActionResult<IEnumerable<User>>> SearchCustomers([FromQuery] string query)
+    public async Task<ActionResult> SearchCustomers([FromQuery] string query)
     {
         var customers = await _context.Users
             .Include(u => u.Vehicles)
             .Where(u => u.Role == UserRole.Customer && 
                 (u.Name.Contains(query) || 
                  (u.Email != null && u.Email.Contains(query)) || 
-                 (u.Vehicles != null && u.Vehicles.Any(v => v.PlateNumber.Contains(query)))))
+                 (u.Vehicles != null && u.Vehicles.Any(v => v.PlateNumber.Contains(query) && v.DeletedAt == null))))
+            .Select(u => new {
+                u.Id,
+                u.Name,
+                u.Email,
+                u.PhoneNumber,
+                u.IsActive,
+                u.CreatedAt,
+                Vehicles = u.Vehicles!.Where(v => v.DeletedAt == null).Select(v => new {
+                    v.Id, v.PlateNumber, v.Model, v.Make, v.Year, v.FuelType, v.Mileage
+                })
+            })
             .ToListAsync();
-        return customers;
+        return Ok(customers);
     }
 
     [Authorize(Roles = "Admin,Staff,Customer")]

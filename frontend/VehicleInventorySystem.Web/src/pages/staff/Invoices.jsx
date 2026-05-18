@@ -18,6 +18,7 @@ const Invoices = ({ sales: propSales = [] }) => {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterType, setFilterType] = useState('all');
   const [emailingId, setEmailingId] = useState(null);
 
   useEffect(() => {
@@ -28,11 +29,13 @@ const Invoices = ({ sales: propSales = [] }) => {
         if (data) {
           setSales(data.map(s => ({
             id: s.id,
-            customerName: s.customerName,
-            customerEmail: s.customerEmail,
+            invoiceKind: s.invoiceKind || (s.items && s.items.length === 0 ? 'Service' : 'Sale'),
+            invoiceNumber: s.invoiceNumber || `INV-${String(s.id).padStart(6, '0')}`,
+            customerName: s.customerName || 'Walk-in',
+            customerEmail: s.customerEmail || '',
             total: s.totalAmount,
             date: new Date(s.date).toLocaleDateString(),
-            paymentStatus: s.paymentStatus,
+            paymentStatus: s.paymentStatus || (s.isPaid ? 'full-payment' : 'half-payment'),
           })));
         }
       } catch (err) {
@@ -46,9 +49,11 @@ const Invoices = ({ sales: propSales = [] }) => {
 
   const filtered = sales.filter(s => {
     const matchSearch = (s.customerName || '').toLowerCase().includes(search.toLowerCase()) ||
-      String(s.id).includes(search);
+      String(s.id).includes(search) ||
+      (s.invoiceNumber || '').toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === 'all' || s.paymentStatus === filterStatus;
-    return matchSearch && matchStatus;
+    const matchType = filterType === 'all' || s.invoiceKind?.toLowerCase() === filterType;
+    return matchSearch && matchStatus && matchType;
   });
 
   const handleEmail = async (id, e) => {
@@ -122,6 +127,26 @@ const Invoices = ({ sales: propSales = [] }) => {
                 </button>
               ))}
             </div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {[
+                { id: 'sale', label: 'Sale' },
+                { id: 'service', label: 'Service' },
+              ].map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => setFilterType(f.id)}
+                  style={{
+                    padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 600,
+                    border: filterType === f.id ? '1.5px solid #2563A8' : '1px solid #E2E8F0',
+                    background: filterType === f.id ? '#DBEAFE' : '#F8FAFC',
+                    color: filterType === f.id ? '#1D4ED8' : '#64748B',
+                    cursor: 'pointer', transition: 'all 0.15s',
+                  }}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
             {/* Search */}
             <div style={{ position: 'relative' }}>
               <Search size={13} color="#94A3B8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
@@ -169,7 +194,7 @@ const Invoices = ({ sales: propSales = [] }) => {
                         <div style={{ width: 32, height: 32, borderRadius: '8px', background: '#EBF2FB', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                           <FileText size={14} color="#1E3A5F" />
                         </div>
-                        <span style={{ fontWeight: 700, color: '#1E3A5F', fontSize: '13px' }}>#{t.id}</span>
+                        <span style={{ fontWeight: 700, color: '#1E3A5F', fontSize: '13px' }}>{t.invoiceNumber}</span>
                       </div>
                     </td>
                     <td>

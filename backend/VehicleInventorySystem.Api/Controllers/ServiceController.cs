@@ -500,6 +500,119 @@ public class ServiceController : ControllerBase
         return NoContent();
     }
 
+    // Staff - Create Service Invoice (Service Record)
+    [Authorize(Roles = "Admin,Staff")]
+    [HttpPost("service-invoice")]
+    public async Task<ActionResult<object>> CreateServiceInvoice([FromBody] CreateServiceInvoiceRequest request)
+    {
+        try
+        {
+            if (request == null)
+                return BadRequest(new { message = "Request body is required." });
+
+            if (request.CustomerId <= 0)
+                return BadRequest(new { message = "Valid customer ID is required." });
+
+            if (request.VehicleId <= 0)
+                return BadRequest(new { message = "Valid vehicle ID is required." });
+
+            if (string.IsNullOrWhiteSpace(request.ServiceType))
+                return BadRequest(new { message = "Service type is required." });
+
+            if (request.ServiceCharge < 0)
+                return BadRequest(new { message = "Service charge cannot be negative." });
+
+            var paymentStatus = string.IsNullOrWhiteSpace(request.PaymentStatus)
+                ? "full-payment"
+                : request.PaymentStatus.Trim();
+            var isPaid = paymentStatus == "full-payment";
+            var currentUserId = GetCurrentUserId();
+
+            // Validate customer exists
+            var customer = await _context.Users.FindAsync(request.CustomerId);
+            if (customer == null)
+                return BadRequest(new { message = "Customer not found." });
+
+            // Validate vehicle exists and belongs to customer
+            var vehicle = await _context.Vehicles
+                .FirstOrDefaultAsync(v => v.Id == request.VehicleId && v.CustomerId == request.CustomerId);
+            if (vehicle == null)
+                return BadRequest(new { message = "Vehicle not found or does not belong to this customer." });
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var serviceDate = DateTime.SpecifyKind(request.ServiceDate, DateTimeKind.Utc);
+                var serviceStatus = serviceDate <= DateTime.UtcNow
+                    ? AppointmentStatus.Completed
+                    : AppointmentStatus.Confirmed;
+
+                var invoice = new Invoice
+                {
+                    Type = InvoiceType.Sale,
+                    Date = serviceDate,
+                    TotalAmount = request.ServiceCharge,
+                    IsPaid = isPaid,
+                    PaymentStatus = paymentStatus,
+                    CreatedById = currentUserId,
+                    CustomerId = request.CustomerId,
+                    VehicleId = request.VehicleId
+                };
+
+                var appointment = new Appointment
+                {
+                    CustomerId = request.CustomerId,
+                    VehicleId = request.VehicleId,
+                    AppointmentDate = serviceDate,
+                    AppointmentTime = TimeSpan.Zero, // Not used for service invoices
+                    ServiceType = request.ServiceType,
+                    Description = request.Description ?? string.Empty,
+                    Cost = request.ServiceCharge,
+                    Status = serviceStatus,
+                    RescheduleCount = 0
+                };
+
+                _context.Invoices.Add(invoice);
+                _context.Appointments.Add(appointment);
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                var invoiceNumber = $"SVC-{invoice.Id:D6}";
+
+                return Ok(new
+                {
+                    id = invoice.Id,
+                    appointmentId = appointment.Id,
+                    invoiceNumber = invoiceNumber,
+                    customerId = appointment.CustomerId,
+                    customerName = customer.Name,
+                    customerEmail = customer.Email,
+                    vehicleId = appointment.VehicleId,
+                    vehiclePlate = vehicle.PlateNumber,
+                    vehicleModel = vehicle.Model,
+                    serviceType = appointment.ServiceType,
+                    serviceDate = appointment.AppointmentDate,
+                    description = appointment.Description,
+                    mechanicNotes = request.MechanicNotes ?? string.Empty,
+                    mileage = request.Mileage,
+                    serviceCharge = invoice.TotalAmount,
+                    paymentStatus = invoice.PaymentStatus,
+                    status = appointment.Status.ToString(),
+                    createdAt = DateTime.UtcNow
+                });
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Failed to create service invoice", error = ex.Message });
+        }
+    }
+
     private int? GetCurrentUserId()
     {
         var claimValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
