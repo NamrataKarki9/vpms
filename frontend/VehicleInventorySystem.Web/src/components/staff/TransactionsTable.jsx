@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
 import { apiFetch } from '../../services/api';
 import { Mail, Eye, FileText } from 'lucide-react';
@@ -27,6 +27,7 @@ const getTransactionKey = (transaction, index) => {
 const TransactionsTable = ({ transactions = [] }) => {
   const showToast = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const [emailingId, setEmailingId] = useState(null);
 
   const handleView = (transaction) => {
@@ -35,8 +36,8 @@ const TransactionsTable = ({ transactions = [] }) => {
       showToast('error', 'This transaction cannot be opened because it has no invoice ID.');
       return;
     }
-
-    navigate(`/staff/invoices/${id}`);
+    const basePath = location.pathname.startsWith('/admin') ? '/admin' : '/staff';
+    navigate(`${basePath}/invoices/${id}`);
   };
 
   const handleEmail = async (transaction, event) => {
@@ -49,8 +50,8 @@ const TransactionsTable = ({ transactions = [] }) => {
 
     setEmailingId(id);
     try {
-      await apiFetch(`/Transactions/${id}/email`, { method: 'POST' });
-      showToast('success', `Invoice #${id} sent to customer email.`);
+      const res = await apiFetch(`/Transactions/${id}/email`, { method: 'POST' });
+      showToast('success', res?.message || `Invoice #${id} sent to recipient email.`);
     } catch {
       showToast('error', 'Failed to send email.');
     } finally {
@@ -64,7 +65,7 @@ const TransactionsTable = ({ transactions = [] }) => {
         <thead>
           <tr>
             <th>Invoice</th>
-            <th>Customer</th>
+            <th>Customer / Vendor</th>
             <th>Date</th>
             <th>Amount</th>
             <th>Status</th>

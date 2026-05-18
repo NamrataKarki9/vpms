@@ -200,7 +200,7 @@ public class AuthService : IAuthService
 
         if (request.NewPassword.Trim().Length < 6)
         {
-            throw new ArgumentException("Password must be at least 6 characters.");
+            throw new ArgumentException("Password must be at least 8 characters.");
         }
 
         if (string.IsNullOrWhiteSpace(request.ConfirmPassword))

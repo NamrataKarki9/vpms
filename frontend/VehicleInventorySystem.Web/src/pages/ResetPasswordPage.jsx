@@ -31,7 +31,7 @@ export function ResetPasswordPage({ onComplete, onMissingOtp, onBack }) {
 
   const validatePassword = (value) => {
     if (!value.trim()) return 'New password is required';
-    if (value.trim().length < 6) return 'At least 6 characters required';
+    if (value.trim().length < 8) return 'At least 8 characters required';
     return '';
   };
 

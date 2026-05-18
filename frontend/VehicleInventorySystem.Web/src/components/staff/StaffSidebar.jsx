@@ -59,6 +59,7 @@ const Sidebar = ({ user }) => {
             <NavItem to="/admin/inventory" icon={Package} label="Inventory" />
             <NavItem to="/admin/inventory/purchase" icon={ClipboardList} label="Purchase Orders" />
             <NavItem to="/admin/transactions" icon={ShoppingCart} label="Sales" />
+            <NavItem to="/admin/purchases" icon={FileText} label="Purchase History" />
             <NavItem to="/admin/customers" icon={Users} label="Customers" />
             <NavItem to="/admin/reports" icon={BarChart2} label="Reports" />
             <div className="nav-link nav-link-disabled" aria-disabled="true">

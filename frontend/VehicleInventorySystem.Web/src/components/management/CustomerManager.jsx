@@ -40,7 +40,7 @@ function CustomerManager({ customers, onNavigate }) {
                   </div>
                 </td>
                 <td>
-                  <span className="badge-pill badge-paid" style={{ fontSize: '10px' }}>Active</span>
+                  <span className={`badge-pill ${c.isActive !== false ? 'badge-paid' : 'badge-overdue'}`} style={{ fontSize: '10px' }}>{c.isActive !== false ? 'Active' : 'Inactive'}</span>
                 </td>
               </tr>
             ))}

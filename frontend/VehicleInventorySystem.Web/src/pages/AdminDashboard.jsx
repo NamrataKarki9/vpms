@@ -13,6 +13,7 @@ import { ExportFinancialReportPdf } from "../utils/Pdf/FinancialReportPdf";
 import { ExportCustomerReportPdf } from "../utils/Pdf/CustomerReportPdf";
 import TransactionsTable from '../components/staff/TransactionsTable';
 import StaffStatsCards from '../components/staff/StaffStatsCards';
+import CustomerStatsCards from '../components/customer/CustomerStatsCards';
 import { Download, FileText, AlertCircle, Plus, Edit2, Trash2 } from 'lucide-react';
 import '../styles/admin-dashboard.css';
 
@@ -377,14 +378,27 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
   const [liveTransactions, setLiveTransactions] = useState([]);
   const [isLiveTransactionsLoading, setIsLiveTransactionsLoading] = useState(false);
   const [liveTransactionsError, setLiveTransactionsError] = useState('');
-  const filteredTransactions = liveTransactions.filter((transaction) => isWithinReportPeriod(transaction, appliedReportFilter));
-  const filteredTransactionRevenue = filteredTransactions.reduce((sum, transaction) => sum + getTransactionAmount(transaction), 0);
+  const liveSales = liveTransactions.filter(tx => tx.type !== 'Purchase');
+  const livePurchases = liveTransactions.filter(tx => tx.type === 'Purchase');
+
+  const filteredSales = liveSales.filter((transaction) => isWithinReportPeriod(transaction, appliedReportFilter));
+  const filteredPurchases = livePurchases.filter((transaction) => isWithinReportPeriod(transaction, appliedReportFilter));
+
+  const filteredSalesRevenue = filteredSales.reduce((sum, transaction) => sum + getTransactionAmount(transaction), 0);
+  const filteredPurchasesExpense = filteredPurchases.reduce((sum, transaction) => sum + getTransactionAmount(transaction), 0);
+
   const currentYear = new Date().getFullYear();
-  const ytdTransactions = liveTransactions.filter((transaction) => {
+  const ytdSales = liveSales.filter((transaction) => {
     const transactionDate = transaction.transactionDate || parseTransactionDate(transaction);
     return transactionDate && transactionDate.getFullYear() === currentYear;
   });
-  const ytdTransactionRevenue = ytdTransactions.reduce((sum, transaction) => sum + getTransactionAmount(transaction), 0);
+  const ytdPurchases = livePurchases.filter((transaction) => {
+    const transactionDate = transaction.transactionDate || parseTransactionDate(transaction);
+    return transactionDate && transactionDate.getFullYear() === currentYear;
+  });
+
+  const ytdSalesRevenue = ytdSales.reduce((sum, transaction) => sum + getTransactionAmount(transaction), 0);
+  const ytdPurchasesExpense = ytdPurchases.reduce((sum, transaction) => sum + getTransactionAmount(transaction), 0);
 
   const revenueTrendData = useMemo(
     () => buildRevenueTrendData(sales && sales.length > 0 ? sales : liveTransactions),
@@ -524,7 +538,7 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
   const handleAdminAddPart = async (payload) => {
     console.log('handleAdminAddPart called with payload:', payload);
     setIsAddPartSaving(true);
-    
+
     // Safety timeout to ensure modal closes
     const timeoutId = setTimeout(() => {
       console.warn('Operation taking too long, closing modal');
@@ -565,7 +579,7 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
           partCode: newPart.partCode ?? newPart.PartCode
         }
       ];
-      
+
       console.log('Updated inventory:', updatedInventory);
       onUpdateInventory(updatedInventory);
       console.log('Inventory updated, closing modal');
@@ -683,23 +697,26 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
               <thead>
                 <tr>
                   <th>Period</th>
-                  <th>Count</th>
+                  <th>Sales</th>
                   <th>Revenue</th>
-                  <th>Trend</th>
+                  <th>Purchases</th>
+                  <th>Expense</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
                   <td><span className="admin-period-cell">{getReportPeriodLabel(appliedReportFilter)}</span></td>
-                  <td>{filteredTransactions.length}</td>
-                  <td><strong>Rs. {filteredTransactionRevenue.toFixed(2)}</strong></td>
-                  <td>{renderTrendBadge(filteredTransactionRevenue)}</td>
+                  <td>{filteredSales.length}</td>
+                  <td><strong style={{ color: '#10B981' }}>Rs. {filteredSalesRevenue.toFixed(2)}</strong></td>
+                  <td>{filteredPurchases.length}</td>
+                  <td><strong style={{ color: '#EF4444' }}>Rs. {filteredPurchasesExpense.toFixed(2)}</strong></td>
                 </tr>
                 <tr className="total-row">
                   <td><span className="admin-period-cell">YTD Total</span></td>
-                  <td>{ytdTransactions.length}</td>
-                  <td><strong>Rs. {ytdTransactionRevenue.toFixed(2)}</strong></td>
-                  <td>{renderTrendBadge(ytdTransactionRevenue)}</td>
+                  <td>{ytdSales.length}</td>
+                  <td><strong style={{ color: '#10B981' }}>Rs. {ytdSalesRevenue.toFixed(2)}</strong></td>
+                  <td>{ytdPurchases.length}</td>
+                  <td><strong style={{ color: '#EF4444' }}>Rs. {ytdPurchasesExpense.toFixed(2)}</strong></td>
                 </tr>
               </tbody>
             </table>
@@ -713,7 +730,7 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
             <button
               className="admin-export-btn admin-export-btn--financial"
               disabled={!canExportFinancialReport}
-              onClick={() => ExportFinancialReportPdf({ ...report, period: appliedReportFilter.period, revenue: filteredTransactionRevenue, count: filteredTransactions.length }, appliedReportFilter.period, "Admin", appliedReportFilter)}
+              onClick={() => ExportFinancialReportPdf({ ...report, period: appliedReportFilter.period, revenue: filteredSalesRevenue, count: filteredSales.length }, appliedReportFilter.period, "Admin", appliedReportFilter)}
             >
               <FileText size={13} />
               <span>Export Financial Report PDF</span>
@@ -732,15 +749,20 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
     </div>
   );
 
-  const renderLiveTransactionsCard = () => {
-    const totalTxPages = Math.max(1, Math.ceil(filteredTransactions.length / TX_PER_PAGE));
-    const pagedTransactions = filteredTransactions.slice((txPage - 1) * TX_PER_PAGE, txPage * TX_PER_PAGE);
+  const renderTransactionsCard = (type) => {
+    const isSales = type === 'sales';
+    const txList = isSales ? filteredSales : filteredPurchases;
+    const txTotal = isSales ? filteredSalesRevenue : filteredPurchasesExpense;
+
+    const totalTxPages = Math.max(1, Math.ceil(txList.length / TX_PER_PAGE));
+    const pagedTransactions = txList.slice((txPage - 1) * TX_PER_PAGE, txPage * TX_PER_PAGE);
+
     return (
-      <div id="live-transactions" className="admin-card">
+      <div id={isSales ? "live-transactions" : "purchase-history"} className="admin-card">
         <div className="admin-transactions-header">
           <div className="admin-transactions-header-left">
-            <h3 className="admin-card-title">Live Transactions</h3>
-            <p className="admin-card-subtitle">Filtered real-time transaction records</p>
+            <h3 className="admin-card-title">{isSales ? 'Live Sales' : 'Purchase History'}</h3>
+            <p className="admin-card-subtitle">Filtered real-time {isSales ? 'sales' : 'purchase'} records</p>
           </div>
           <div className="admin-transactions-controls">
             {renderReportPeriodControls('transactions')}
@@ -750,13 +772,13 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
         <div className="admin-card-body">
           <div className="admin-metrics-row">
             <div className="admin-metric-cell">
-              <p className="admin-metric-label">Live Records</p>
-              <p className="admin-metric-value">{filteredTransactions.length}</p>
+              <p className="admin-metric-label">{isSales ? 'Live Sales' : 'Purchase Records'}</p>
+              <p className="admin-metric-value">{txList.length}</p>
               <p className="admin-metric-delta">{getReportPeriodLabel(appliedReportFilter)} filter</p>
             </div>
             <div className="admin-metric-cell">
-              <p className="admin-metric-label">Revenue</p>
-              <p className="admin-metric-value" style={{ fontSize: '16px' }}>Rs. {filteredTransactionRevenue.toFixed(2)}</p>
+              <p className="admin-metric-label">{isSales ? 'Revenue' : 'Expense'}</p>
+              <p className="admin-metric-value" style={{ fontSize: '16px', color: isSales ? '#10B981' : '#EF4444' }}>Rs. {txTotal.toFixed(2)}</p>
               <p className="admin-metric-delta">Filtered real total</p>
             </div>
             <div className="admin-metric-cell">
@@ -767,7 +789,7 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
           </div>
           <div className="admin-table-panel">
             {isLiveTransactionsLoading ? (
-              <p className="admin-loading-text">Loading transactions...</p>
+              <p className="admin-loading-text">Loading {isSales ? 'sales' : 'purchases'}...</p>
             ) : (
               <div className="admin-table-scroll"><TransactionsTable transactions={pagedTransactions} /></div>
             )}
@@ -777,7 +799,7 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
             {!isLiveTransactionsLoading && totalTxPages > 1 && (
               <div className="admin-pagination">
                 <button className="admin-page-btn" onClick={() => setTxPage(p => Math.max(1, p - 1))} disabled={txPage === 1}>&#8592; Prev</button>
-                <span className="admin-page-info">Page {txPage} of {totalTxPages} &bull; {filteredTransactions.length} records</span>
+                <span className="admin-page-info">Page {txPage} of {totalTxPages} &bull; {txList.length} records</span>
                 <button className="admin-page-btn" onClick={() => setTxPage(p => Math.min(totalTxPages, p + 1))} disabled={txPage === totalTxPages}>Next &#8594;</button>
               </div>
             )}
@@ -928,13 +950,16 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
   };
 
   if (currentView === 'add-staff') return <AddStaffPage onAdd={onAddStaff} onBack={() => setAdminRoute('main')} />;
-  if (currentView === 'manage-inventory') return <InventoryPurchasePage inventory={inventory} vendors={vendors} onUpdate={onUpdateInventory} onBack={() => navigate(-1)} onRefreshTransactions={refreshLiveTransactions} />;
+  if (currentView === 'manage-inventory') return <InventoryPurchasePage inventory={inventory} vendors={vendors} onUpdate={onUpdateInventory} onBack={() => navigate(-1)} onSuccess={() => navigate('/admin/purchases')} onRefreshTransactions={refreshLiveTransactions} />;
   if (currentView === 'manage-customers') return <CustomerManagementPage customers={customerList} onRemove={onRemoveCustomer} onUpdate={onUpdateCustomer} onBack={() => navigate(-1)} />;
   if (currentView === 'view-all-inventory') return <FullInventoryPage inventory={inventory} onBack={() => navigate(-1)} />;
   if (currentView === 'view-all-staff') return <FullStaffPage staffList={staffList} onNavigate={setAdminRoute} onBack={() => setAdminRoute('main')} onRemove={onRemoveStaff} onUpdate={onUpdateStaff} onAddStaff={onAddStaff} />;
   if (currentView === 'add-staff-from-staff') return <AddStaffPage onAdd={onAddStaff} onBack={() => setAdminRoute('view-all-staff')} />;
   if (currentView === 'transactions') {
-    return <div className="admin-dashboard-page">{renderLiveTransactionsCard()}</div>;
+    return <div className="admin-dashboard-page">{renderTransactionsCard('sales')}</div>;
+  }
+  if (currentView === 'purchases') {
+    return <div className="admin-dashboard-page">{renderTransactionsCard('purchases')}</div>;
   }
   if (currentView === 'reports') {
     return <div className="admin-dashboard-page">{renderFinancialsCard()}</div>;
@@ -988,7 +1013,7 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
 
       {/* BOTTOM ROW: Live Transactions (full width) */}
       <div className="admin-bottom-row">
-        {renderLiveTransactionsCard()}
+        {renderTransactionsCard('sales')}
       </div>
       <PartFormModal
         isOpen={isAddPartModalOpen}
@@ -1004,7 +1029,8 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
 }
 
 function AddStaffPage({ onAdd, onBack }) {
-  const showToast = useToast();
+  const globalShowToast = useToast();
+  const [toast, setToast] = useState(null);
   const [newStaff, setNewStaff] = useState({
     fullName: '',
     emailAddress: '',
@@ -1017,48 +1043,79 @@ function AddStaffPage({ onAdd, onBack }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  const showToast = (type, message) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3000);
+  };
+
   const handleChange = (field) => (event) => {
     const { value } = event.target;
     setNewStaff((current) => ({ ...current, [field]: value }));
     setErrors((current) => ({ ...current, [field]: '' }));
   };
 
-  const validate = () => {
-    const nextErrors = {};
+  const handlePhoneChange = (event) => {
+    const { value } = event.target;
+    // Allow only numeric digits and limit to 10 digits
+    const digitsOnly = value.replace(/\D/g, '').slice(0, 10);
+    setNewStaff((current) => ({ ...current, phoneNumber: digitsOnly }));
+    setErrors((current) => ({ ...current, phoneNumber: '' }));
+  };
 
+  const validate = () => {
+    // Check validation in order and return first error only
     if (!newStaff.fullName.trim()) {
-      nextErrors.fullName = 'Full Name is required.';
+      const error = 'Full Name is required.';
+      setErrors({ fullName: error });
+      return { isValid: false, error };
     }
 
     if (!newStaff.emailAddress.trim()) {
-      nextErrors.emailAddress = 'Email Address is required.';
+      const error = 'Email Address is required.';
+      setErrors({ emailAddress: error });
+      return { isValid: false, error };
     }
 
     if (!newStaff.phoneNumber.trim()) {
-      nextErrors.phoneNumber = 'Phone Number is required.';
+      const error = 'Phone Number is required.';
+      setErrors({ phoneNumber: error });
+      return { isValid: false, error };
     }
 
     if (!newStaff.password) {
-      nextErrors.password = 'Password is required.';
-    } else if (newStaff.password.length < 6) {
-      nextErrors.password = 'Password must be at least 6 characters.';
+      const error = 'Password is required.';
+      setErrors({ password: error });
+      return { isValid: false, error };
+    }
+
+    if (newStaff.password.length < 8) {
+      const error = 'Password must be at least 8 characters.';
+      setErrors({ password: error });
+      return { isValid: false, error };
     }
 
     if (!newStaff.confirmPassword) {
-      nextErrors.confirmPassword = 'Confirm Password is required.';
-    } else if (newStaff.password !== newStaff.confirmPassword) {
-      nextErrors.confirmPassword = 'Passwords do not match.';
+      const error = 'Confirm Password is required.';
+      setErrors({ confirmPassword: error });
+      return { isValid: false, error };
     }
 
-    setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+    if (newStaff.password !== newStaff.confirmPassword) {
+      const error = 'Passwords do not match.';
+      setErrors({ confirmPassword: error });
+      return { isValid: false, error };
+    }
+
+    setErrors({});
+    return { isValid: true, error: null };
   };
 
   const handleAdd = async (event) => {
     event.preventDefault();
 
-    if (!validate()) {
-      showToast('error', 'Please fix the highlighted staff form errors.');
+    const validation = validate();
+    if (!validation.isValid) {
+      showToast('error', validation.error);
       return;
     }
 
@@ -1079,115 +1136,134 @@ function AddStaffPage({ onAdd, onBack }) {
     }
   };
 
-  const errorMessages = Object.values(errors).filter(Boolean);
-
   return (
-    <div className="staff-card" style={{ maxWidth: '640px', margin: 'auto' }}>
-      <div className="staff-card-header">
-        <div>
-          <div className="staff-card-title">Add System Staff</div>
-          <p style={{ fontSize: '12px', color: '#94A3B8', margin: '2px 0 0' }}>Create a staff account with secure credentials and contact details.</p>
+    <>
+      {toast && (
+        <div
+          className={`vendor-toast vendor-toast-${toast.type}`}
+          role="status"
+        >
+          <span className="vendor-toast-icon" aria-hidden="true">
+            {toast.type === 'success' ? (
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.78-9.22a.75.75 0 00-1.06-1.06L9 11.44 7.28 9.72a.75.75 0 10-1.06 1.06l2.25 2.25c.29.3.77.3 1.06 0l3.25-3.25z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm-.75-11.25a.75.75 0 011.5 0v4.5a.75.75 0 01-1.5 0v-4.5zm.75 8.5a1 1 0 100-2 1 1 0 000 2z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            )}
+          </span>
+          {toast.message}
         </div>
-        <button onClick={onBack} className="btn-view-customer" style={{ background: '#F1F5F9', color: '#475569' }}>← Back</button>
-      </div>
-      <div className="staff-card-body" style={{ padding: '20px' }}>
-        <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>Full Name</label>
-              <input
-                type="text"
-                placeholder="Staff full name"
-                value={newStaff.fullName}
-                onChange={handleChange('fullName')}
-                aria-invalid={Boolean(errors.fullName)}
-                className="search-input-field"
-                style={{ width: '100%', height: '38px', margin: 0, borderColor: errors.fullName ? '#EF4444' : undefined }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>Email Address</label>
-              <input
-                type="email"
-                placeholder="staff@example.com"
-                value={newStaff.emailAddress}
-                onChange={handleChange('emailAddress')}
-                aria-invalid={Boolean(errors.emailAddress)}
-                className="search-input-field"
-                style={{ width: '100%', height: '38px', margin: 0, borderColor: errors.emailAddress ? '#EF4444' : undefined }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>Phone Number</label>
-              <input
-                type="text"
-                placeholder="98XXXXXXXX"
-                value={newStaff.phoneNumber}
-                onChange={handleChange('phoneNumber')}
-                aria-invalid={Boolean(errors.phoneNumber)}
-                className="search-input-field"
-                style={{ width: '100%', height: '38px', margin: 0, borderColor: errors.phoneNumber ? '#EF4444' : undefined }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>Password</label>
-              <div style={{ position: 'relative' }}>
+      )}
+      <div className="staff-card" style={{ maxWidth: '640px', margin: 'auto' }}>
+        <div className="staff-card-header">
+          <div>
+            <div className="staff-card-title">Add System Staff</div>
+            <p style={{ fontSize: '12px', color: '#94A3B8', margin: '2px 0 0' }}>Create a staff account with secure credentials and contact details.</p>
+          </div>
+          <button onClick={onBack} className="btn-view-customer" style={{ background: '#F1F5F9', color: '#475569' }}>← Back</button>
+        </div>
+        <div className="staff-card-body" style={{ padding: '20px' }}>
+          <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>Full Name</label>
                 <input
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="At least 6 characters"
-                  value={newStaff.password}
-                  onChange={handleChange('password')}
-                  aria-invalid={Boolean(errors.password)}
+                  type="text"
+                  placeholder="Staff full name"
+                  value={newStaff.fullName}
+                  onChange={handleChange('fullName')}
+                  aria-invalid={Boolean(errors.fullName)}
                   className="search-input-field"
-                  style={{ width: '100%', height: '38px', margin: 0, paddingRight: '3.5rem', borderColor: errors.password ? '#EF4444' : undefined }}
+                  style={{ width: '100%', height: '38px', margin: 0, borderColor: errors.fullName ? '#EF4444' : undefined }}
                 />
-                <button type="button" onClick={() => setShowPassword((c) => !c)} style={{ position: 'absolute', right: '0.7rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 0, fontSize: '11px', fontWeight: 600 }}>
-                  {showPassword ? 'Hide' : 'Show'}
-                </button>
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>Email Address</label>
+                <input
+                  type="email"
+                  placeholder="staff@example.com"
+                  value={newStaff.emailAddress}
+                  onChange={handleChange('emailAddress')}
+                  aria-invalid={Boolean(errors.emailAddress)}
+                  className="search-input-field"
+                  style={{ width: '100%', height: '38px', margin: 0, borderColor: errors.emailAddress ? '#EF4444' : undefined }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>Phone Number</label>
+                <input
+                  type="text"
+                  placeholder="98XXXXXXXX"
+                  value={newStaff.phoneNumber}
+                  onChange={handlePhoneChange}
+                  aria-invalid={Boolean(errors.phoneNumber)}
+                  className="search-input-field"
+                  style={{ width: '100%', height: '38px', margin: 0, borderColor: errors.phoneNumber ? '#EF4444' : undefined }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>Password</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="At least 8 characters"
+                    value={newStaff.password}
+                    onChange={handleChange('password')}
+                    aria-invalid={Boolean(errors.password)}
+                    className="search-input-field"
+                    style={{ width: '100%', height: '38px', margin: 0, paddingRight: '3.5rem', borderColor: errors.password ? '#EF4444' : undefined }}
+                  />
+                  <button type="button" onClick={() => setShowPassword((c) => !c)} style={{ position: 'absolute', right: '0.7rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 0, fontSize: '11px', fontWeight: 600 }}>
+                    {showPassword ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>Confirm Password</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    placeholder="Re-enter password"
+                    value={newStaff.confirmPassword}
+                    onChange={handleChange('confirmPassword')}
+                    aria-invalid={Boolean(errors.confirmPassword)}
+                    className="search-input-field"
+                    style={{ width: '100%', height: '38px', margin: 0, paddingRight: '3.5rem', borderColor: errors.confirmPassword ? '#EF4444' : undefined }}
+                  />
+                  <button type="button" onClick={() => setShowConfirmPassword((c) => !c)} style={{ position: 'absolute', right: '0.7rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 0, fontSize: '11px', fontWeight: 600 }}>
+                    {showConfirmPassword ? 'Hide' : 'Show'}
+                  </button>
+                </div>
               </div>
             </div>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>Confirm Password</label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  placeholder="Re-enter password"
-                  value={newStaff.confirmPassword}
-                  onChange={handleChange('confirmPassword')}
-                  aria-invalid={Boolean(errors.confirmPassword)}
-                  className="search-input-field"
-                  style={{ width: '100%', height: '38px', margin: 0, paddingRight: '3.5rem', borderColor: errors.confirmPassword ? '#EF4444' : undefined }}
-                />
-                <button type="button" onClick={() => setShowConfirmPassword((c) => !c)} style={{ position: 'absolute', right: '0.7rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 0, fontSize: '11px', fontWeight: 600 }}>
-                  {showConfirmPassword ? 'Hide' : 'Show'}
-                </button>
-              </div>
-            </div>
-          </div>
 
-          {errorMessages.length > 0 && (
-            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', padding: '10px 14px' }}>
-              {errorMessages.map((message) => (
-                <div key={message} style={{ fontSize: '12px', color: '#B91C1C', fontWeight: 600 }}>{message}</div>
-              ))}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '4px' }}>
+              <button type="button" onClick={onBack} disabled={isSaving} className="btn-view-customer" style={{ background: '#F1F5F9', color: '#475569' }}>
+                Cancel
+              </button>
+              <button type="submit" disabled={isSaving} className="btn-sale-primary">
+                {isSaving ? 'Creating...' : 'Create Staff'}
+              </button>
             </div>
-          )}
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '4px' }}>
-            <button type="button" onClick={onBack} disabled={isSaving} className="btn-view-customer" style={{ background: '#F1F5F9', color: '#475569' }}>
-              Cancel
-            </button>
-            <button type="submit" disabled={isSaving} className="btn-sale-primary">
-              {isSaving ? 'Creating...' : 'Create Staff'}
-            </button>
-          </div>
-        </form>
+          </form>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
-function InventoryPurchasePage({ inventory, vendors, onUpdate, onBack, onRefreshTransactions }) {
+function InventoryPurchasePage({ inventory, vendors, onUpdate, onBack, onSuccess, onRefreshTransactions }) {
   const showToast = useToast();
   const [purchaseData, setPurchaseData] = useState({ partId: '', quantity: '', vendorId: '' });
   const [errors, setErrors] = useState({ partId: '', quantity: '', vendorId: '' });
@@ -1222,7 +1298,7 @@ function InventoryPurchasePage({ inventory, vendors, onUpdate, onBack, onRefresh
 
   const handlePurchase = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
@@ -1245,7 +1321,11 @@ function InventoryPurchasePage({ inventory, vendors, onUpdate, onBack, onRefresh
       if (onRefreshTransactions) {
         await onRefreshTransactions();
       }
-      onBack();
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        onBack();
+      }
     } catch (err) { showToast('error', 'Purchase failed.'); }
   };
   return (
@@ -1263,13 +1343,13 @@ function InventoryPurchasePage({ inventory, vendors, onUpdate, onBack, onRefresh
             <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>
               Select Part {errors.partId && <span style={{ color: '#DC2626' }}>*</span>}
             </label>
-            <select 
-              onChange={e => handleInputChange('partId', e.target.value)} 
-              value={purchaseData.partId} 
-              className="search-input-field" 
-              style={{ 
-                width: '100%', 
-                height: '38px', 
+            <select
+              onChange={e => handleInputChange('partId', e.target.value)}
+              value={purchaseData.partId}
+              className="search-input-field"
+              style={{
+                width: '100%',
+                height: '38px',
                 margin: 0,
                 borderColor: errors.partId ? '#DC2626' : undefined,
                 backgroundColor: errors.partId ? '#FEF2F2' : undefined,
@@ -1285,24 +1365,24 @@ function InventoryPurchasePage({ inventory, vendors, onUpdate, onBack, onRefresh
               </div>
             )}
           </div>
-          
+
           <div>
             <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>
               Quantity {errors.quantity && <span style={{ color: '#DC2626' }}>*</span>}
             </label>
-            <input 
-              type="number" 
-              placeholder="e.g., 10" 
-              onChange={e => handleInputChange('quantity', e.target.value)} 
-              value={purchaseData.quantity} 
-              className="search-input-field" 
-              style={{ 
-                width: '100%', 
-                height: '38px', 
+            <input
+              type="number"
+              placeholder="e.g., 10"
+              onChange={e => handleInputChange('quantity', e.target.value)}
+              value={purchaseData.quantity}
+              className="search-input-field"
+              style={{
+                width: '100%',
+                height: '38px',
                 margin: 0,
                 borderColor: errors.quantity ? '#DC2626' : undefined,
                 backgroundColor: errors.quantity ? '#FEF2F2' : undefined,
-              }} 
+              }}
             />
             {errors.quantity && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#DC2626', fontSize: '12px', marginTop: '4px' }}>
@@ -1311,14 +1391,14 @@ function InventoryPurchasePage({ inventory, vendors, onUpdate, onBack, onRefresh
               </div>
             )}
           </div>
-          
+
           <div>
             <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>
               Vendor {errors.vendorId && <span style={{ color: '#DC2626' }}>*</span>}
             </label>
-            <VendorSearchSelect 
-              vendors={vendors} 
-              value={purchaseData.vendorId ? Number(purchaseData.vendorId) : null} 
+            <VendorSearchSelect
+              vendors={vendors}
+              value={purchaseData.vendorId ? Number(purchaseData.vendorId) : null}
               onChange={(id) => handleInputChange('vendorId', id ? String(id) : '')}
               style={{
                 borderColor: errors.vendorId ? '#DC2626' : undefined,
@@ -1332,7 +1412,7 @@ function InventoryPurchasePage({ inventory, vendors, onUpdate, onBack, onRefresh
               </div>
             )}
           </div>
-          
+
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '4px' }}>
             <button type="button" onClick={onBack} className="btn-view-customer" style={{ background: '#F1F5F9', color: '#475569' }}>Cancel</button>
             <button type="submit" className="btn-sale-primary">Complete Purchase</button>
@@ -1345,13 +1425,112 @@ function InventoryPurchasePage({ inventory, vendors, onUpdate, onBack, onRefresh
 
 function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
   const showToast = useToast();
+  const [searchInput, setSearchInput] = useState('');
+  const [draftStatusFilter, setDraftStatusFilter] = useState('all');
+  const [appliedStatusFilter, setAppliedStatusFilter] = useState('all');
+  const [submittedSearchTerm, setSubmittedSearchTerm] = useState('');
+  const [pageNumber, setPageNumber] = useState(1);
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ name: '', email: '', phone: '', plate: '' });
   const [validationErrors, setValidationErrors] = useState({ name: '', email: '', phone: '' });
-  const [removeDialog, setRemoveDialog] = useState({ isOpen: false, customerId: null, customerName: '' });
-  const [successDialog, setSuccessDialog] = useState({ isOpen: false, message: '' });
+  const [removeDialog, setRemoveDialog] = useState({ isOpen: false, customerId: null, customerName: '', isRemoving: true });
   const [isRemoving, setIsRemoving] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const PAGE_SIZE = 5;
+
+  const stats = useMemo(() => {
+    const active = customers.filter((customer) => customer.isActive).length;
+    return {
+      total: customers.length,
+      active,
+      inactive: customers.length - active,
+    };
+  }, [customers]);
+
+  const clearFilters = () => {
+    setSearchInput('');
+    setDraftStatusFilter('all');
+    setSubmittedSearchTerm('');
+    setAppliedStatusFilter('all');
+    setPageNumber(1);
+  };
+
+  useEffect(() => {
+    if (searchInput.trim() === '') {
+      clearFilters();
+    }
+  }, [searchInput]);
+
+  const filteredCustomers = useMemo(() => {
+    let result = [...customers];
+    const term = submittedSearchTerm.trim().toLowerCase();
+
+    if (term) {
+      result = result.filter((customer) => {
+        const searchable = [
+          customer.name,
+          customer.email,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return searchable.includes(term);
+      });
+    }
+
+    if (appliedStatusFilter === 'active') {
+      result = result.filter((customer) => customer.isActive);
+    } else if (appliedStatusFilter === 'inactive') {
+      result = result.filter((customer) => !customer.isActive);
+    }
+
+    return result;
+  }, [customers, submittedSearchTerm, appliedStatusFilter]);
+
+  const totalItems = filteredCustomers.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+
+  const pagedCustomers = useMemo(() => {
+    const start = (pageNumber - 1) * PAGE_SIZE;
+    return filteredCustomers.slice(start, start + PAGE_SIZE);
+  }, [filteredCustomers, pageNumber]);
+
+  const hasNextPage = pageNumber < totalPages;
+  const hasPreviousPage = pageNumber > 1;
+
+  useEffect(() => {
+    if (pageNumber > totalPages) {
+      setPageNumber(totalPages);
+    }
+  }, [pageNumber, totalPages]);
+
+  const handleSearch = (event) => {
+    event.preventDefault();
+    const nextSearchTerm = searchInput.trim();
+    const nextStatusFilter = draftStatusFilter;
+    setSubmittedSearchTerm(nextSearchTerm);
+    setAppliedStatusFilter(nextStatusFilter);
+    setPageNumber(1);
+  };
+
+  const handleStatusFilterChange = (status) => {
+    setDraftStatusFilter(status);
+    setAppliedStatusFilter(status);
+    setPageNumber(1);
+  };
+
+  const handleClearFilters = (event) => {
+    event.preventDefault();
+    clearFilters();
+  };
+
+  const handleSearchInputClear = (event) => {
+    if (event.target.value === '') {
+      clearFilters();
+    }
+  };
+
+  const canClearFilters = Boolean(searchInput.trim() || submittedSearchTerm || appliedStatusFilter !== 'all' || draftStatusFilter !== 'all');
 
   const startEdit = (c) => { setEditingId(c.id); setEditData({ name: c.name, email: c.email || '', phone: c.phone || '', plate: c.plate || '' }); setValidationErrors({ name: '', email: '', phone: '' }); };
 
@@ -1406,7 +1585,7 @@ function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
 
       setEditingId(null);
       onUpdate(updatedCustomer);
-      setSuccessDialog({ isOpen: true, message: `${editData.name} has been updated successfully.` });
+      showToast('success', `${editData.name} has been updated successfully.`);
     } catch (error) {
       showToast('error', 'Error updating customer: ' + (error.message || 'Unknown error'));
     } finally {
@@ -1414,118 +1593,174 @@ function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
     }
   };
 
-  const handleRemoveClick = (customerId, customerName) => {
-    setRemoveDialog({ isOpen: true, customerId, customerName });
+  const handleRemoveClick = (customerId, customerName, isActive) => {
+    setRemoveDialog({ isOpen: true, customerId, customerName, isRemoving: isActive });
   };
 
   const handleConfirmRemove = async () => {
     setIsRemoving(true);
     try {
       await onRemove(removeDialog.customerId);
-      setRemoveDialog({ isOpen: false, customerId: null, customerName: '' });
-      setSuccessDialog({ isOpen: true, message: `${removeDialog.customerName} has been removed successfully.` });
+      const message = removeDialog.isRemoving
+        ? `${removeDialog.customerName} has been removed successfully.`
+        : `${removeDialog.customerName} has been reactivated successfully.`;
+      setRemoveDialog({ isOpen: false, customerId: null, customerName: '', isRemoving: true });
+      showToast('success', message);
     } catch (error) {
-      showToast('error', 'Error removing customer: ' + (error.message || 'Unknown error'));
-      setRemoveDialog({ isOpen: false, customerId: null, customerName: '' });
+      const action = removeDialog.isRemoving ? 'removing' : 'reactivating';
+      showToast('error', `Error ${action} customer: ` + (error.message || 'Unknown error'));
+      setRemoveDialog({ isOpen: false, customerId: null, customerName: '', isRemoving: true });
     } finally {
       setIsRemoving(false);
     }
   };
 
   return (
-    <div className="staff-card" style={{ maxWidth: '1020px', margin: 'auto' }}>
-      <div className="staff-card-header">
+    <div style={{ maxWidth: '1200px', margin: 'auto', paddingBottom: '40px' }}>
+      <div className="staff-card" style={{ marginBottom: '24px' }}>
+        <div className="staff-card-header">
+          <div>
+            <div className="staff-card-title">Customer Management</div>
+            <p style={{ fontSize: '12px', color: '#94A3B8', margin: '2px 0 0' }}>Manage registered customer accounts and vehicle information.</p>
+          </div>
+          <button onClick={onBack} className="btn-view-customer" style={{ background: '#F1F5F9', color: '#475569' }}>← Back</button>
+        </div>
+      </div>
+
+      <StaffFilters
+        searchTerm={searchInput}
+        onSearchChange={setSearchInput}
+        statusFilter={draftStatusFilter}
+        onStatusChange={handleStatusFilterChange}
+        onSearch={handleSearch}
+        onInputSearch={handleSearchInputClear}
+        onClear={handleClearFilters}
+        canClearFilters={canClearFilters}
+      />
+
+      <CustomerStatsCards total={stats.total} active={stats.active} inactive={stats.inactive} />
+
+      <div className="vendor-section-header" style={{ marginTop: '24px' }}>
         <div>
-          <div className="staff-card-title">Customer Database</div>
-          <p style={{ fontSize: '12px', color: '#94A3B8', margin: '2px 0 0' }}>Manage registered customer accounts and vehicle information.</p>
+          <h2>Customer List</h2>
+          <p>{`Showing ${pagedCustomers.length} of ${totalItems} customer${totalItems === 1 ? '' : 's'}.`}</p>
         </div>
-        <button onClick={onBack} className="btn-view-customer" style={{ background: '#F1F5F9', color: '#475569' }}>← Back</button>
       </div>
-      <div className="staff-card-body">
-        <div className="staff-table-scroll">
-          <table className="staff-table">
-            <thead>
-              <tr>
-                <th>Customer</th>
-                <th>Contact</th>
-                <th>Vehicle</th>
-                <th>Plate</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {customers.map(c => (
-                <tr key={c.id}>
-                  {editingId === c.id ? (
-                    <td colSpan="5" style={{ padding: '12px' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px' }}>
-                        <div>
-                          <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '4px' }}>Name</label>
-                          <input type="text" value={editData.name} onChange={e => { setEditData({ ...editData, name: e.target.value }); setValidationErrors({ ...validationErrors, name: validateName(e.target.value) }); }} placeholder="Customer Name" className="search-input-field" style={{ width: '100%', height: '34px', margin: 0, borderColor: validationErrors.name ? '#EF4444' : undefined }} />
-                          {validationErrors.name && <span style={{ fontSize: '10px', color: '#EF4444' }}>{validationErrors.name}</span>}
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '4px' }}>Email</label>
-                          <input type="email" value={editData.email} onChange={e => { setEditData({ ...editData, email: e.target.value }); setValidationErrors({ ...validationErrors, email: validateEmail(e.target.value) }); }} placeholder="Email" className="search-input-field" style={{ width: '100%', height: '34px', margin: 0, borderColor: validationErrors.email ? '#EF4444' : undefined }} />
-                          {validationErrors.email && <span style={{ fontSize: '10px', color: '#EF4444' }}>{validationErrors.email}</span>}
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '4px' }}>Phone</label>
-                          <input type="text" value={editData.phone} onChange={e => { setEditData({ ...editData, phone: e.target.value }); setValidationErrors({ ...validationErrors, phone: validatePhone(e.target.value) }); }} placeholder="Phone Number" className="search-input-field" style={{ width: '100%', height: '34px', margin: 0, borderColor: validationErrors.phone ? '#EF4444' : undefined }} />
-                          {validationErrors.phone && <span style={{ fontSize: '10px', color: '#EF4444' }}>{validationErrors.phone}</span>}
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '4px' }}>Plate Number</label>
-                          <input type="text" value={editData.plate} onChange={e => setEditData({ ...editData, plate: e.target.value })} placeholder="Vehicle Plate" className="search-input-field" style={{ width: '100%', height: '34px', margin: 0 }} />
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '10px' }}>
-                        <button onClick={() => setEditingId(null)} className="btn-view-customer" style={{ background: '#F1F5F9', color: '#475569' }}>Cancel</button>
-                        <button onClick={() => handleSave(c.id)} className="btn-sale-primary" disabled={isSaving || validationErrors.name || validationErrors.email || validationErrors.phone}>{isSaving ? 'Saving...' : 'Save Changes'}</button>
-                      </div>
-                    </td>
-                  ) : (
-                    <>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div className="avatar-circle" style={{ width: '28px', height: '28px', fontSize: '10px' }}>{c.name?.[0]?.toUpperCase()}</div>
-                          <div style={{ fontSize: '13px', fontWeight: 600 }}>{c.name}</div>
-                        </div>
-                      </td>
-                      <td>
-                        <div style={{ fontSize: '12px', color: '#1E293B' }}>{c.email}</div>
-                        <div style={{ fontSize: '11px', color: '#94A3B8' }}>{c.phone}</div>
-                      </td>
-                      <td>
-                        {c.vehicleInfo ? (
-                          <div style={{ fontSize: '12px', color: '#475569' }}>
-                            {c.vehicleInfo.make?.toLowerCase().includes(c.vehicleInfo.model?.toLowerCase()) || c.vehicleInfo.model?.toLowerCase().includes(c.vehicleInfo.make?.toLowerCase()) ? c.vehicleInfo.make : `${c.vehicleInfo.make} ${c.vehicleInfo.model}`} ({c.vehicleInfo.year})
-                            {c.vehicleCount > 1 && <span className="badge-pill badge-loyalty" style={{ marginLeft: '5px', fontSize: '10px' }}>+{c.vehicleCount - 1}</span>}
-                          </div>
-                        ) : (
-                          <span style={{ fontSize: '11px', color: '#94A3B8' }}>No vehicle</span>
-                        )}
-                      </td>
-                      <td><span className="badge-pill badge-paid">{c.vehicleInfo?.plateNumber || c.plate || 'N/A'}</span></td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
-                          <button onClick={() => startEdit(c)} className="btn-view-customer">Edit</button>
-                          <button onClick={() => handleRemoveClick(c.id, c.name)} className="btn-view-customer" style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>Remove</button>
-                        </div>
-                      </td>
-                    </>
-                  )}
+
+      <div className="staff-card">
+        <div className="staff-card-body">
+          <div className="staff-table-scroll">
+            <table className="staff-table">
+              <thead>
+                <tr>
+                  <th>Customer</th>
+                  <th>Contact</th>
+                  <th>Vehicle</th>
+                  <th>Plate</th>
+                  <th style={{ width: '120px', textAlign: 'right' }}>Actions</th>
                 </tr>
-              ))}
-              {customers.length === 0 && (
-                <tr><td colSpan="5" style={{ padding: '28px', textAlign: 'center', color: '#94A3B8' }}>No customers found.</td></tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {pagedCustomers.map(c => (
+                  <tr key={c.id}>
+                    {editingId === c.id ? (
+                      <td colSpan="5" style={{ padding: '12px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px' }}>
+                          <div>
+                            <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '4px' }}>Name</label>
+                            <input type="text" value={editData.name} onChange={e => { setEditData({ ...editData, name: e.target.value }); setValidationErrors({ ...validationErrors, name: validateName(e.target.value) }); }} placeholder="Customer Name" className="search-input-field" style={{ width: '100%', height: '34px', margin: 0, borderColor: validationErrors.name ? '#EF4444' : undefined }} />
+                            {validationErrors.name && <span style={{ fontSize: '10px', color: '#EF4444' }}>{validationErrors.name}</span>}
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '4px' }}>Email</label>
+                            <input type="email" value={editData.email} onChange={e => { setEditData({ ...editData, email: e.target.value }); setValidationErrors({ ...validationErrors, email: validateEmail(e.target.value) }); }} placeholder="Email" className="search-input-field" style={{ width: '100%', height: '34px', margin: 0, borderColor: validationErrors.email ? '#EF4444' : undefined }} />
+                            {validationErrors.email && <span style={{ fontSize: '10px', color: '#EF4444' }}>{validationErrors.email}</span>}
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '4px' }}>Phone</label>
+                            <input type="text" value={editData.phone} onChange={e => { setEditData({ ...editData, phone: e.target.value }); setValidationErrors({ ...validationErrors, phone: validatePhone(e.target.value) }); }} placeholder="Phone Number" className="search-input-field" style={{ width: '100%', height: '34px', margin: 0, borderColor: validationErrors.phone ? '#EF4444' : undefined }} />
+                            {validationErrors.phone && <span style={{ fontSize: '10px', color: '#EF4444' }}>{validationErrors.phone}</span>}
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '4px' }}>Plate Number</label>
+                            <input type="text" value={editData.plate} onChange={e => setEditData({ ...editData, plate: e.target.value })} placeholder="Vehicle Plate" className="search-input-field" style={{ width: '100%', height: '34px', margin: 0 }} />
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '10px' }}>
+                          <button onClick={() => setEditingId(null)} className="btn-view-customer" style={{ background: '#F1F5F9', color: '#475569' }}>Cancel</button>
+                          <button onClick={() => handleSave(c.id)} className="btn-sale-primary" disabled={isSaving || validationErrors.name || validationErrors.email || validationErrors.phone}>{isSaving ? 'Saving...' : 'Save Changes'}</button>
+                        </div>
+                      </td>
+                    ) : (
+                      <>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div className="avatar-circle" style={{ width: '28px', height: '28px', fontSize: '10px' }}>{c.name?.[0]?.toUpperCase()}</div>
+                            <div style={{ fontSize: '13px', fontWeight: 600 }}>{c.name}</div>
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ fontSize: '12px', color: '#1E293B' }}>{c.email}</div>
+                          <div style={{ fontSize: '11px', color: '#94A3B8' }}>{c.phone}</div>
+                        </td>
+                        <td>
+                          {c.vehicleInfo ? (
+                            <div style={{ fontSize: '12px', color: '#475569' }}>
+                              {c.vehicleInfo.make?.toLowerCase().includes(c.vehicleInfo.model?.toLowerCase()) || c.vehicleInfo.model?.toLowerCase().includes(c.vehicleInfo.make?.toLowerCase()) ? c.vehicleInfo.make : `${c.vehicleInfo.make} ${c.vehicleInfo.model}`} ({c.vehicleInfo.year})
+                              {c.vehicleCount > 1 && <span className="badge-pill badge-loyalty" style={{ marginLeft: '5px', fontSize: '10px' }}>+{c.vehicleCount - 1}</span>}
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: '11px', color: '#94A3B8' }}>No vehicle</span>
+                          )}
+                        </td>
+                        <td><span className="badge-pill badge-paid">{c.vehicleInfo?.plateNumber || c.plate || 'N/A'}</span></td>
+                        <td style={{ textAlign: 'right' }}>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                            <button onClick={() => startEdit(c)} className="btn-view-customer">Edit</button>
+                            <button onClick={() => handleRemoveClick(c.id, c.name, c.isActive)} className="btn-view-customer" style={{ background: c.isActive ? '#FEF2F2' : '#F0FDF4', color: c.isActive ? '#DC2626' : '#16A34A', border: `1px solid ${c.isActive ? '#FECACA' : '#BBF7D0'}` }}>{c.isActive ? 'Remove' : 'Reactive'}</button>
+                          </div>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+                {pagedCustomers.length === 0 && (
+                  <tr><td colSpan="5" style={{ padding: '28px', textAlign: 'center', color: '#94A3B8' }}>No customers found.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-      <Dialog isOpen={removeDialog.isOpen} title="Remove Customer" message={`Are you sure you want to remove ${removeDialog.customerName}? This action cannot be undone.`} type="confirm" confirmText="Remove" cancelText="Cancel" isLoading={isRemoving} onConfirm={handleConfirmRemove} onCancel={() => setRemoveDialog({ isOpen: false, customerId: null, customerName: '' })} />
-      <Dialog isOpen={successDialog.isOpen} title="Success" message={successDialog.message} type="success" confirmText="OK" onConfirm={() => setSuccessDialog({ isOpen: false, message: '' })} />
+
+      {totalPages > 1 && (
+        <div className="vendor-pagination" style={{ marginTop: '20px' }}>
+          <div className="vendor-pagination-meta">
+            <span className="vendor-pagination-count">Total customers: {totalItems}</span>
+            <span className="vendor-pagination-summary">Page {pageNumber} of {totalPages}</span>
+          </div>
+          <div className="vendor-pagination-actions">
+            <button
+              type="button"
+              className="btn-secondary vendor-pagination-button vendor-pagination-button-previous"
+              onClick={() => setPageNumber((current) => Math.max(1, current - 1))}
+              disabled={!hasPreviousPage}
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              className="btn-secondary vendor-pagination-button vendor-pagination-button-next"
+              onClick={() => setPageNumber((current) => current + 1)}
+              disabled={!hasNextPage}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
+      <Dialog isOpen={removeDialog.isOpen} title={removeDialog.isRemoving ? "Remove Customer" : "Reactive Customer"} message={removeDialog.isRemoving ? `Are you sure you want to remove ${removeDialog.customerName}? This action cannot be undone.` : `Are you sure you want to reactive ${removeDialog.customerName}'s account?`} type="confirm" confirmText={removeDialog.isRemoving ? "Remove" : "Reactive"} cancelText="Cancel" isLoading={isRemoving} onConfirm={handleConfirmRemove} onCancel={() => setRemoveDialog({ isOpen: false, customerId: null, customerName: '', isRemoving: true })} />
     </div>
   );
 }
@@ -1573,12 +1808,19 @@ function FullInventoryPage({ inventory, onBack }) {
 }
 
 function FullStaffPage({ staffList, onNavigate, onBack, onRemove, onUpdate, onAddStaff }) {
+  const showToast = useToast();
   const [searchInput, setSearchInput] = useState('');
   const [draftStatusFilter, setDraftStatusFilter] = useState('all');
   const [appliedStatusFilter, setAppliedStatusFilter] = useState('all');
   const [submittedSearchTerm, setSubmittedSearchTerm] = useState('');
   const [pageNumber, setPageNumber] = useState(1);
   const [showAddStaffForm, setShowAddStaffForm] = useState(false);
+  const [removeDialog, setRemoveDialog] = useState({ isOpen: false, staffId: null, staffName: '' });
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [editingStaffId, setEditingStaffId] = useState(null);
+  const [editData, setEditData] = useState({});
+  const [editingEmail, setEditingEmail] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const PAGE_SIZE = 5;
 
   const stats = useMemo(() => {
@@ -1632,7 +1874,7 @@ function FullStaffPage({ staffList, onNavigate, onBack, onRemove, onUpdate, onAd
 
   const totalItems = filteredStaff.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
-  
+
   const pagedStaff = useMemo(() => {
     const start = (pageNumber - 1) * PAGE_SIZE;
     return filteredStaff.slice(start, start + PAGE_SIZE);
@@ -1678,145 +1920,298 @@ function FullStaffPage({ staffList, onNavigate, onBack, onRemove, onUpdate, onAd
     searchInput.trim() || submittedSearchTerm || appliedStatusFilter !== 'all' || draftStatusFilter !== 'all'
   );
 
-  const handleDeleteStaff = async (staffId) => {
-    if (window.confirm('Are you sure you want to delete this staff member?')) {
-      onRemove(staffId);
+  const handleRemoveClick = (staffId, staffName) => {
+    setRemoveDialog({ isOpen: true, staffId, staffName });
+  };
+
+  const handleConfirmRemove = async () => {
+    setIsRemoving(true);
+    try {
+      await onRemove(removeDialog.staffId);
+      setRemoveDialog({ isOpen: false, staffId: null, staffName: '' });
+    } finally {
+      setIsRemoving(false);
     }
+  };
+
+  const handleEditClick = (staff) => {
+    setEditingStaffId(staff.id);
+    setEditData({
+      name: staff.name || '',
+      email: staff.email || '',
+      phone: staff.phoneNumber || staff.phone || '',
+      role: staff.role || 'Staff',
+      isActive: staff.isActive !== false
+    });
+    setEditingEmail(staff.email || '');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingStaffId(null);
+    setEditData({});
+    setEditingEmail('');
+  };
+
+  const validateEditForm = () => {
+    if (!editData.name || editData.name.trim().length < 2) {
+      return 'Full name is required (at least 2 characters).';
+    }
+    if (!editData.email || !editData.email.includes('@')) {
+      return 'Valid email is required.';
+    }
+    if (!editData.phone || editData.phone.replace(/\D/g, '').length !== 10) {
+      return 'Phone number must be exactly 10 digits.';
+    }
+    return null;
+  };
+
+  const handleSaveEdit = async () => {
+    const error = validateEditForm();
+    if (error) {
+      showToast('error', error);
+      return;
+    }
+
+    setIsSavingEdit(true);
+    try {
+      const success = await onUpdate({
+        id: editingStaffId,
+        name: editData.name.trim(),
+        email: editData.email.trim(),
+        phone: editData.phone.trim(),
+        role: editData.role,
+        isActive: editData.isActive
+      });
+
+      if (success) {
+        handleCancelEdit();
+      }
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handlePhoneChangeEdit = (e) => {
+    const value = e.target.value;
+    const digitsOnly = value.replace(/\D/g, '').slice(0, 10);
+    setEditData({ ...editData, phone: digitsOnly });
+  };
+
+  const handleDeleteStaff = (staffId, staffName) => {
+    handleRemoveClick(staffId, staffName);
   };
 
   return (
     <>
       <div style={{ maxWidth: '1200px', margin: 'auto', paddingBottom: '40px' }}>
-      <div className="staff-card" style={{ marginBottom: '24px' }}>
-        <div className="staff-card-header">
+        <div className="staff-card" style={{ marginBottom: '24px' }}>
+          <div className="staff-card-header">
+            <div>
+              <div className="staff-card-title">System Staff Directory</div>
+              <p style={{ fontSize: '12px', color: '#94A3B8', margin: '2px 0 0' }}>All registered staff members and their roles.</p>
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setShowAddStaffForm(true)} className="btn-sale-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Plus size={15} /> Add Staff
+              </button>
+              <button onClick={onBack} className="btn-view-customer" style={{ background: '#F1F5F9', color: '#475569' }}>← Back</button>
+            </div>
+          </div>
+        </div>
+
+        <StaffFilters
+          searchTerm={searchInput}
+          onSearchChange={setSearchInput}
+          statusFilter={draftStatusFilter}
+          onStatusChange={handleStatusFilterChange}
+          onSearch={handleSearch}
+          onInputSearch={handleSearchInputClear}
+          onClear={handleClearFilters}
+          canClearFilters={canClearFilters}
+        />
+
+        <StaffStatsCards total={stats.total} active={stats.active} inactive={stats.inactive} />
+
+        <div className="vendor-section-header" style={{ marginTop: '24px' }}>
           <div>
-            <div className="staff-card-title">System Staff Directory</div>
-            <p style={{ fontSize: '12px', color: '#94A3B8', margin: '2px 0 0' }}>All registered staff members and their roles.</p>
-          </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={() => setShowAddStaffForm(true)} className="btn-sale-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Plus size={15} /> Add Staff
-            </button>
-            <button onClick={onBack} className="btn-view-customer" style={{ background: '#F1F5F9', color: '#475569' }}>← Back</button>
+            <h2>Staff Directory</h2>
+            <p>{`Showing ${pagedStaff.length} of ${totalItems} staff member${totalItems === 1 ? '' : 's'}.`}</p>
           </div>
         </div>
-      </div>
 
-      <StaffFilters
-        searchTerm={searchInput}
-        onSearchChange={setSearchInput}
-        statusFilter={draftStatusFilter}
-        onStatusChange={handleStatusFilterChange}
-        onSearch={handleSearch}
-        onInputSearch={handleSearchInputClear}
-        onClear={handleClearFilters}
-        canClearFilters={canClearFilters}
-      />
-
-      <StaffStatsCards total={stats.total} active={stats.active} inactive={stats.inactive} />
-
-      <div className="vendor-section-header" style={{ marginTop: '24px' }}>
-        <div>
-          <h2>Staff Directory</h2>
-          <p>{`Showing ${pagedStaff.length} of ${totalItems} staff member${totalItems === 1 ? '' : 's'}.`}</p>
-        </div>
-      </div>
-
-      <div className="staff-card">
-        <div className="staff-card-body">
-          <table className="staff-table">
-            <thead>
-              <tr>
-                <th>Member</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th style={{ width: '120px', textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pagedStaff.map(s => (
-                <tr key={s.id}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div className="avatar-circle" style={{ width: '28px', height: '28px', fontSize: '10px', background: '#2563eb', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{s.name[0].toUpperCase()}</div>
-                      <div style={{ fontSize: '13px', fontWeight: 600 }}>{s.name}</div>
-                    </div>
-                  </td>
-                  <td><div style={{ fontSize: '12px', color: '#64748B' }}>{s.email}</div></td>
-                  <td><span className="badge-pill badge-loyalty">{s.role}</span></td>
-                  <td>
-                    <span className={`badge-pill ${s.isActive ? 'badge-paid' : 'badge-overdue'}`}>
-                      {s.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                      <button
-                        onClick={() => onUpdate(s)}
-                        className="btn-icon-small"
-                        title="Edit staff"
-                        style={{ background: '#E0F2FE', color: '#0369a1', padding: '6px 8px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                      >
-                        <Edit2 size={14} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteStaff(s.id)}
-                        className="btn-icon-small"
-                        title="Delete staff"
-                        style={{ background: '#FEE2E2', color: '#dc2626', padding: '6px 8px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </td>
+        <div className="staff-card">
+          <div className="staff-card-body">
+            <table className="staff-table">
+              <thead>
+                <tr>
+                  <th>Member</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th style={{ width: '120px', textAlign: 'right' }}>Actions</th>
                 </tr>
-              ))}
-              {pagedStaff.length === 0 && (
-                <tr><td colSpan="5" style={{ padding: '28px', textAlign: 'center', color: '#94A3B8' }}>No staff members found.</td></tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {pagedStaff.map(s => (
+                  <tr key={s.id}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div className="avatar-circle" style={{ width: '28px', height: '28px', fontSize: '10px', background: '#2563eb', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{s.name[0].toUpperCase()}</div>
+                        <div style={{ fontSize: '13px', fontWeight: 600 }}>{s.name}</div>
+                      </div>
+                    </td>
+                    <td><div style={{ fontSize: '12px', color: '#64748B' }}>{s.email}</div></td>
+                    <td><span className="badge-pill badge-loyalty">{s.role}</span></td>
+                    <td>
+                      <span className={`badge-pill ${s.isActive ? 'badge-paid' : 'badge-overdue'}`}>
+                        {s.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button
+                          onClick={() => handleEditClick(s)}
+                          className="btn-icon-small"
+                          title="Edit staff"
+                          style={{ background: '#E0F2FE', color: '#0369a1', padding: '6px 8px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteStaff(s.id, s.name)}
+                          className="btn-icon-small"
+                          title="Delete staff"
+                          style={{ background: '#FEE2E2', color: '#dc2626', padding: '6px 8px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {pagedStaff.length === 0 && (
+                  <tr><td colSpan="5" style={{ padding: '28px', textAlign: 'center', color: '#94A3B8' }}>No staff members found.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
+
+        {totalPages > 1 && (
+          <div className="vendor-pagination" style={{ marginTop: '20px' }}>
+            <div className="vendor-pagination-meta">
+              <span className="vendor-pagination-count">Total staff: {totalItems}</span>
+              <span className="vendor-pagination-summary">Page {pageNumber} of {totalPages}</span>
+            </div>
+            <div className="vendor-pagination-actions">
+              <button
+                type="button"
+                className="btn-secondary vendor-pagination-button vendor-pagination-button-previous"
+                onClick={() => setPageNumber((current) => Math.max(1, current - 1))}
+                disabled={!hasPreviousPage}
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                className="btn-secondary vendor-pagination-button vendor-pagination-button-next"
+                onClick={() => setPageNumber((current) => current + 1)}
+                disabled={!hasNextPage}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {totalPages > 1 && (
-        <div className="vendor-pagination" style={{ marginTop: '20px' }}>
-          <div className="vendor-pagination-meta">
-            <span className="vendor-pagination-count">Total staff: {totalItems}</span>
-            <span className="vendor-pagination-summary">Page {pageNumber} of {totalPages}</span>
-          </div>
-          <div className="vendor-pagination-actions">
-            <button
-              type="button"
-              className="btn-secondary vendor-pagination-button vendor-pagination-button-previous"
-              onClick={() => setPageNumber((current) => Math.max(1, current - 1))}
-              disabled={!hasPreviousPage}
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              className="btn-secondary vendor-pagination-button vendor-pagination-button-next"
-              onClick={() => setPageNumber((current) => current + 1)}
-              disabled={!hasNextPage}
-            >
-              Next
-            </button>
+      {showAddStaffForm && (
+        <div className="modal-overlay" onClick={() => setShowAddStaffForm(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div style={{ maxWidth: '640px' }}>
+              <AddStaffPage onAdd={onAddStaff} onBack={() => setShowAddStaffForm(false)} />
+            </div>
           </div>
         </div>
       )}
-    </div>
 
-    {showAddStaffForm && (
-      <div className="modal-overlay" onClick={() => setShowAddStaffForm(false)}>
-        <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-          <div style={{ maxWidth: '640px' }}>
-            <AddStaffPage onAdd={onAddStaff} onBack={() => setShowAddStaffForm(false)} />
+      {editingStaffId && (
+        <div className="modal-overlay" onClick={handleCancelEdit}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <div className="staff-card" style={{ maxWidth: '100%', margin: 0, border: 'none', boxShadow: 'none' }}>
+              <div className="staff-card-header" style={{ borderBottom: '1px solid #E2E8F0', paddingBottom: '16px' }}>
+                <div>
+                  <div className="staff-card-title" style={{ fontSize: '18px', marginBottom: '4px' }}>Edit Staff Member</div>
+                  <p style={{ fontSize: '12px', color: '#94A3B8', margin: 0 }}>Update staff profile information.</p>
+                </div>
+                <button onClick={handleCancelEdit} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#64748B', cursor: 'pointer', padding: 0 }}>✕</button>
+              </div>
+              <div className="staff-card-body" style={{ padding: '20px' }}>
+                <form onSubmit={(e) => { e.preventDefault(); handleSaveEdit(); }} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>Full Name</label>
+                    <input
+                      type="text"
+                      placeholder="Staff full name"
+                      value={editData.name || ''}
+                      onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+                      className="search-input-field"
+                      style={{ width: '100%', height: '38px', margin: 0 }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>Email Address</label>
+                    <input
+                      type="email"
+                      placeholder="staff@example.com"
+                      value={editData.email || ''}
+                      onChange={(e) => setEditData({ ...editData, email: e.target.value })}
+                      className="search-input-field"
+                      style={{ width: '100%', height: '38px', margin: 0 }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>Phone Number</label>
+                    <input
+                      type="text"
+                      placeholder="98XXXXXXXX"
+                      value={editData.phone || ''}
+                      onChange={handlePhoneChangeEdit}
+                      className="search-input-field"
+                      style={{ width: '100%', height: '38px', margin: 0 }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '5px' }}>Role</label>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#1E293B', padding: '9px 12px', background: '#F1F5F9', borderRadius: '4px', border: '1px solid #E2E8F0' }}>Staff</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="checkbox"
+                      id="activeCheckbox"
+                      checked={editData.isActive !== false}
+                      onChange={(e) => setEditData({ ...editData, isActive: e.target.checked })}
+                      style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                    />
+                    <label htmlFor="activeCheckbox" style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', cursor: 'pointer', margin: 0 }}>Active</label>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '8px' }}>
+                    <button type="button" onClick={handleCancelEdit} disabled={isSavingEdit} className="btn-view-customer" style={{ background: '#F1F5F9', color: '#475569', fontWeight: 600 }}>
+                      Cancel
+                    </button>
+                    <button type="submit" disabled={isSavingEdit} className="btn-sale-primary" style={{ fontWeight: 600, minWidth: '120px' }}>
+                      {isSavingEdit ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    )}
-  </>
+      )}
+
+      <Dialog isOpen={removeDialog.isOpen} title="Remove Staff Member" message={`Are you sure you want to remove ${removeDialog.staffName}? This action cannot be undone.`} type="confirm" confirmText="Remove" cancelText="Cancel" isLoading={isRemoving} onConfirm={handleConfirmRemove} onCancel={() => setRemoveDialog({ isOpen: false, staffId: null, staffName: '' })} />
+    </>
   );
 }

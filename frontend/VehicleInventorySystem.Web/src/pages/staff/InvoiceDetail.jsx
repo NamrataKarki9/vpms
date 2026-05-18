@@ -61,8 +61,8 @@ const InvoiceDetail = () => {
   const handleEmail = async () => {
     setEmailSending(true);
     try {
-      await apiFetch(`/Transactions/${id}/email`, { method: 'POST' });
-      showToast('success', `Invoice #${id} sent to customer email.`);
+      const res = await apiFetch(`/Transactions/${id}/email`, { method: 'POST' });
+      showToast('success', res?.message || `Invoice #${id} sent to recipient email.`);
     } catch (err) {
       showToast('error', 'Failed to send email.');
     } finally {
@@ -92,8 +92,8 @@ const InvoiceDetail = () => {
         <p style={{ fontSize: '48px', margin: '0 0 16px' }}>🗒️</p>
         <h3 style={{ color: '#1E293B', margin: '0 0 8px' }}>Invoice Not Found</h3>
         <p style={{ color: '#64748B', margin: '0 0 24px' }}>Invoice #{id} could not be located.</p>
-        <button onClick={() => navigate('/staff/invoices')} style={{ background: '#1E3A5F', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>
-          Back to Invoices
+        <button onClick={() => navigate(-1)} style={{ background: '#1E3A5F', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>
+          Back
         </button>
       </div>
     );
@@ -103,11 +103,11 @@ const InvoiceDetail = () => {
     return (
       <div style={{ maxWidth: '720px', margin: '0 auto' }}>
         <button
-          onClick={() => navigate('/staff/invoices')}
+          onClick={() => navigate(-1)}
           style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', fontSize: '14px', marginBottom: '24px', padding: 0, fontWeight: 500 }}
         >
           <ArrowLeft size={16} />
-          Back to Invoices
+          Back
         </button>
 
         <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #E8ECF0' }}>
@@ -255,11 +255,11 @@ const InvoiceDetail = () => {
 
       {/* Back navigation */}
       <button
-        onClick={() => navigate('/staff/invoices')}
+        onClick={() => navigate(-1)}
         style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', fontSize: '14px', marginBottom: '24px', padding: 0, fontWeight: 500 }}
       >
         <ArrowLeft size={16} />
-        Back to Invoices
+        Back
       </button>
 
       {/* Invoice Card */}

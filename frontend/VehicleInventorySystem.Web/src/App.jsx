@@ -201,6 +201,36 @@ function App() {
     }
   };
 
+  const handleUpdateStaff = async (updatePayload) => {
+    try {
+      const response = await authApi.updateUser(updatePayload.id, {
+        name: updatePayload.name,
+        email: updatePayload.email,
+        phoneNumber: updatePayload.phone,
+        role: updatePayload.role,
+        isActive: updatePayload.isActive
+      });
+      showToast('success', 'Staff member updated successfully.');
+      setStaffList((current) =>
+        current.map((staff) => (staff.id === updatePayload.id ? { ...staff, ...updatePayload } : staff))
+      );
+      return true;
+    } catch (error) {
+      showToast('error', error.message || 'Failed to update staff member.');
+      return false;
+    }
+  };
+
+  const handleRemoveStaff = async (staffId) => {
+    try {
+      await authApi.toggleUserStatus(staffId);
+      showToast('success', 'Staff member removed successfully.');
+      setStaffList((current) => current.map((staff) => staff.id === staffId ? { ...staff, isActive: !staff.isActive } : staff));
+    } catch (error) {
+      showToast('error', error.message || 'Failed to remove staff member.');
+    }
+  };
+
   const handleUpdateCustomer = (updatedCustomer) => {
     setCustomerList((current) =>
       current.map((customer) => (customer.id === updatedCustomer.id ? { ...customer, ...updatedCustomer } : customer))
@@ -208,8 +238,13 @@ function App() {
   };
 
   const handleRemoveCustomer = async (customerId) => {
-    await authApi.toggleUserStatus(customerId);
-    setCustomerList((current) => current.filter((customer) => customer.id !== customerId));
+    try {
+      await authApi.toggleUserStatus(customerId);
+      setCustomerList((current) => current.map((customer) => customer.id === customerId ? { ...customer, isActive: !customer.isActive } : customer));
+    } catch (error) {
+      showToast('error', error.message || 'Failed to remove customer.');
+      throw error;
+    }
   };
 
   const isStaffSection = location.pathname.startsWith('/staff');
@@ -255,6 +290,8 @@ function App() {
                 <AdminDashboard
                   staffList={staffList}
                   onAddStaff={handleAddStaff}
+                  onUpdateStaff={handleUpdateStaff}
+                  onRemoveStaff={handleRemoveStaff}
                   sales={salesHistory}
                   inventory={inventory}
                   onUpdateInventory={setInventory}
@@ -269,6 +306,8 @@ function App() {
                 <AdminDashboard
                   staffList={staffList}
                   onAddStaff={handleAddStaff}
+                  onUpdateStaff={handleUpdateStaff}
+                  onRemoveStaff={handleRemoveStaff}
                   sales={salesHistory}
                   inventory={inventory}
                   onUpdateInventory={setInventory}
@@ -283,6 +322,8 @@ function App() {
                 <AdminDashboard
                   staffList={staffList}
                   onAddStaff={handleAddStaff}
+                  onUpdateStaff={handleUpdateStaff}
+                  onRemoveStaff={handleRemoveStaff}
                   sales={salesHistory}
                   inventory={inventory}
                   onUpdateInventory={setInventory}
@@ -297,6 +338,8 @@ function App() {
                 <AdminDashboard
                   staffList={staffList}
                   onAddStaff={handleAddStaff}
+                  onUpdateStaff={handleUpdateStaff}
+                  onRemoveStaff={handleRemoveStaff}
                   sales={salesHistory}
                   inventory={inventory}
                   onUpdateInventory={setInventory}
@@ -311,6 +354,8 @@ function App() {
                 <AdminDashboard
                   staffList={staffList}
                   onAddStaff={handleAddStaff}
+                  onUpdateStaff={handleUpdateStaff}
+                  onRemoveStaff={handleRemoveStaff}
                   sales={salesHistory}
                   inventory={inventory}
                   onUpdateInventory={setInventory}
@@ -325,6 +370,8 @@ function App() {
                 <AdminDashboard
                   staffList={staffList}
                   onAddStaff={handleAddStaff}
+                  onUpdateStaff={handleUpdateStaff}
+                  onRemoveStaff={handleRemoveStaff}
                   sales={salesHistory}
                   inventory={inventory}
                   onUpdateInventory={setInventory}
@@ -339,6 +386,8 @@ function App() {
                 <AdminDashboard
                   staffList={staffList}
                   onAddStaff={handleAddStaff}
+                  onUpdateStaff={handleUpdateStaff}
+                  onRemoveStaff={handleRemoveStaff}
                   sales={salesHistory}
                   inventory={inventory}
                   onUpdateInventory={setInventory}
@@ -349,10 +398,28 @@ function App() {
                   view="transactions"
                 />
               } />
+              <Route path="purchases" element={
+                <AdminDashboard
+                  staffList={staffList}
+                  onAddStaff={handleAddStaff}
+                  onUpdateStaff={handleUpdateStaff}
+                  onRemoveStaff={handleRemoveStaff}
+                  sales={salesHistory}
+                  inventory={inventory}
+                  onUpdateInventory={setInventory}
+                  customerList={customerList}
+                  onRemoveCustomer={handleRemoveCustomer}
+                  onUpdateCustomer={handleUpdateCustomer}
+                  onOpenVendorManagement={() => navigate('/vendors')}
+                  view="purchases"
+                />
+              } />
               <Route path="reports" element={
                 <AdminDashboard
                   staffList={staffList}
                   onAddStaff={handleAddStaff}
+                  onUpdateStaff={handleUpdateStaff}
+                  onRemoveStaff={handleRemoveStaff}
                   sales={salesHistory}
                   inventory={inventory}
                   onUpdateInventory={setInventory}
@@ -363,6 +430,7 @@ function App() {
                   view="reports"
                 />
               } />
+              <Route path="invoices/:id" element={<InvoiceDetail />} />
 
             </Route>
           )}

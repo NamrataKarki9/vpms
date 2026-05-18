@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -359,30 +360,106 @@ public class UserService : IUserService
 
     private static void ValidateCustomerInput(string name, string email, string phoneNumber, string password, string confirmPassword)
     {
-        if (string.IsNullOrWhiteSpace(name) ||
-            string.IsNullOrWhiteSpace(email) ||
-            string.IsNullOrWhiteSpace(phoneNumber) ||
-            string.IsNullOrWhiteSpace(password))
+        // Check for null or whitespace
+        if (string.IsNullOrWhiteSpace(name))
         {
-            throw new ArgumentException("Please fill in all required fields.");
+            throw new ArgumentException("Name is required.");
         }
 
-        if (name.Trim().Length < 2)
+        var trimmedName = name.Trim();
+        if (trimmedName.Length < 2)
         {
             throw new ArgumentException("Name must be at least 2 characters.");
         }
 
-        if (!email.Contains('@') || !email.Contains('.'))
+        if (trimmedName.Length > 100)
         {
-            throw new ArgumentException("Invalid email format.");
+            throw new ArgumentException("Name must not exceed 100 characters.");
         }
 
-        if (password.Length < 6)
+        // Email validation
+        if (string.IsNullOrWhiteSpace(email))
         {
-            throw new ArgumentException("Password must be at least 6 characters.");
+            throw new ArgumentException("Email address is required.");
         }
 
-        if (!string.Equals(password, confirmPassword, StringComparison.Ordinal))
+        var trimmedEmail = email.Trim();
+        if (trimmedEmail.Length > 256)
+        {
+            throw new ArgumentException("Email address must not exceed 256 characters.");
+        }
+
+        // RFC 5322 compliant email validation pattern
+        var emailPattern = @"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$";
+        if (!Regex.IsMatch(trimmedEmail, emailPattern))
+        {
+            throw new ArgumentException("Invalid email format. Please enter a valid email address.");
+        }
+
+        // Phone number validation - numbers only, exactly 10 digits
+        if (string.IsNullOrWhiteSpace(phoneNumber))
+        {
+            throw new ArgumentException("Phone number is required.");
+        }
+
+        var trimmedPhone = phoneNumber.Trim();
+        
+        // Check if phone contains only digits
+        if (!Regex.IsMatch(trimmedPhone, @"^\d+$"))
+        {
+            throw new ArgumentException("Phone number must contain only numbers.");
+        }
+
+        // Check if phone is exactly 10 digits
+        if (trimmedPhone.Length != 10)
+        {
+            throw new ArgumentException("Phone number must be exactly 10 digits.");
+        }
+
+        // Password validation
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            throw new ArgumentException("Password is required.");
+        }
+
+        var trimmedPassword = password.Trim();
+        if (trimmedPassword.Length < 8)
+        {
+            throw new ArgumentException("Password must be at least 8 characters.");
+        }
+
+        if (trimmedPassword.Length > 128)
+        {
+            throw new ArgumentException("Password must not exceed 128 characters.");
+        }
+
+        if (!Regex.IsMatch(trimmedPassword, @"[A-Z]"))
+        {
+            throw new ArgumentException("Password must contain at least one uppercase letter.");
+        }
+
+        if (!Regex.IsMatch(trimmedPassword, @"[a-z]"))
+        {
+            throw new ArgumentException("Password must contain at least one lowercase letter.");
+        }
+
+        if (!Regex.IsMatch(trimmedPassword, @"\d"))
+        {
+            throw new ArgumentException("Password must contain at least one numeric digit.");
+        }
+
+        if (!Regex.IsMatch(trimmedPassword, @"[!@#$%^&*()_+\-=\[\]{};':""`~,.<>?/\\|]"))
+        {
+            throw new ArgumentException("Password must contain at least one special character (!@#$%^&*()_+-=[]{}';:\"` etc.).");
+        }
+
+        // Confirm password match
+        if (string.IsNullOrWhiteSpace(confirmPassword))
+        {
+            throw new ArgumentException("Confirm password is required.");
+        }
+
+        if (!string.Equals(trimmedPassword, confirmPassword.Trim(), StringComparison.Ordinal))
         {
             throw new ArgumentException("Passwords do not match.");
         }
@@ -390,30 +467,114 @@ public class UserService : IUserService
 
     private static void ValidateStaffInput(string fullName, string emailAddress, string phoneNumber, string password, string confirmPassword)
     {
-        if (string.IsNullOrWhiteSpace(fullName) ||
-            string.IsNullOrWhiteSpace(emailAddress) ||
-            string.IsNullOrWhiteSpace(phoneNumber) ||
-            string.IsNullOrWhiteSpace(password))
+        // Check for null or whitespace
+        if (string.IsNullOrWhiteSpace(fullName))
         {
-            throw new ArgumentException("Please fill in all required fields.");
+            throw new ArgumentException("Full name is required.");
         }
 
-        if (fullName.Trim().Length < 2)
+        // Full Name validation
+        var trimmedName = fullName.Trim();
+        if (trimmedName.Length < 2)
         {
-            throw new ArgumentException("Name must be at least 2 characters.");
+            throw new ArgumentException("Full name must be at least 2 characters.");
         }
 
-        if (!emailAddress.Contains('@') || !emailAddress.Contains('.'))
+        if (trimmedName.Length > 100)
         {
-            throw new ArgumentException("Invalid email format.");
+            throw new ArgumentException("Full name must not exceed 100 characters.");
         }
 
-        if (password.Length < 6)
+        // Name should contain at least two parts (first and last name)
+        var nameParts = trimmedName.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        if (nameParts.Length < 2)
         {
-            throw new ArgumentException("Password must be at least 6 characters.");
+            throw new ArgumentException("Please provide both first name and last name.");
         }
 
-        if (!string.Equals(password, confirmPassword, StringComparison.Ordinal))
+        // Email validation
+        if (string.IsNullOrWhiteSpace(emailAddress))
+        {
+            throw new ArgumentException("Email address is required.");
+        }
+
+        var trimmedEmail = emailAddress.Trim();
+        if (trimmedEmail.Length > 256)
+        {
+            throw new ArgumentException("Email address must not exceed 256 characters.");
+        }
+
+        // RFC 5322 compliant email validation pattern
+        var emailPattern = @"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$";
+        if (!Regex.IsMatch(trimmedEmail, emailPattern))
+        {
+            throw new ArgumentException("Invalid email format. Please enter a valid email address.");
+        }
+
+        // Phone number validation - numbers only, exactly 10 digits
+        if (string.IsNullOrWhiteSpace(phoneNumber))
+        {
+            throw new ArgumentException("Phone number is required.");
+        }
+
+        var trimmedPhone = phoneNumber.Trim();
+
+        // Check if phone contains only digits
+        if (!Regex.IsMatch(trimmedPhone, @"^\d+$"))
+        {
+            throw new ArgumentException("Phone number must contain only numbers.");
+        }
+
+        // Check if phone is exactly 10 digits
+        if (trimmedPhone.Length != 10)
+        {
+            throw new ArgumentException("Phone number must be exactly 10 digits.");
+        }
+
+        // Password validation
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            throw new ArgumentException("Password is required.");
+        }
+
+        var trimmedPassword = password.Trim();
+        if (trimmedPassword.Length < 8)
+        {
+            throw new ArgumentException("Password must be at least 8 characters.");
+        }
+
+        if (trimmedPassword.Length > 128)
+        {
+            throw new ArgumentException("Password must not exceed 128 characters.");
+        }
+
+        if (!Regex.IsMatch(trimmedPassword, @"[A-Z]"))
+        {
+            throw new ArgumentException("Password must contain at least one uppercase letter.");
+        }
+
+        if (!Regex.IsMatch(trimmedPassword, @"[a-z]"))
+        {
+            throw new ArgumentException("Password must contain at least one lowercase letter.");
+        }
+
+        if (!Regex.IsMatch(trimmedPassword, @"\d"))
+        {
+            throw new ArgumentException("Password must contain at least one numeric digit.");
+        }
+
+        if (!Regex.IsMatch(trimmedPassword, @"[!@#$%^&*()_+\-=\[\]{};':""`~,.<>?/\\|]"))
+        {
+            throw new ArgumentException("Password must contain at least one special character (!@#$%^&*()_+-=[]{}';:\"` etc.).");
+        }
+
+        // Confirm password match
+        if (string.IsNullOrWhiteSpace(confirmPassword))
+        {
+            throw new ArgumentException("Confirm password is required.");
+        }
+
+        if (!string.Equals(trimmedPassword, confirmPassword?.Trim(), StringComparison.Ordinal))
         {
             throw new ArgumentException("Passwords do not match.");
         }

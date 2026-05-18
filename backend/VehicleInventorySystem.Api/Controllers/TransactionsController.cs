@@ -251,15 +251,41 @@ public class TransactionsController : ControllerBase
         if (invoice == null)
             return NotFound(new { message = "Invoice not found." });
 
-        if (invoice.Type != InvoiceType.Sale)
-            return BadRequest(new { message = "Only sale invoices can be emailed." });
+        string recipientName = "";
+        string recipientEmail = "";
+        string invoiceTypeLabel = invoice.Type == InvoiceType.Sale ? "Invoice" : "Purchase Order";
+        string greetingText = invoice.Type == InvoiceType.Sale 
+            ? "Thank you for your business. Here are the details of your invoice." 
+            : "Please find the details of our purchase order below.";
 
-        var customer = await _context.Users.FindAsync(invoice.CustomerId);
-        if (customer == null)
-            return BadRequest(new { message = "Customer not found for this invoice." });
+        if (invoice.Type == InvoiceType.Sale)
+        {
+            var customer = await _context.Users.FindAsync(invoice.CustomerId);
+            if (customer == null)
+                return BadRequest(new { message = "Customer not found for this invoice." });
 
-        if (string.IsNullOrEmpty(customer.Email))
-            return BadRequest(new { message = $"Customer '{customer.Name}' has no email address on file." });
+            if (string.IsNullOrEmpty(customer.Email))
+                return BadRequest(new { message = $"Customer '{customer.Name}' has no email address on file." });
+
+            recipientName = customer.Name;
+            recipientEmail = customer.Email;
+        }
+        else if (invoice.Type == InvoiceType.Purchase)
+        {
+            var vendor = await _context.Vendors.FindAsync(invoice.VendorId);
+            if (vendor == null)
+                return BadRequest(new { message = "Vendor not found for this invoice." });
+
+            if (string.IsNullOrEmpty(vendor.EmailAddress))
+                return BadRequest(new { message = $"Vendor '{vendor.Name}' has no email address on file." });
+
+            recipientName = vendor.Name;
+            recipientEmail = vendor.EmailAddress;
+        }
+        else
+        {
+             return BadRequest(new { message = "Only sale or purchase invoices can be emailed." });
+        }
 
         var paymentLabel = invoice.PaymentStatus switch
         {
@@ -285,14 +311,14 @@ public class TransactionsController : ControllerBase
   <table style='max-width:600px;margin:auto;margin-top:24px;background:#fff;border-radius:12px;overflow:hidden'>
     <tr><td style='background:#1e3a5f;padding:24px;text-align:center;color:#fff'>
       <h1 style='margin:0;font-size:20px'>Vehicle Inventory System</h1>
-      <p style='margin:8px 0 0;opacity:0.8'>Invoice #{invoice.Id}</p>
+      <p style='margin:8px 0 0;opacity:0.8'>{invoiceTypeLabel} #{invoice.Id}</p>
     </td></tr>
     <tr><td style='padding:24px'>
-      <p style='margin:0 0 4px'>Dear <strong>{customer.Name}</strong>,</p>
-      <p style='margin:0 0 16px;color:#475569'>Thank you for your business. Here are the details of your invoice.</p>
+      <p style='margin:0 0 4px'>Dear <strong>{recipientName}</strong>,</p>
+      <p style='margin:0 0 16px;color:#475569'>{greetingText}</p>
 
       <table style='width:100%;margin-bottom:16px;font-size:14px'>
-        <tr><td style='color:#64748b;padding:4px 0'>Invoice Date</td><td style='text-align:right'>{invoice.Date.ToShortDateString()}</td></tr>
+        <tr><td style='color:#64748b;padding:4px 0'>Date</td><td style='text-align:right'>{invoice.Date.ToShortDateString()}</td></tr>
         <tr><td style='color:#64748b;padding:4px 0'>Payment Status</td><td style='text-align:right'>{paymentLabel}</td></tr>
       </table>
 
@@ -321,9 +347,9 @@ public class TransactionsController : ControllerBase
 </body>
 </html>";
 
-        await _emailService.SendEmailAsync(customer.Email, $"Invoice #{invoice.Id} — Vehicle Inventory System", body);
+        await _emailService.SendEmailAsync(recipientEmail, $"{invoiceTypeLabel} #{invoice.Id} — Vehicle Inventory System", body);
 
-        return Ok(new { message = $"Invoice #{invoiceId} emailed to {customer.Email}." });
+        return Ok(new { message = $"{invoiceTypeLabel} #{invoiceId} emailed to {recipientEmail}." });
     }
 
     // F12: Get full history for dashboard
