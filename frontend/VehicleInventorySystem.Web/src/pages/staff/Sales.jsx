@@ -105,6 +105,7 @@ const Sales = ({ customers, parts, onProcessSale }) => {
       const response = await apiFetch('/Transactions/sale', { method: 'POST', body: JSON.stringify(salePayload) });
       setProcessedInvoiceId(response.id);
       setStep(2);
+      window.dispatchEvent(new CustomEvent('vis:notifications-refresh'));
       showToast('success', `Invoice #${response.id} created successfully!`);
     } catch (err) {
       showToast('error', err.message || 'Failed to process sale.');
@@ -146,6 +147,7 @@ const Sales = ({ customers, parts, onProcessSale }) => {
       setProcessedInvoiceId(response.id);
       setProcessedInvoiceData(response);
       setStep(2);
+      window.dispatchEvent(new CustomEvent('vis:notifications-refresh'));
       showToast('success', `Service Invoice #${response.invoiceNumber} created successfully!`);
     } catch (err) {
       showToast('error', err.message || 'Failed to process service invoice.');

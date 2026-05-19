@@ -80,6 +80,7 @@ builder.Services.AddScoped<IPartService, PartService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 var app = builder.Build();
 
@@ -122,6 +123,17 @@ using (var scope = app.Services.CreateScope())
             {
                 await userManager.AddToRoleAsync(admin, "Admin");
             }
+        }
+
+        try
+        {
+            var reportService = services.GetRequiredService<IReportService>();
+            await reportService.SendUnpaidRemindersAsync();
+        }
+        catch (Exception ex)
+        {
+            var logger = services.GetRequiredService<ILogger<Program>>();
+            logger.LogError(ex, "An error occurred while sending overdue payment reminders during startup.");
         }
     }
     catch (Exception ex)

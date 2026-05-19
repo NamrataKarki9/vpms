@@ -29,7 +29,7 @@ function VehicleForm({ value, onChange, errors = {}, fuelTypes = DEFAULT_FUEL_TY
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           <div className="auth-form-group">
-            <label className="auth-label">Vehicle Make</label>
+            <label className="auth-label">Vehicle Name</label>
             <div className="auth-input-wrapper">
               <Car className="auth-input-icon" size={18} />
               <input
@@ -131,7 +131,7 @@ function VehicleForm({ value, onChange, errors = {}, fuelTypes = DEFAULT_FUEL_TY
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
         <div>
-          <label>Vehicle Make *</label>
+          <label>Vehicle Name *</label>
           <input
             type="text"
             placeholder="e.g., Toyota"

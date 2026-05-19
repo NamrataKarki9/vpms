@@ -243,23 +243,39 @@ public class ReportService : IReportService
         var oneMonthAgo = DateTime.UtcNow.AddMonths(-1);
         var unpaidInvoices = await _context.Invoices
             .AsNoTracking()
-            .Where(i => i.Type == InvoiceType.Sale && !i.IsPaid && i.Date < oneMonthAgo && i.CustomerId.HasValue)
+            .Include(i => i.Customer)
+            .Include(i => i.Vehicle)
             .Include(i => i.Items)
+                .ThenInclude(i => i.Part)
+            .Where(i => i.Type == InvoiceType.Sale && !i.IsPaid && i.Date < oneMonthAgo && i.CustomerId.HasValue)
+            // .Where(i => IsReminderEligiblePaymentStatus(i.PaymentStatus))
             .ToListAsync();
 
         var sentCount = 0;
         foreach (var invoice in unpaidInvoices)
         {
-            var customer = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == invoice.CustomerId);
-            if (customer == null || string.IsNullOrEmpty(customer.Email))
+            var customer = invoice.Customer;
+            if (customer == null || string.IsNullOrWhiteSpace(customer.Email))
             {
                 continue;
             }
 
+            var reminderKey = GetReminderNotificationKey(invoice.Id);
+            if (await _context.Notifications.AnyAsync(notification => notification.NotificationKey == reminderKey))
+            {
+                continue;
+            }
+
+            var invoiceNumber = GetInvoiceNumber(invoice);
+            var invoiceLabel = await BuildInvoiceLabelAsync(invoice);
+            var outstandingAmount = CalculateOutstandingAmount(invoice.TotalAmount, invoice.PaymentStatus);
+
             await _emailService.SendEmailAsync(
                 customer.Email,
-                "Action Required: Overdue Invoice Payment",
-                BuildPremiumPaymentReminderEmail(customer.Name, invoice.TotalAmount, new List<Invoice> { invoice }));
+                $"Payment Reminder - Invoice {invoiceNumber} {invoiceLabel}",
+                BuildPaymentReminderEmail(customer.Name, invoiceNumber, invoiceLabel, invoice.Date, outstandingAmount));
+
+            await LogReminderSentAsync(reminderKey, invoiceNumber, customer.Name);
             sentCount++;
         }
 
@@ -283,9 +299,15 @@ public class ReportService : IReportService
             throw new ArgumentException("Customer has no email address configured.");
         }
 
+        var oneMonthAgo = DateTime.UtcNow.AddMonths(-1);
         var unpaidInvoices = await _context.Invoices
             .AsNoTracking()
-            .Where(i => i.Type == InvoiceType.Sale && !i.IsPaid && i.CustomerId == customerId)
+            .Include(i => i.Customer)
+            .Include(i => i.Vehicle)
+            .Include(i => i.Items)
+                .ThenInclude(i => i.Part)
+            .Where(i => i.Type == InvoiceType.Sale && !i.IsPaid && i.CustomerId == customerId && i.Date < oneMonthAgo)
+            // .Where(i => IsReminderEligiblePaymentStatus(i.PaymentStatus))
             .OrderByDescending(i => i.Date)
             .ToListAsync();
 
@@ -298,17 +320,32 @@ public class ReportService : IReportService
             };
         }
 
-        var totalPending = unpaidInvoices.Sum(i => i.TotalAmount);
+        var sentCount = 0;
+        foreach (var invoice in unpaidInvoices)
+        {
+            var reminderKey = GetReminderNotificationKey(invoice.Id);
+            if (await _context.Notifications.AnyAsync(notification => notification.NotificationKey == reminderKey))
+            {
+                continue;
+            }
 
-        await _emailService.SendEmailAsync(
-            customer.Email,
-            "Urgent: Payment Reminder for Your Outstanding Balance",
-            BuildPremiumPaymentReminderEmail(customer.Name, totalPending, unpaidInvoices));
+            var invoiceNumber = GetInvoiceNumber(invoice);
+            var invoiceLabel = await BuildInvoiceLabelAsync(invoice);
+            var outstandingAmount = CalculateOutstandingAmount(invoice.TotalAmount, invoice.PaymentStatus);
+
+            await _emailService.SendEmailAsync(
+                customer.Email,
+                $"Payment Reminder - Invoice {invoiceNumber} {invoiceLabel}",
+                BuildPaymentReminderEmail(customer.Name, invoiceNumber, invoiceLabel, invoice.Date, outstandingAmount));
+
+            await LogReminderSentAsync(reminderKey, invoiceNumber, customer.Name);
+            sentCount++;
+        }
 
         return new SendReminderReportResponse
         {
             Message = $"Payment reminder sent successfully to {customer.Name}.",
-            SentCount = 1
+            SentCount = sentCount
         };
     }
 
@@ -375,6 +412,120 @@ public class ReportService : IReportService
             ? query.Where(i => i.Date >= range.Start && i.Date <= range.End)
             : query.Where(i => i.Date >= range.Start && i.Date < range.End);
     }
+
+    private async Task LogReminderSentAsync(string reminderKey, string invoiceNumber, string customerName)
+    {
+        await _context.Notifications.AddAsync(new SystemNotification
+        {
+            NotificationKey = reminderKey,
+            Role = "System",
+            Title = "Overdue Invoice Reminder Sent",
+            Message = $"Reminder email sent for {invoiceNumber} to {customerName}.",
+            CreatedAt = DateTime.UtcNow,
+            IsRead = true
+        });
+
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task<string> BuildInvoiceLabelAsync(Invoice invoice)
+    {
+        var vehicleLabel = BuildVehicleLabel(invoice);
+        var partsSummary = BuildPartsSummary(invoice);
+        if (!string.IsNullOrWhiteSpace(partsSummary))
+        {
+            return $"{vehicleLabel} - {partsSummary}";
+        }
+
+        var serviceType = await _context.Appointments
+            .AsNoTracking()
+            .Where(appointment => appointment.CustomerId == invoice.CustomerId &&
+                                  appointment.VehicleId == invoice.VehicleId &&
+                                  appointment.AppointmentDate.Date == invoice.Date.Date)
+            .OrderByDescending(appointment => appointment.Id)
+            .Select(appointment => appointment.ServiceType)
+            .FirstOrDefaultAsync();
+
+        if (!string.IsNullOrWhiteSpace(serviceType))
+        {
+            return $"{vehicleLabel} - {serviceType}";
+        }
+
+        return vehicleLabel;
+    }
+
+    private static string BuildPaymentReminderEmail(string customerName, string invoiceNumber, string invoiceLabel, DateTime invoiceDate, decimal outstandingAmount)
+    {
+        return $@"Dear {customerName},
+
+This is a friendly reminder that your invoice {invoiceNumber} {invoiceLabel} dated {invoiceDate:yyyy-MM-dd} has an outstanding balance of Rs. {outstandingAmount:N2}.
+
+Please complete your payment at your earliest convenience.
+
+Thank you,
+Vehicle Service Center";
+    }
+
+    private static string BuildVehicleLabel(Invoice invoice)
+    {
+        if (invoice.Vehicle == null)
+        {
+            return "Vehicle";
+        }
+
+        var vehicleLabel = $"{invoice.Vehicle.Make} {invoice.Vehicle.Model}".Trim();
+        if (string.IsNullOrWhiteSpace(vehicleLabel))
+        {
+            vehicleLabel = invoice.Vehicle.PlateNumber;
+        }
+
+        return string.IsNullOrWhiteSpace(vehicleLabel) ? "Vehicle" : vehicleLabel;
+    }
+
+    private static string BuildPartsSummary(Invoice invoice)
+    {
+        var partNames = invoice.Items
+            .Select(item => item.Part?.Name ?? $"Part #{item.PartId}")
+            .Where(name => !string.IsNullOrWhiteSpace(name));
+
+        return string.Join(", ", partNames);
+    }
+
+    private static string GetInvoiceNumber(Invoice invoice)
+    {
+        return invoice.Items.Any()
+            ? $"INV-{invoice.Id:D6}"
+            : $"SVC-{invoice.Id:D6}";
+    }
+
+    private static string GetReminderNotificationKey(int invoiceId)
+    {
+        return $"overdue-email-invoice-{invoiceId}";
+    }
+
+    private static decimal CalculateOutstandingAmount(decimal totalAmount, string? paymentStatus)
+    {
+        var normalizedStatus = string.IsNullOrWhiteSpace(paymentStatus)
+            ? string.Empty
+            : paymentStatus.Trim().ToLowerInvariant();
+
+        return normalizedStatus switch
+        {
+            "full-payment" => 0m,
+            "half-payment" => totalAmount * 0.5m,
+            "partial-payment" => totalAmount * 0.9m,
+            _ => totalAmount
+        };
+    }
+
+    // private static bool IsReminderEligiblePaymentStatus(string? paymentStatus)
+    // {
+    //     var normalizedStatus = string.IsNullOrWhiteSpace(paymentStatus)
+    //         ? string.Empty
+    //         : paymentStatus.Trim().ToLowerInvariant();
+
+    //     return normalizedStatus is "half-payment" or "partial-payment";
+    // }
 
     private static string BuildPremiumPaymentReminderEmail(string customerName, decimal totalAmount, List<Invoice> invoices)
     {

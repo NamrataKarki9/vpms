@@ -18,6 +18,7 @@ public class AppDbContext : IdentityDbContext<User, IdentityRole<int>, int>
     public DbSet<PartRequest> PartRequests { get; set; }
     public DbSet<SpecialPartRequest> SpecialPartRequests { get; set; }
     public DbSet<ServiceReview> Reviews { get; set; }
+    public DbSet<SystemNotification> Notifications { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -113,5 +114,14 @@ public class AppDbContext : IdentityDbContext<User, IdentityRole<int>, int>
             .WithMany()
             .HasForeignKey(spr => spr.PartId)
             .IsRequired(false);
+
+        builder.Entity<SystemNotification>(entity =>
+        {
+            entity.HasIndex(notification => notification.NotificationKey).IsUnique();
+            entity.HasIndex(notification => notification.Role);
+            entity.HasIndex(notification => notification.UserId);
+            entity.HasIndex(notification => notification.IsRead);
+            entity.HasIndex(notification => notification.CreatedAt);
+        });
     }
 }

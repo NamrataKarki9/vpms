@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { authApi } from '../services/api';
 import { Mail, Lock, Eye, EyeOff, LogIn, AlertCircle } from 'lucide-react';
+import { LandingPageNavbar } from '../components/LandingPageNavbar';
 import '../styles/auth.css';
+import '../styles/landing-page.css';
 
 export function LoginPage({ onLogin, onSignUp, onForgotPassword }) {
   const [email, setEmail] = useState('');
@@ -50,104 +52,151 @@ export function LoginPage({ onLogin, onSignUp, onForgotPassword }) {
   };
 
   return (
-    <div className="auth-wrapper">
-      <div className="auth-card">
-        <div className="auth-header">
-          <div className="auth-logo-icon">🔧</div>
-          <h2>Welcome Back</h2>
-          <p>Please enter your details to sign in</p>
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', width: '100vw', marginLeft: 'calc(50% - 50vw)', marginRight: 'calc(50% - 50vw)' }}>
+      <LandingPageNavbar />
+      <div className="auth-wrapper" style={{ flex: 1 }}>
+        <div className="auth-card">
+          <div className="auth-header">
+            <div className="auth-logo-icon">🔧</div>
+            <h2>Welcome Back</h2>
+            <p>Please enter your details to sign in</p>
+          </div>
 
-        <div className="auth-body">
-          {loginError && (
-            <div className="auth-alert auth-alert-error">
-              <AlertCircle size={18} />
-              <span>{loginError}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleLogin}>
-            <div className="auth-form-group">
-              <label className="auth-label">Email Address</label>
-              <div className="auth-input-wrapper">
-                <Mail className="auth-input-icon" size={18} />
-                <input
-                  type="email"
-                  autoComplete="username"
-                  placeholder="name@company.com"
-                  className={`auth-input ${errors.email ? 'error' : ''}`}
-                  value={email}
-                  onChange={e => {
-                    setEmail(e.target.value);
-                    if (errors.email) setErrors({...errors, email: ''});
-                  }}
-                  disabled={isLoading}
-                />
+          <div className="auth-body">
+            {loginError && (
+              <div className="auth-alert auth-alert-error">
+                <AlertCircle size={18} />
+                <span>{loginError}</span>
               </div>
-              {errors.email && <span className="auth-error-text">{errors.email}</span>}
-            </div>
+            )}
 
-            <div className="auth-form-group">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <label className="auth-label" style={{ margin: 0 }}>Password</label>
-                <button 
-                  type="button" 
-                  onClick={onForgotPassword} 
-                  className="auth-link" 
-                  style={{ fontSize: '12px' }}
-                  disabled={isLoading}
-                >
-                  Forgot password?
-                </button>
+            <form onSubmit={handleLogin}>
+              <div className="auth-form-group">
+                <label className="auth-label">Email Address</label>
+                <div className="auth-input-wrapper">
+                  <Mail className="auth-input-icon" size={18} />
+                  <input
+                    type="email"
+                    autoComplete="username"
+                    placeholder="name@company.com"
+                    className={`auth-input ${errors.email ? 'error' : ''}`}
+                    value={email}
+                    onChange={e => {
+                      setEmail(e.target.value);
+                      if (errors.email) setErrors({...errors, email: ''});
+                    }}
+                    disabled={isLoading}
+                  />
+                </div>
+                {errors.email && <span className="auth-error-text">{errors.email}</span>}
               </div>
-              <div className="auth-input-wrapper">
-                <Lock className="auth-input-icon" size={18} />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                  className={`auth-input ${errors.password ? 'error' : ''}`}
-                  value={password}
-                  onChange={e => {
-                    setPassword(e.target.value);
-                    if (errors.password) setErrors({...errors, password: ''});
-                  }}
-                  disabled={isLoading}
-                />
-                <button 
-                  type="button" 
-                  className="auth-password-toggle"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
+
+              <div className="auth-form-group">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label className="auth-label" style={{ margin: 0 }}>Password</label>
+                  <button 
+                    type="button" 
+                    onClick={onForgotPassword} 
+                    className="auth-link" 
+                    style={{ fontSize: '12px' }}
+                    disabled={isLoading}
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+                <div className="auth-input-wrapper">
+                  <Lock className="auth-input-icon" size={18} />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    placeholder="••••••••"
+                    className={`auth-input ${errors.password ? 'error' : ''}`}
+                    value={password}
+                    onChange={e => {
+                      setPassword(e.target.value);
+                      if (errors.password) setErrors({...errors, password: ''});
+                    }}
+                    disabled={isLoading}
+                  />
+                  <button 
+                    type="button" 
+                    className="auth-password-toggle"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+                {errors.password && <span className="auth-error-text">{errors.password}</span>}
               </div>
-              {errors.password && <span className="auth-error-text">{errors.password}</span>}
+
+              <button 
+                type="submit" 
+                className="auth-btn-primary" 
+                disabled={isLoading}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+              >
+                {isLoading ? (
+                  <>Signing in...</>
+                ) : (
+                  <>
+                    <LogIn size={18} />
+                    <span>Sign In</span>
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div className="auth-footer">
+              <span className="auth-text-muted">New customer? </span>
+              <button onClick={onSignUp} className="auth-link">Create an account</button>
             </div>
-
-            <button 
-              type="submit" 
-              className="auth-btn-primary" 
-              disabled={isLoading}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
-            >
-              {isLoading ? (
-                <>Signing in...</>
-              ) : (
-                <>
-                  <LogIn size={18} />
-                  <span>Sign In</span>
-                </>
-              )}
-            </button>
-          </form>
-
-          <div className="auth-footer">
-            <span className="auth-text-muted">New customer? </span>
-            <button onClick={onSignUp} className="auth-link">Create an account</button>
           </div>
         </div>
       </div>
+      <footer className="landing-footer">
+        <div className="footer-content">
+          <div className="footer-column">
+            <div className="footer-logo">
+              <span className="footer-logo-icon">⚙️</span>
+              <span className="footer-logo-text">VPMS</span>
+            </div>
+            <p className="footer-description">
+              Your trusted partner for premium vehicle parts and professional service solutions.
+            </p>
+          </div>
+
+          <div className="footer-column">
+            <h4>Navigation</h4>
+            <ul className="footer-links">
+              <li><button className="footer-link-btn" onClick={() => window.location.href = '/'}>Home</button></li>
+              <li><button className="footer-link-btn" onClick={() => window.location.href = '/login'}>Login</button></li>
+              <li><button className="footer-link-btn" onClick={() => window.location.href = '/signup'}>Sign Up</button></li>
+            </ul>
+          </div>
+
+          <div className="footer-column">
+            <h4>Contact Information</h4>
+            <ul className="footer-contact">
+              <li>📧 support@vpms.com</li>
+              <li>📞 1-800-VPMS-HELP</li>
+              <li>📍 Automotive Service Center, City, Country</li>
+            </ul>
+          </div>
+
+          <div className="footer-column">
+            <h4>Business Hours</h4>
+            <ul className="footer-hours">
+              <li>Monday - Friday: 8AM - 6PM</li>
+              <li>Saturday: 9AM - 4PM</li>
+              <li>Sunday: Closed</li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="footer-bottom">
+          <p>&copy; 2026 Vehicle Parts Management System. All rights reserved.</p>
+        </div>
+      </footer>
     </div>
   );
 }

@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, User, ChevronRight, ChevronLeft } from 'lucide-react';
-import { apiFetch } from '../../services/api';
+import { Search, User, ChevronRight, ChevronLeft, UserPlus, X } from 'lucide-react';
+import { apiFetch, authApi } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import CustomerVehicleForm from '../../components/management/CustomerVehicleForm';
 
 const Customers = () => {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showRegistrationForm, setShowRegistrationForm] = useState(false);
   const [pagination, setPagination] = useState({
     pageNumber: 1,
     pageSize: 10,
@@ -71,6 +73,12 @@ const Customers = () => {
     }
   };
 
+  const handleRegisterCustomer = async (data) => {
+    await authApi.registerCustomer(data);
+    await fetchCustomers();
+    setShowRegistrationForm(false);
+  };
+
   const filtered = customers.filter(c =>
     (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (c.plate || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -93,9 +101,31 @@ const Customers = () => {
             <h2>Customer Directory</h2>
             <p>{pagination.totalItems} registered customers</p>
           </div>
-          <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '10px', padding: '10px 16px', textAlign: 'center', backdropFilter: 'blur(4px)' }}>
-            <div style={{ fontSize: '24px', fontWeight: 800, color: '#fff' }}>{pagination.totalItems}</div>
-            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', marginTop: '2px' }}>Total</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button
+              type="button"
+              onClick={() => setShowRegistrationForm(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                border: 'none',
+                borderRadius: '10px',
+                padding: '10px 16px',
+                background: '#FFFFFF',
+                color: '#1E3A5F',
+                fontWeight: 700,
+                fontSize: '13px',
+                cursor: 'pointer',
+                boxShadow: '0 10px 20px rgba(15, 23, 42, 0.08)'
+              }}
+            >
+              <UserPlus size={16} /> Add Customer
+            </button>
+            <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '10px', padding: '10px 16px', textAlign: 'center', backdropFilter: 'blur(4px)' }}>
+              <div style={{ fontSize: '24px', fontWeight: 800, color: '#fff' }}>{pagination.totalItems}</div>
+              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', marginTop: '2px' }}>Total</div>
+            </div>
           </div>
         </div>
       </div>
@@ -216,6 +246,69 @@ const Customers = () => {
           </div>
         )}
       </div>
+
+      {showRegistrationForm && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Register new customer"
+          onClick={() => setShowRegistrationForm(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.55)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
+            zIndex: 9999
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: 'min(760px, 100%)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              borderRadius: '18px',
+              background: '#FFFFFF',
+              boxShadow: '0 24px 60px rgba(15, 23, 42, 0.22)'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #E2E8F0' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '18px', color: '#0F172A' }}>Register New Customer</h3>
+                <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748B' }}>Staff can create the customer account and register the first vehicle in one step.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRegistrationForm(false)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  border: '1px solid #1E3A5F',
+                  background: '#1E3A5F',
+                  color: '#FFFFFF',
+                  fontSize: '20px',
+                  lineHeight: 1,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ padding: '24px' }}>
+              <CustomerVehicleForm onRegister={handleRegisterCustomer} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

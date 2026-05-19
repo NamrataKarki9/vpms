@@ -80,6 +80,13 @@ public class UsersController : ControllerBase
         return await ExecuteAsync(() => _userService.ToggleUserStatusAsync(id));
     }
 
+    [Authorize(Roles = "Admin,Staff")]
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> DeleteCustomer(int id)
+    {
+        return await ExecuteAsync(() => _userService.DeleteUserAsync(id));
+    }
+
     private async Task<IActionResult> ExecuteAsync<T>(Func<Task<T>> action)
     {
         if (!ModelState.IsValid)

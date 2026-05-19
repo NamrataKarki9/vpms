@@ -37,7 +37,7 @@ function InventoryManager({ inventory, onNavigate, onAddPart }) {
                      {p.stock}
                    </span>
                 </td>
-                <td><strong style={{ fontSize: '13px' }}>Rs. {p.price.toLocaleString()}</strong></td>
+                <td><strong style={{ fontSize: '13px' }}>Rs. {(parseFloat(p.price) || 0).toLocaleString()}</strong></td>
               </tr>
             ))}
             {(inventory || []).length === 0 && (

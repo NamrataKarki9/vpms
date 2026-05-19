@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -12,12 +12,14 @@ import {
   NewRequestPage, 
   HistoryPage 
 } from './pages/CustomerDashboard';
+import { CustomerHomePage } from './pages/CustomerHomePage';
 import CustomerLayout from './components/customer/CustomerLayout';
 import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { VerifyOtpPage } from './pages/VerifyOtpPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { LandingPage } from './pages/LandingPage';
 import VendorPage from './pages/vendors/VendorPage';
 import PartsPage from './pages/parts/PartsPage';
 import { useToast } from './context/ToastContext';
@@ -50,9 +52,19 @@ function App() {
   const [salesHistory, setSalesHistory] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const isLoggingOut = useRef(false);
+
+  const handleInventoryUpdate = (nextInventory) => {
+    setInventory(nextInventory);
+    window.dispatchEvent(new CustomEvent('vis:inventory-changed'));
+  };
 
   useEffect(() => {
     const handleUnauthorized = () => {
+      // Don't show error if user is intentionally logging out
+      if (isLoggingOut.current) {
+        return;
+      }
       setUser(null);
       clearStoredUser();
       navigate('/login');
@@ -80,7 +92,7 @@ function App() {
         ]);
 
         const parts = Array.isArray(partsRes) ? partsRes : [];
-        setInventory(parts.map((p) => ({
+        handleInventoryUpdate(parts.map((p) => ({
           id: p.id ?? p.Id,
           name: p.name ?? p.Name ?? '',
           stock: p.stockLevel ?? p.StockLevel ?? 0,
@@ -135,10 +147,24 @@ function App() {
           plate: c.vehicles?.length > 0 ? c.vehicles[0].plateNumber : 'N/A',
           vehicleInfo: c.vehicles?.length > 0 ? c.vehicles[0] : null
         })));
-        setAppointments(apptsRes || []);
+        // Normalize paginated or array responses so `appointments` is always an array
+        const apptsArray = Array.isArray(apptsRes)
+          ? apptsRes
+          : (apptsRes && (apptsRes.items || apptsRes.Items || apptsRes.data))
+            ? (apptsRes.items || apptsRes.Items || apptsRes.data)
+            : [];
+        setAppointments(apptsArray);
       } else if (activeUser.role === ROLES.CUSTOMER) {
-        setInventory([]);
+        handleInventoryUpdate([]);
         setSalesHistory([]);
+      }
+
+      if (activeUser.role === ROLES.ADMIN || activeUser.role === ROLES.STAFF) {
+        try {
+          await apiFetch('/reports/send-unpaid-reminders', { method: 'POST' });
+        } catch (error) {
+          console.error('Overdue reminder check failed:', error);
+        }
       }
     } catch (error) {
       console.error('Data load error:', error);
@@ -148,15 +174,16 @@ function App() {
   };
 
   const logout = () => {
+    isLoggingOut.current = true;
     clearStoredUser();
     setUser(null);
-    navigate('/login');
+    navigate('/', { replace: true });
   };
 
   const handleLogin = async (loggedInUser) => {
     saveStoredUser(loggedInUser);
     setUser(loggedInUser);
-    const path = loggedInUser.role === ROLES.STAFF ? '/staff/dashboard' : (loggedInUser.role === ROLES.ADMIN ? '/admin' : '/customer');
+    const path = loggedInUser.role === ROLES.STAFF ? '/staff/dashboard' : (loggedInUser.role === ROLES.ADMIN ? '/admin' : '/customer/home');
     navigate(path);
   };
 
@@ -216,13 +243,13 @@ function App() {
       <main className={hideGlobalNav ? "" : "main-content"}>
 
         <Routes>
-          <Route path="/" element={user ? <Navigate to={user.role === ROLES.STAFF ? "/staff/dashboard" : (user.role === ROLES.ADMIN ? "/admin" : "/customer")} /> : <Navigate to="/login" />} />
+          <Route path="/" element={user ? <Navigate to={user.role === ROLES.STAFF ? "/staff/dashboard" : (user.role === ROLES.ADMIN ? "/admin" : "/customer")} /> : <LandingPage />} />
           <Route path="/login" element={<LoginPage onLogin={handleLogin} onSignUp={() => navigate('/signup')} onForgotPassword={() => navigate('/forgot-password')} />} />
           <Route path="/signup" element={<SignupPage onComplete={handleLogin} onBack={() => navigate('/login')} onAddCustomer={() => {}} />} />
           
           {/* Staff Section with Layout Overhaul */}
           {user?.role === ROLES.STAFF && (
-            <Route path="/staff" element={<StaffLayout user={user} />}>
+            <Route path="/staff" element={<StaffLayout user={user} onLogout={logout} />}>
               <Route index element={<Navigate to="dashboard" />} />
               <Route path="dashboard" element={<Dashboard sales={salesHistory} customers={customerList} parts={inventory} appointments={appointments} />} />
               <Route path="customers/segments" element={<CustomerSegments />} />
@@ -239,14 +266,14 @@ function App() {
 
           {/* Admin Section with Layout Overhaul */}
           {user?.role === ROLES.ADMIN && (
-            <Route path="/admin" element={<StaffLayout user={user} />}>
+            <Route path="/admin" element={<StaffLayout user={user} onLogout={logout} />}>
               <Route index element={
                 <AdminDashboard
                   staffList={staffList}
                   onAddStaff={handleAddStaff}
                   sales={salesHistory}
                   inventory={inventory}
-                  onUpdateInventory={setInventory}
+                  onUpdateInventory={handleInventoryUpdate}
                   customerList={customerList}
                   onRemoveCustomer={handleRemoveCustomer}
                   onUpdateCustomer={handleUpdateCustomer}
@@ -260,7 +287,7 @@ function App() {
                   onAddStaff={handleAddStaff}
                   sales={salesHistory}
                   inventory={inventory}
-                  onUpdateInventory={setInventory}
+                  onUpdateInventory={handleInventoryUpdate}
                   customerList={customerList}
                   onRemoveCustomer={handleRemoveCustomer}
                   onUpdateCustomer={handleUpdateCustomer}
@@ -274,7 +301,7 @@ function App() {
                   onAddStaff={handleAddStaff}
                   sales={salesHistory}
                   inventory={inventory}
-                  onUpdateInventory={setInventory}
+                  onUpdateInventory={handleInventoryUpdate}
                   customerList={customerList}
                   onRemoveCustomer={handleRemoveCustomer}
                   onUpdateCustomer={handleUpdateCustomer}
@@ -288,7 +315,7 @@ function App() {
                   onAddStaff={handleAddStaff}
                   sales={salesHistory}
                   inventory={inventory}
-                  onUpdateInventory={setInventory}
+                  onUpdateInventory={handleInventoryUpdate}
                   customerList={customerList}
                   onRemoveCustomer={handleRemoveCustomer}
                   onUpdateCustomer={handleUpdateCustomer}
@@ -302,7 +329,7 @@ function App() {
                   onAddStaff={handleAddStaff}
                   sales={salesHistory}
                   inventory={inventory}
-                  onUpdateInventory={setInventory}
+                  onUpdateInventory={handleInventoryUpdate}
                   customerList={customerList}
                   onRemoveCustomer={handleRemoveCustomer}
                   onUpdateCustomer={handleUpdateCustomer}
@@ -316,7 +343,7 @@ function App() {
                   onAddStaff={handleAddStaff}
                   sales={salesHistory}
                   inventory={inventory}
-                  onUpdateInventory={setInventory}
+                  onUpdateInventory={handleInventoryUpdate}
                   customerList={customerList}
                   onRemoveCustomer={handleRemoveCustomer}
                   onUpdateCustomer={handleUpdateCustomer}
@@ -330,7 +357,7 @@ function App() {
                   onAddStaff={handleAddStaff}
                   sales={salesHistory}
                   inventory={inventory}
-                  onUpdateInventory={setInventory}
+                  onUpdateInventory={handleInventoryUpdate}
                   customerList={customerList}
                   onRemoveCustomer={handleRemoveCustomer}
                   onUpdateCustomer={handleUpdateCustomer}
@@ -359,15 +386,18 @@ function App() {
           {/* Customer Section with Layout Overhaul */}
 
           {user?.role === ROLES.CUSTOMER && (
-            <Route path="/customer" element={<CustomerLayout user={user} />}>
-              <Route index element={<CustomerOverview user={user} />} />
-              <Route path="vehicles" element={<VehiclesPage user={user} />} />
-              <Route path="appointments" element={<AppointmentsPage user={user} />} />
-              <Route path="book" element={<BookingPage user={user} />} />
-              <Route path="requests" element={<RequestsPage user={user} />} />
-              <Route path="new-request" element={<NewRequestPage user={user} />} />
-              <Route path="history" element={<HistoryPage user={user} />} />
-            </Route>
+            <>
+              <Route path="/customer/home" element={<CustomerHomePage user={user} onLogout={logout} />} />
+              <Route path="/customer" element={<CustomerLayout user={user} onLogout={logout} />}>
+                <Route index element={<CustomerOverview user={user} />} />
+                <Route path="vehicles" element={<VehiclesPage user={user} />} />
+                <Route path="appointments" element={<AppointmentsPage user={user} />} />
+                <Route path="book" element={<BookingPage user={user} />} />
+                <Route path="requests" element={<RequestsPage user={user} />} />
+                <Route path="new-request" element={<NewRequestPage user={user} />} />
+                <Route path="history" element={<HistoryPage user={user} />} />
+              </Route>
+            </>
           )}
           <Route path="/parts" element={user?.role === ROLES.ADMIN ? <StaffLayout user={user} /> : <Navigate to="/" />}>
             <Route index element={<PartsPage />} />

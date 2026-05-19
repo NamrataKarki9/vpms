@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Bell, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
+import NotificationBell from '../management/NotificationBell';
 
 const ROUTE_CRUMBS = {
   '/staff/dashboard': [{ label: 'Dashboard' }],
@@ -67,10 +68,7 @@ const TopBar = ({ user }) => {
         </div>
 
         <div className="admin-topbar-actions">
-          <button type="button" className="admin-icon-btn" aria-label="Notifications">
-            <Bell size={16} />
-            <span className="admin-notification-dot" />
-          </button>
+          <NotificationBell role="Admin" className="admin-icon-btn" />
           <div className="admin-profile-avatar" title={user?.name || 'Admin'}>
             {initials}
           </div>
@@ -112,6 +110,7 @@ const TopBar = ({ user }) => {
 
       {/* Right Actions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {user?.role === 'Staff' && <NotificationBell role="Staff" className="admin-icon-btn" />}
         {/* Date chip */}
         <div style={{
           background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px',
