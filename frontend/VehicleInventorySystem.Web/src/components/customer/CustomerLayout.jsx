@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { MessageSquare, X, Send } from 'lucide-react';
 import CustomerSidebar from './CustomerSidebar';
 import CustomerTopBar from './CustomerTopBar';
+import { getAIChatResponse } from '../../services/aiService';
 import '../../styles/staff.css';
 
 const CustomerLayout = ({ user }) => {
@@ -12,21 +13,34 @@ const CustomerLayout = ({ user }) => {
   const [chatInput, setChatInput] = useState('');
   const [showChat, setShowChat] = useState(false);
 
-  const handleChatSubmit = (e) => {
+  const handleChatSubmit = async (e) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
     const userMsg = chatInput;
-    setChatMessages(prev => [...prev, { sender: 'user', text: userMsg }]);
+    
+    // Add user message to UI immediately
+    const currentMessages = [...chatMessages, { sender: 'user', text: userMsg }];
+    setChatMessages(currentMessages);
     setChatInput('');
-    setTimeout(() => {
-      let botResponse = "I can help you with bookings, parts, vehicles, or your history. What's on your mind?";
-      const lowerMsg = userMsg.toLowerCase();
-      if (lowerMsg.includes('oil')) botResponse = "You should schedule an oil change every 5,000 miles. Use our 'Book Service' page!";
-      else if (lowerMsg.includes('part')) botResponse = "Need something special? Check out our 'Special Orders' section.";
-      else if (lowerMsg.includes('vehicle')) botResponse = "You can add and manage multiple vehicles in your 'My Vehicles' section.";
-      setChatMessages(prev => [...prev, { sender: 'bot', text: botResponse }]);
-    }, 1000);
+
+    // Append a typing placeholder
+    setChatMessages(prev => [...prev, { sender: 'bot', text: 'Thinking...' }]);
+
+    // Fetch the AI response with live user context
+    const botResponse = await getAIChatResponse(userMsg, chatMessages, user);
+
+    // Replace the thinking placeholder with the real response
+    setChatMessages(prev => {
+      const messages = [...prev];
+      if (messages.length > 0 && messages[messages.length - 1].text === 'Thinking...') {
+        messages[messages.length - 1] = { sender: 'bot', text: botResponse };
+      } else {
+        messages.push({ sender: 'bot', text: botResponse });
+      }
+      return messages;
+    });
   };
+
 
   return (
     <div className="staff-shell">
@@ -58,7 +72,7 @@ const CustomerLayout = ({ user }) => {
             <MessageSquare size={24} />
           </button>
         ) : (
-          <div className="staff-card" style={{ width: '350px', height: '480px', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 48px rgba(30,58,95,0.25)', border: 'none' }}>
+          <div className="staff-card" style={{ width: '420px', height: '580px', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 48px rgba(30,58,95,0.25)', border: 'none' }}>
             <div style={{ background: 'linear-gradient(135deg, #1E3A5F 0%, #2563A8 100%)', color: '#fff', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ width: 32, height: 32, background: 'rgba(255,255,255,0.15)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🤖</div>
