@@ -1,4 +1,4 @@
-export const API_BASE_URL = 'http://localhost:5169/api';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5169/api';
 const STORAGE_KEY = 'vis_user';
 
 export const getStoredUser = () => {

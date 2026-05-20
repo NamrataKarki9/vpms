@@ -1,0 +1,15 @@
+# Ignore git and IDE configurations
+.git
+.github
+.vs
+.vscode
+
+# Ignore local build outputs
+**/bin/
+**/obj/
+**/out/
+
+# Ignore frontend dependencies and builds
+**/node_modules/
+**/dist/
+**/.env*
