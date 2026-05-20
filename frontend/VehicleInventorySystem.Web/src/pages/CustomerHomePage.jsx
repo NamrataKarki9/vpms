@@ -93,6 +93,7 @@ export function CustomerHomePage({ user, onLogout }) {
           <div className="customer-home-header-right">
             <span className="customer-home-user-info">Welcome, {user?.name?.split(' ')[0] || 'Customer'}</span>
             <button 
+              type="button"
               className="customer-home-logout-btn"
               onClick={onLogout}
               title="Logout"

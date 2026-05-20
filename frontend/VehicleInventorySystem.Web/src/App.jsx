@@ -178,7 +178,7 @@ function App() {
     isLoggingOut.current = true;
     clearStoredUser();
     setUser(null);
-    navigate('/', { replace: true });
+    navigate('/login', { replace: true });
   };
 
   const handleLogin = async (loggedInUser) => {
@@ -478,23 +478,14 @@ function App() {
                 <Route path="requests" element={<RequestsPage user={user} />} />
                 <Route path="new-request" element={<NewRequestPage user={user} />} />
                 <Route path="history" element={<HistoryPage user={user} />} />
+                <Route path="settings" element={<SettingsPage user={user} />} />
               </Route>
             </>
-            <Route path="/customer" element={<CustomerLayout user={user} />}>
-              <Route index element={<CustomerOverview user={user} />} />
-              <Route path="vehicles" element={<VehiclesPage user={user} />} />
-              <Route path="appointments" element={<AppointmentsPage user={user} />} />
-              <Route path="book" element={<BookingPage user={user} />} />
-              <Route path="requests" element={<RequestsPage user={user} />} />
-              <Route path="new-request" element={<NewRequestPage user={user} />} />
-              <Route path="history" element={<HistoryPage user={user} />} />
-              <Route path="settings" element={<SettingsPage user={user} />} />
-            </Route>
           )}
-          <Route path="/parts" element={user?.role === ROLES.ADMIN ? <StaffLayout user={user} /> : <Navigate to="/" />}>
+          <Route path="/parts" element={user?.role === ROLES.ADMIN ? <StaffLayout user={user} onLogout={logout} /> : <Navigate to="/" />}>
             <Route index element={<PartsPage />} />
           </Route>
-          <Route path="/vendors" element={user?.role === ROLES.ADMIN ? <StaffLayout user={user} /> : <Navigate to="/" />}>
+          <Route path="/vendors" element={user?.role === ROLES.ADMIN ? <StaffLayout user={user} onLogout={logout} /> : <Navigate to="/" />}>
             <Route index element={<VendorPage />} />
           </Route>
           

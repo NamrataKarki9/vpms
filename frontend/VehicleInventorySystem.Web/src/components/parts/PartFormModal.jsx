@@ -30,9 +30,9 @@ export default function PartFormModal({
         name: vendor.name ?? vendor.Name ?? '',
         contactPerson: vendor.contactPerson ?? vendor.ContactPerson ?? '',
         emailAddress: vendor.emailAddress ?? vendor.EmailAddress ?? '',
-        isActive: Boolean(vendor.isActive ?? vendor.IsActive ?? false),
+        isActive: vendor.isActive ?? vendor.IsActive,
       }))
-      .filter((vendor) => vendor.id > 0 && vendor.name && vendor.isActive);
+      .filter((vendor) => vendor.id > 0 && vendor.name);
   }, [vendors]);
 
   useEffect(() => {

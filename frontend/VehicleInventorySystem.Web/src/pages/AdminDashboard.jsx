@@ -13,10 +13,9 @@ import StaffFilters from '../components/staff/StaffFilters';
 import { ExportFinancialReportPdf } from "../utils/Pdf/FinancialReportPdf";
 import { ExportCustomerReportPdf } from "../utils/Pdf/CustomerReportPdf";
 import TransactionsTable from '../components/staff/TransactionsTable';
-import { Download, FileText, UserPlus, X } from 'lucide-react';
+import { Download, FileText, UserPlus, X, AlertCircle, Plus, Edit2, Trash2 } from 'lucide-react';
 import StaffStatsCards from '../components/staff/StaffStatsCards';
 import CustomerStatsCards from '../components/customer/CustomerStatsCards';
-import { Download, FileText, AlertCircle, Plus, Edit2, Trash2 } from 'lucide-react';
 import '../styles/admin-dashboard.css';
 
 import {
@@ -587,9 +586,8 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
           vendor: newPart.vendorName ?? newPart.VendorName ?? vendorName,
           partCode: newPart.partCode ?? newPart.PartCode
         }
-      ]);
-      window.dispatchEvent(new CustomEvent('vis:inventory-changed'));
       ];
+      window.dispatchEvent(new CustomEvent('vis:inventory-changed'));
 
       console.log('Updated inventory:', updatedInventory);
       onUpdateInventory(updatedInventory);
@@ -980,8 +978,6 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
   };
 
   if (currentView === 'add-staff') return <AddStaffPage onAdd={onAddStaff} onBack={() => navigate(-1)} />;
-  if (currentView === 'manage-inventory') return <InventoryPurchasePage inventory={inventory} onUpdate={onUpdateInventory} onBack={() => navigate(-1)} onRefreshTransactions={refreshLiveTransactions} />;
-  if (currentView === 'manage-customers') return <CustomerManagementPage customers={adminCustomers} onAddCustomer={handleAdminAddCustomer} onRemove={onRemoveCustomer} onUpdate={onUpdateCustomer} onBack={() => navigate(-1)} />;
   if (currentView === 'add-staff') return <AddStaffPage onAdd={onAddStaff} onBack={() => setAdminRoute('main')} />;
   if (currentView === 'manage-inventory') return <InventoryPurchasePage inventory={inventory} vendors={vendors} onUpdate={onUpdateInventory} onBack={() => navigate(-1)} onSuccess={() => navigate('/admin/purchases')} onRefreshTransactions={refreshLiveTransactions} />;
   if (currentView === 'manage-customers') return <CustomerManagementPage customers={customerList} onRemove={onRemoveCustomer} onUpdate={onUpdateCustomer} onBack={() => navigate(-1)} />;
@@ -1467,7 +1463,6 @@ function CustomerManagementPage({ customers, onAddCustomer, onRemove, onUpdate, 
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ name: '', email: '', phone: '', plate: '' });
   const [validationErrors, setValidationErrors] = useState({ name: '', email: '', phone: '' });
-  const [removeDialog, setRemoveDialog] = useState({ isOpen: false, customerId: null, customerName: '' });
   const [successDialog, setSuccessDialog] = useState({ isOpen: false, message: '' });
   const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
   const [removeDialog, setRemoveDialog] = useState({ isOpen: false, customerId: null, customerName: '', isRemoving: true });
@@ -1967,6 +1962,7 @@ function CustomerManagementPage({ customers, onAddCustomer, onRemove, onUpdate, 
       )}
 
       <Dialog isOpen={removeDialog.isOpen} title={removeDialog.isRemoving ? "Remove Customer" : "Reactive Customer"} message={removeDialog.isRemoving ? `Are you sure you want to remove ${removeDialog.customerName}? This action cannot be undone.` : `Are you sure you want to reactive ${removeDialog.customerName}'s account?`} type="confirm" confirmText={removeDialog.isRemoving ? "Remove" : "Reactive"} cancelText="Cancel" isLoading={isRemoving} onConfirm={handleConfirmRemove} onCancel={() => setRemoveDialog({ isOpen: false, customerId: null, customerName: '', isRemoving: true })} />
+    </div>
     </div>
   );
 }

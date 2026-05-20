@@ -118,7 +118,7 @@ function Header({ user, onLogout, onNavigateStaff }) {
                 <span className="user-name">{user.name}</span>
                 <span className="user-role">{user.role}</span>
               </div>
-              <button className="logout-btn" onClick={onLogout}>Logout</button>
+              <button type="button" className="logout-btn" onClick={onLogout}>Logout</button>
             </div>
           </div>
         </div>

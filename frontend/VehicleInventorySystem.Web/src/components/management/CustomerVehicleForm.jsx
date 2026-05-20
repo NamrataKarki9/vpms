@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { CheckCircle, ChevronRight, Eye, EyeOff, Lock, Mail, Phone, User } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import VehicleForm from '../forms/VehicleForm';
-import { User, Phone, Mail, Lock, Eye, EyeOff, ChevronRight, CheckCircle } from 'lucide-react';
 
 function CustomerVehicleForm({ onRegister }) {
   const showToast = useToast();

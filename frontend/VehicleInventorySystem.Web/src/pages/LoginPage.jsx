@@ -132,42 +132,6 @@ export function LoginPage({ onLogin, onSignUp, onForgotPassword }) {
                 </div>
                 {errors.password && <span className="auth-error-text">{errors.password}</span>}
               </div>
-            <div className="auth-form-group">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <label className="auth-label" style={{ margin: 0 }}>Password</label>
-                <button 
-                  type="button" 
-                  onClick={onForgotPassword} 
-                  className="auth-link" 
-                  style={{ fontSize: '12px' }}
-                  disabled={isLoading}
-                >
-                  Forgot password?
-                </button>
-              </div>
-              <div className="auth-input-wrapper">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                  className={`auth-input ${errors.password ? 'error' : ''}`}
-                  value={password}
-                  onChange={e => {
-                    setPassword(e.target.value);
-                    if (errors.password) setErrors({...errors, password: ''});
-                  }}
-                  disabled={isLoading}
-                />
-                <button 
-                  type="button" 
-                  className="auth-password-toggle"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-              {errors.password && <span className="auth-error-text">{errors.password}</span>}
-            </div>
 
               <button 
                 type="submit" 

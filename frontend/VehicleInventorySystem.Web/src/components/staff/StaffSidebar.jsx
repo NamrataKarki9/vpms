@@ -102,6 +102,7 @@ const Sidebar = ({ user, onLogout }) => {
       {/* Logout Button */}
       <div style={{ padding: '0 10px 14px' }}>
         <button
+          type="button"
           onClick={handleLogout}
           style={{
             width: '100%',
