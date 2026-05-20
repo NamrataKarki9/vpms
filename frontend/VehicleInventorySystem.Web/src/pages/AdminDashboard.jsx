@@ -1311,7 +1311,7 @@ function InventoryPurchasePage({ inventory, vendors, onUpdate, onBack, onSuccess
         method: 'POST',
         body: JSON.stringify({
           vendorId: parseInt(purchaseData.vendorId),
-          totalAmount: part.price * parseInt(purchaseData.quantity),
+          totalAmount: part.price * 0.7 * parseInt(purchaseData.quantity),
           items: [{ partId: parseInt(purchaseData.partId), quantity: parseInt(purchaseData.quantity), unitPrice: part.price * 0.7 }]
         })
       });

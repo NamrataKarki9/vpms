@@ -8,7 +8,8 @@ import {
   History,
   PlusCircle,
   LogOut,
-  HelpCircle
+  HelpCircle,
+  Settings
 } from 'lucide-react';
 import { clearStoredUser } from '../../services/api';
 
@@ -58,6 +59,9 @@ const CustomerSidebar = ({ user }) => {
         <NavItem to="/customer/appointments" icon={CalendarClock} label="Appointments" />
         <NavItem to="/customer/book" icon={PlusCircle} label="Book Service" />
         <NavItem to="/customer/requests" icon={ClipboardList} label="Special Orders" />
+
+        <div className="nav-section-label">Account</div>
+        <NavItem to="/customer/settings" icon={Settings} label="Settings" />
       </div>
 
       {/* Footer */}

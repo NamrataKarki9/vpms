@@ -473,4 +473,49 @@ public class TransactionsController : ControllerBase
 
         return Ok(recent);
     }
+
+    [Authorize(Roles = "Admin,Staff")]
+    [HttpGet("{id}")]
+    public async Task<ActionResult<object>> GetInvoice(int id)
+    {
+        var invoice = await _context.Invoices
+            .Include(i => i.Customer)
+            .Include(i => i.Vendor)
+            .Include(i => i.Items)
+            .ThenInclude(ii => ii.Part)
+            .FirstOrDefaultAsync(i => i.Id == id);
+
+        if (invoice == null)
+            return NotFound(new { message = "Invoice not found." });
+
+        string invoiceKind = invoice.Type == InvoiceType.Purchase ? "Purchase" : (invoice.Items.Any() ? "Sale" : "Service");
+        string invoiceNumber = invoice.Type == InvoiceType.Purchase ? $"PUR-{invoice.Id:D6}" : (invoice.Items.Any() ? $"INV-{invoice.Id:D6}" : $"SVC-{invoice.Id:D6}");
+
+        return Ok(new
+        {
+            id = invoice.Id,
+            invoiceId = invoice.Id,
+            invoiceNumber = invoiceNumber,
+            invoiceKind = invoiceKind,
+            type = invoice.Type == InvoiceType.Purchase ? "Purchase" : "Sale",
+            customerName = invoice.Type == InvoiceType.Purchase 
+                ? (invoice.Vendor != null ? invoice.Vendor.Name : "Unknown Vendor") 
+                : (invoice.Customer != null ? invoice.Customer.Name : "Walk-in"),
+            customerEmail = invoice.Type == InvoiceType.Purchase 
+                ? (invoice.Vendor != null ? invoice.Vendor.EmailAddress : "") 
+                : (invoice.Customer != null ? invoice.Customer.Email : ""),
+            vendorName = invoice.Vendor != null ? invoice.Vendor.Name : null,
+            totalAmount = invoice.TotalAmount,
+            date = invoice.Date,
+            paymentStatus = invoice.PaymentStatus ?? (invoice.IsPaid ? "full-payment" : "half-payment"),
+            isPaid = invoice.IsPaid,
+            items = invoice.Items.Select(ii => new
+            {
+                partName = ii.Part != null ? ii.Part.Name : "Unknown Part",
+                quantity = ii.Quantity,
+                unitPrice = ii.UnitPrice
+            }).ToList()
+        });
+    }
 }
+

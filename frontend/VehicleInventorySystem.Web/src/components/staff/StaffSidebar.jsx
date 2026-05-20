@@ -62,10 +62,7 @@ const Sidebar = ({ user }) => {
             <NavItem to="/admin/purchases" icon={FileText} label="Purchase History" />
             <NavItem to="/admin/customers" icon={Users} label="Customers" />
             <NavItem to="/admin/reports" icon={BarChart2} label="Reports" />
-            <div className="nav-link nav-link-disabled" aria-disabled="true">
-              <Settings size={15} strokeWidth={2} />
-              <span>Settings</span>
-            </div>
+            <NavItem to="/admin/settings" icon={Settings} label="Settings" />
           </>
         ) : (
           <>
@@ -87,6 +84,7 @@ const Sidebar = ({ user }) => {
           <>
             <NavItem to="/staff/parts" icon={Package} label="Parts" />
             <NavItem to="/staff/appointments" icon={CalendarClock} label="Appointments" />
+            <NavItem to="/staff/settings" icon={Settings} label="Settings" />
           </>
         )}
       </div>

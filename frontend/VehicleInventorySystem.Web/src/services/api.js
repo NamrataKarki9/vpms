@@ -143,6 +143,13 @@ export const authApi = {
     return apiFetch(`/users/${id}/status`, {
       method: 'PATCH'
     });
+  },
+
+  changePassword: async (id, currentPassword, newPassword, confirmPassword) => {
+    return apiFetch(`/users/${id}/change-password`, {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword, confirmPassword })
+    });
   }
 };
 

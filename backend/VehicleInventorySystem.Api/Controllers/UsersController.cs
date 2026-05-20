@@ -80,6 +80,13 @@ public class UsersController : ControllerBase
         return await ExecuteAsync(() => _userService.ToggleUserStatusAsync(id));
     }
 
+    [Authorize]
+    [HttpPost("{id:int}/change-password")]
+    public async Task<IActionResult> ChangePassword(int id, [FromBody] ChangePasswordRequest request)
+    {
+        return await ExecuteAsync(() => _userService.ChangePasswordAsync(id, request));
+    }
+
     private async Task<IActionResult> ExecuteAsync<T>(Func<Task<T>> action)
     {
         if (!ModelState.IsValid)

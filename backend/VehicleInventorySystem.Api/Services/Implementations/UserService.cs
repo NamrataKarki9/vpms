@@ -358,6 +358,66 @@ public class UserService : IUserService
         return MapToResponse(user);
     }
 
+    public async Task<UserResponse> ChangePasswordAsync(int id, ChangePasswordRequest request)
+    {
+        if (id <= 0)
+        {
+            throw new ArgumentException("Invalid input: user id must be greater than zero.");
+        }
+
+        // Validate input
+        if (string.IsNullOrWhiteSpace(request.CurrentPassword))
+        {
+            throw new ArgumentException("Current password is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.NewPassword))
+        {
+            throw new ArgumentException("New password is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.ConfirmPassword))
+        {
+            throw new ArgumentException("Password confirmation is required.");
+        }
+
+        if (request.NewPassword != request.ConfirmPassword)
+        {
+            throw new ArgumentException("New password and confirmation password do not match.");
+        }
+
+        if (request.NewPassword.Length < 8)
+        {
+            throw new ArgumentException("New password must be at least 8 characters.");
+        }
+
+        // Find the user
+        var user = await _userManager.FindByIdAsync(id.ToString());
+        if (user == null)
+        {
+            throw new KeyNotFoundException("User not found.");
+        }
+
+        // Verify current password
+        var isCurrentPasswordValid = await _userManager.CheckPasswordAsync(user, request.CurrentPassword);
+        if (!isCurrentPasswordValid)
+        {
+            throw new InvalidOperationException("Current password is incorrect.");
+        }
+
+        // Generate password reset token and reset the password
+        var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+        var resetResult = await _userManager.ResetPasswordAsync(user, token, request.NewPassword);
+
+        if (!resetResult.Succeeded)
+        {
+            var errors = string.Join(" ", resetResult.Errors.Select(e => e.Description));
+            throw new InvalidOperationException($"Password change failed: {errors}");
+        }
+
+        return MapToResponse(user);
+    }
+
     private static void ValidateCustomerInput(string name, string email, string phoneNumber, string password, string confirmPassword)
     {
         // Check for null or whitespace

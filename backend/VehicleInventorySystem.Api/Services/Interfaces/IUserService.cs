@@ -15,4 +15,5 @@ public interface IUserService
     Task<UserResponse> UpdateUserAsync(int id, UpdateUserRequest request);
     Task<UserResponse> ToggleUserStatusAsync(int id);
     Task<PaginatedResponse<UserResponse>> GetPaginatedUsersAsync(UserRole? role, PaginationRequest pagination);
+    Task<UserResponse> ChangePasswordAsync(int id, ChangePasswordRequest request);
 }

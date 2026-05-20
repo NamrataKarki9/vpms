@@ -22,6 +22,18 @@ const InvoiceDetail = () => {
 
     const loadInvoice = async () => {
       try {
+        // Try direct fetch first
+        try {
+          const directFound = await apiFetch(`/Transactions/${id}`);
+          if (directFound) {
+            setInvoice(directFound);
+            setLoading(false);
+            return;
+          }
+        } catch (directErr) {
+          console.warn('Failed to fetch invoice directly, trying lists fallback:', directErr);
+        }
+
         const sales = await apiFetch('/Transactions/sales');
         const found = (sales || []).find(s => s.id === parseInt(id));
         if (found) {
@@ -35,9 +47,9 @@ const InvoiceDetail = () => {
           setInvoice({
             id: recentFound.invoiceId,
             invoiceId: recentFound.invoiceId,
-            invoiceNumber: recentFound.invoiceNumber || (recentFound.itemCount === 0 ? `SVC-${recentFound.invoiceId.toString().padStart(6, '0')}` : `INV-${recentFound.invoiceId.toString().padStart(6, '0')}`),
-            invoiceKind: recentFound.invoiceKind || (recentFound.itemCount === 0 ? 'Service' : 'Sale'),
-            customerName: recentFound.customerName || 'Walk-in',
+            invoiceNumber: recentFound.invoiceNumber || (recentFound.type === 'Purchase' ? `PUR-${recentFound.invoiceId.toString().padStart(6, '0')}` : (recentFound.itemCount === 0 ? `SVC-${recentFound.invoiceId.toString().padStart(6, '0')}` : `INV-${recentFound.invoiceId.toString().padStart(6, '0')}`)),
+            invoiceKind: recentFound.type || recentFound.invoiceKind || (recentFound.itemCount === 0 ? 'Service' : 'Sale'),
+            customerName: recentFound.type === 'Purchase' ? (recentFound.vendorName || 'Unknown Vendor') : (recentFound.customerName || 'Walk-in'),
             customerEmail: recentFound.customerEmail || '',
             totalAmount: recentFound.totalAmount,
             date: recentFound.date,
@@ -292,15 +304,19 @@ const InvoiceDetail = () => {
                   padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 600, letterSpacing: '0.5px',
                   border: `1px solid ${isPaid ? 'rgba(134,239,172,0.3)' : 'rgba(253,230,138,0.3)'}`
                 }}>
-                  {isPaid ? '✓ PAID IN FULL' : '⏳ CREDIT TRANSACTION'}
+                  {invoice.invoiceKind === 'Purchase' 
+                    ? (isPaid ? '✓ PURCHASE COMPLETED' : '⏳ PURCHASE ON CREDIT')
+                    : (isPaid ? '✓ PAID IN FULL' : '⏳ CREDIT TRANSACTION')}
                 </span>
               </div>
             </div>
 
             <div style={{ marginTop: '24px', display: 'flex', gap: '40px' }}>
               <div>
-                <p style={{ margin: '0 0 4px', fontSize: '11px', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.8px' }}>Invoice Number</p>
-                  <p style={{ margin: 0, fontSize: '28px', fontWeight: 700 }}>{invoice.invoiceNumber || `#${invoice.id}`}</p>
+                <p style={{ margin: '0 0 4px', fontSize: '11px', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                  {invoice.invoiceKind === 'Purchase' ? 'Purchase Order ID' : 'Invoice Number'}
+                </p>
+                <p style={{ margin: 0, fontSize: '28px', fontWeight: 700 }}>{invoice.invoiceNumber || `#${invoice.id}`}</p>
               </div>
               <div>
                 <p style={{ margin: '0 0 4px', fontSize: '11px', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.8px' }}>Date Issued</p>
@@ -316,17 +332,23 @@ const InvoiceDetail = () => {
           {/* Customer & Payment Info row */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '36px' }}>
             <div style={{ background: '#F8FAFC', border: '1px solid #E8ECF0', borderRadius: '10px', padding: '20px' }}>
-              <p style={{ margin: '0 0 12px', fontSize: '11px', color: '#94A3B8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.8px' }}>Billed To</p>
+              <p style={{ margin: '0 0 12px', fontSize: '11px', color: '#94A3B8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                {invoice.invoiceKind === 'Purchase' ? 'Billed From (Vendor)' : 'Billed To'}
+              </p>
               <p style={{ margin: '0 0 4px', fontSize: '17px', fontWeight: 700, color: '#1E293B' }}>
-                {invoice.customerName || 'Walk-in Customer'}
+                {invoice.customerName || (invoice.invoiceKind === 'Purchase' ? 'Unknown Vendor' : 'Walk-in Customer')}
               </p>
               <p style={{ margin: 0, fontSize: '13px', color: '#64748B' }}>{invoice.customerEmail || '—'}</p>
             </div>
             <div style={{ background: '#F8FAFC', border: '1px solid #E8ECF0', borderRadius: '10px', padding: '20px' }}>
-              <p style={{ margin: '0 0 12px', fontSize: '11px', color: '#94A3B8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.8px' }}>Payment Info</p>
+              <p style={{ margin: '0 0 12px', fontSize: '11px', color: '#94A3B8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                {invoice.invoiceKind === 'Purchase' ? 'Purchase Info' : 'Payment Info'}
+              </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '13px', color: '#64748B' }}>Invoice Date</span>
+                  <span style={{ fontSize: '13px', color: '#64748B' }}>
+                    {invoice.invoiceKind === 'Purchase' ? 'Purchase Date' : 'Invoice Date'}
+                  </span>
                   <span style={{ fontSize: '13px', fontWeight: 500, color: '#1E293B' }}>
                     {new Date(invoice.date).toLocaleDateString()}
                   </span>
@@ -381,8 +403,23 @@ const InvoiceDetail = () => {
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '36px' }}>
             <div style={{ width: '280px' }}>
               <div style={{ background: 'linear-gradient(135deg, #1E3A5F 0%, #2563A8 100%)', borderRadius: '12px', padding: '20px 24px', color: '#fff' }}>
+                {invoice.invoiceKind === 'Sale' && subtotal > invoice.totalAmount ? (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '13px', opacity: 0.8 }}>Subtotal</span>
+                      <span style={{ fontSize: '14px', fontWeight: 600 }}>Rs. {subtotal.toFixed(2)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '13px', opacity: 0.8 }}>Loyalty Discount (10%)</span>
+                      <span style={{ fontSize: '14px', fontWeight: 600, color: '#86EFAC' }}>- Rs. {(subtotal - invoice.totalAmount).toFixed(2)}</span>
+                    </div>
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.2)', margin: '10px 0' }} />
+                  </>
+                ) : null}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <span style={{ fontSize: '13px', opacity: 0.8 }}>Total Amount</span>
+                  <span style={{ fontSize: '13px', opacity: 0.8 }}>
+                    {invoice.invoiceKind === 'Purchase' ? 'Total Cost' : 'Total Amount'}
+                  </span>
                   <span style={{ fontSize: '22px', fontWeight: 800 }}>Rs. {invoice.totalAmount.toFixed(2)}</span>
                 </div>
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.2)', marginTop: '12px', paddingTop: '12px' }}>
@@ -416,7 +453,7 @@ const InvoiceDetail = () => {
               }}
             >
               <Mail size={15} />
-              {emailSending ? 'Sending...' : 'Send Invoice Email'}
+              {emailSending ? 'Sending...' : (invoice.invoiceKind === 'Purchase' ? 'Send PO Email' : 'Send Invoice Email')}
             </button>
           </div>
         </div>

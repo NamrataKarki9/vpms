@@ -13,6 +13,7 @@ import {
   HistoryPage 
 } from './pages/CustomerDashboard';
 import CustomerLayout from './components/customer/CustomerLayout';
+import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
@@ -280,6 +281,7 @@ function App() {
               <Route path="invoices" element={<Invoices />} />
               <Route path="parts" element={<Inventory />} />
               <Route path="appointments" element={<Appointments />} />
+              <Route path="settings" element={<SettingsPage user={user} />} />
             </Route>
           )}
 
@@ -431,6 +433,7 @@ function App() {
                 />
               } />
               <Route path="invoices/:id" element={<InvoiceDetail />} />
+              <Route path="settings" element={<SettingsPage user={user} />} />
 
             </Route>
           )}
@@ -446,6 +449,7 @@ function App() {
               <Route path="requests" element={<RequestsPage user={user} />} />
               <Route path="new-request" element={<NewRequestPage user={user} />} />
               <Route path="history" element={<HistoryPage user={user} />} />
+              <Route path="settings" element={<SettingsPage user={user} />} />
             </Route>
           )}
           <Route path="/parts" element={user?.role === ROLES.ADMIN ? <StaffLayout user={user} /> : <Navigate to="/" />}>
