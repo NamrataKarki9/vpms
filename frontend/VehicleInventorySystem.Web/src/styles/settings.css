@@ -149,25 +149,25 @@
 }
 
 .settings-form {
-  padding: 2rem;
+  padding: 1.25rem 1.5rem;
 }
 
 .form-section {
-  margin-bottom: 2.5rem;
+  margin-bottom: 1.25rem;
 }
 
 .form-section h2 {
-  font-size: 1.5rem;
+  font-size: 1.1rem;
   font-weight: 700;
   color: var(--on-surface);
-  margin: 0 0 0.5rem 0;
+  margin: 0 0 0.25rem 0;
 }
 
 .section-description {
   color: var(--on-surface);
   opacity: 0.6;
-  margin: 0 0 2rem 0;
-  font-size: 0.95rem;
+  margin: 0 0 1rem 0;
+  font-size: 0.8rem;
 }
 
 /* ────────────────────────────────────────────
@@ -175,16 +175,16 @@
    ──────────────────────────────────────────── */
 
 .form-group {
-  margin-bottom: 1.75rem;
+  margin-bottom: 1rem;
 }
 
 .form-label {
   display: block;
-  font-size: 0.95rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--on-surface);
-  margin-bottom: 0.75rem;
-  letter-spacing: 0.3px;
+  margin-bottom: 0.4rem;
+  letter-spacing: 0.2px;
 }
 
 .required {
@@ -200,9 +200,9 @@
 
 .input-icon {
   position: absolute;
-  left: 1rem;
-  width: 18px;
-  height: 18px;
+  left: 0.75rem;
+  width: 16px;
+  height: 16px;
   color: var(--on-surface);
   opacity: 0.5;
   pointer-events: none;
@@ -211,12 +211,12 @@
 
 .form-input {
   width: 100%;
-  padding: 1rem 1rem 1rem 3rem;
-  border: 2px solid var(--glass-border);
-  border-radius: 10px;
+  padding: 0.65rem 0.85rem 0.65rem 2.5rem;
+  border: 1.5px solid var(--glass-border);
+  border-radius: 8px;
   background: var(--background);
   color: var(--on-surface);
-  font-size: 1rem;
+  font-size: 0.85rem;
   font-family: 'Inter', sans-serif;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   outline: none;
@@ -225,7 +225,7 @@
 .form-input:focus {
   border-color: var(--primary);
   background: var(--surface);
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+  box-shadow: 0 0 0 2px rgba(37, 99, 168, 0.12);
 }
 
 .form-input:hover:not(:focus) {
@@ -276,24 +276,24 @@
 .error-message {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.35rem;
   color: var(--error);
-  font-size: 0.875rem;
-  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  margin-top: 0.3rem;
   font-weight: 500;
 }
 
 .error-message svg {
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
 }
 
 .field-hint {
   color: var(--on-surface);
   opacity: 0.5;
-  font-size: 0.875rem;
-  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  margin-top: 0.3rem;
   margin-bottom: 0;
 }
 
@@ -310,16 +310,16 @@
 .password-requirements {
   background: var(--background);
   border: 1px solid var(--glass-border);
-  border-radius: 10px;
-  padding: 1rem;
-  margin-top: 1rem;
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-top: 0.75rem;
 }
 
 .password-requirements p {
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--on-surface);
-  margin: 0 0 0.75rem 0;
+  margin: 0 0 0.5rem 0;
 }
 
 .password-requirements ul {
@@ -328,23 +328,23 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.3rem;
 }
 
 .password-requirements li {
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   color: var(--on-surface);
   opacity: 0.6;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.35rem;
   transition: all 0.2s;
 }
 
 .password-requirements li::before {
   content: '○';
   font-weight: 700;
-  font-size: 1.2rem;
+  font-size: 1rem;
   opacity: 0.3;
   color: var(--error);
 }
@@ -367,9 +367,9 @@
 
 .form-actions {
   display: flex;
-  gap: 1rem;
-  margin-top: 2rem;
-  padding-top: 2rem;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
   border-top: 1px solid var(--glass-border);
 }
 
@@ -377,11 +377,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
-  padding: 1rem 2rem;
+  gap: 0.5rem;
+  padding: 0.6rem 1.25rem;
   border: none;
-  border-radius: 10px;
-  font-size: 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -392,12 +392,12 @@
 .btn-primary {
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-variant) 100%);
   color: var(--on-primary);
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+  box-shadow: 0 3px 10px rgba(30, 58, 95, 0.25);
 }
 
 .btn-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 5px 16px rgba(30, 58, 95, 0.35);
 }
 
 .btn-primary:active:not(:disabled) {
@@ -446,7 +446,7 @@
   }
 
   .settings-form {
-    padding: 1.5rem;
+    padding: 1rem 1.25rem;
   }
 
   .form-actions {
@@ -458,15 +458,15 @@
   }
 
   .form-input {
-    padding: 0.875rem 0.875rem 0.875rem 2.75rem;
+    padding: 0.6rem 0.75rem 0.6rem 2.25rem;
   }
 
   .input-icon {
-    left: 0.75rem;
+    left: 0.65rem;
   }
 
   .toggle-password {
-    right: 0.75rem;
+    right: 0.65rem;
   }
 }
 
