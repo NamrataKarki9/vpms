@@ -4,10 +4,10 @@ import StaffSidebar from './StaffSidebar';
 import StaffTopBar from './StaffTopBar';
 import '../../styles/staff.css';
 
-const StaffLayout = ({ user }) => {
+const StaffLayout = ({ user, onLogout }) => {
   return (
     <div className={`staff-shell ${user?.role === 'Admin' ? 'admin-shell' : ''}`}>
-      <StaffSidebar user={user} />
+      <StaffSidebar user={user} onLogout={onLogout} />
       
       <div className="staff-body">
         <StaffTopBar user={user} />

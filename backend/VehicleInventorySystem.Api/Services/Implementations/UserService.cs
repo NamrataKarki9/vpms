@@ -138,6 +138,7 @@ public class UserService : IUserService
         }
 
         var users = await query
+            .Where(u => u.IsActive)
             .OrderBy(u => u.Name)
             .ToListAsync();
 
@@ -149,7 +150,7 @@ public class UserService : IUserService
         var staff = await _context.Users
             .AsNoTracking()
             .Include(u => u.Vehicles)
-            .Where(u => u.Role == UserRole.Staff)
+            .Where(u => u.Role == UserRole.Staff && u.IsActive)
             .OrderBy(u => u.Name)
             .ToListAsync();
 
@@ -166,6 +167,7 @@ public class UserService : IUserService
         }
 
         var pagedData = await query
+            .Where(u => u.IsActive)
             .OrderBy(u => u.Name)
             .ToPaginatedResponseAsync(pagination.PageNumber, pagination.PageSize);
 
@@ -356,6 +358,34 @@ public class UserService : IUserService
         }
 
         return MapToResponse(user);
+    }
+
+    public async Task<object> DeleteUserAsync(int id)
+    {
+        if (id <= 0)
+        {
+            throw new ArgumentException("Invalid input: user id must be greater than zero.");
+        }
+
+        var user = await _userManager.FindByIdAsync(id.ToString());
+        if (user == null)
+        {
+            throw new KeyNotFoundException("User not found.");
+        }
+
+        if (user.Role == UserRole.Admin)
+        {
+            throw new InvalidOperationException("Cannot delete admin accounts.");
+        }
+
+        var result = await _userManager.DeleteAsync(user);
+        if (!result.Succeeded)
+        {
+            var errors = string.Join(" ", result.Errors.Select(e => e.Description));
+            throw new InvalidOperationException($"Delete failed: {errors}");
+        }
+
+        return new { message = "User deleted successfully" };
     }
 
     public async Task<UserResponse> ChangePasswordAsync(int id, ChangePasswordRequest request)

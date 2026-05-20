@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
@@ -13,16 +13,14 @@ import {
   ClipboardList,
   Settings
 } from 'lucide-react';
-import { clearStoredUser } from '../../services/api';
 
-const Sidebar = ({ user }) => {
-  const navigate = useNavigate();
+const Sidebar = ({ user, onLogout }) => {
   const isAdmin = user?.role === 'Admin';
 
   const handleLogout = () => {
-    clearStoredUser();
-    navigate('/login');
-    window.location.reload();
+    if (onLogout) {
+      onLogout();
+    }
   };
 
   const NavItem = ({ to, icon: Icon, label }) => (

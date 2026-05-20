@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Car, 
   CalendarClock, 
@@ -58,6 +58,15 @@ const isCompletedService = (service) => {
   return String(service?.status || '').toLowerCase() === 'completed';
 };
 
+const sortAppointmentsNewestFirst = (items = []) => {
+  return [...(Array.isArray(items) ? items : [])].sort((a, b) => {
+    // Sort by booking id (numeric) descending so newest booking id appears first
+    const ia = Number(a?.id ?? a?.appointmentId ?? 0);
+    const ib = Number(b?.id ?? b?.appointmentId ?? 0);
+    return ib - ia;
+  });
+};
+
 /**
  * CUSTOMER OVERVIEW (DASHBOARD MAIN VIEW)
  */
@@ -82,7 +91,7 @@ export function CustomerOverview({ user }) {
         apiFetch(`/Customers/${user.id}/history`)
       ]);
       if (v) setVehicles(v);
-      if (a) setAppointments(a);
+      if (a) setAppointments(Array.isArray(a) ? a : (a.items || a.Items || []));
       if (pr) setPartRequests(pr);
       if (h) setHistory(h);
     } catch (err) {
@@ -95,11 +104,11 @@ export function CustomerOverview({ user }) {
   const metrics = [
     { label: "My Vehicles", value: vehicles.length, sub: "Registered in garage", icon: Car, color: METRIC_COLORS[0], path: '/customer/vehicles' },
     { label: "Bookings", value: appointments.filter(isUpcomingAppointment).length, sub: "Upcoming services", icon: CalendarClock, color: METRIC_COLORS[1], path: '/customer/appointments' },
-    { label: "Special Orders", value: partRequests.length, sub: "Active part requests", icon: Package, color: METRIC_COLORS[2], path: '/customer/requests' },
+    { label: "Parts Orders", value: partRequests.length, sub: "Active part requests", icon: Package, color: METRIC_COLORS[2], path: '/customer/requests' },
     { label: "Total Visits", value: history.filter(isCompletedService).length, sub: "Complete history", icon: HistoryIcon, color: METRIC_COLORS[3], path: '/customer/history' },
   ];
 
-  const upcomingAppointments = appointments.filter(isUpcomingAppointment);
+  const upcomingAppointments = sortAppointmentsNewestFirst(appointments).filter(isUpcomingAppointment);
 
   return (
     <div className="customer-dashboard-overview">
@@ -211,6 +220,7 @@ export function VehiclesPage({ user }) {
   const [isAdding, setIsAdding] = useState(false);
   const [form, setForm] = useState({ plateNumber: '', model: '', make: '', year: new Date().getFullYear(), fuelType: '', mileage: 0 });
   const [error, setError] = useState('');
+  const [errors, setErrors] = useState({ plateNumber: '', model: '', make: '', year: '', fuelType: '', mileage: '' });
   const [successDialog, setSuccessDialog] = useState(false);
   const [viewingVehicle, setViewingVehicle] = useState(null);
   const [editingVehicle, setEditingVehicle] = useState(null);
@@ -231,7 +241,17 @@ export function VehiclesPage({ user }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!form.plateNumber.trim() || !form.model.trim() || !form.make.trim()) {
+    // per-field validation
+    const nextErrors = {
+      plateNumber: form.plateNumber && form.plateNumber.toString().trim() ? '' : 'Please fill this field',
+      model: form.model && form.model.toString().trim() ? '' : 'Please fill this field',
+      make: form.make && form.make.toString().trim() ? '' : 'Please fill this field',
+      year: (form.year !== '' && form.year !== null && typeof form.year !== 'undefined') ? '' : 'Please fill this field',
+      fuelType: form.fuelType && form.fuelType.toString().trim() ? '' : 'Please fill this field',
+      mileage: (form.mileage !== '' && form.mileage !== null && typeof form.mileage !== 'undefined' && Number(form.mileage) > 0) ? '' : 'Please fill this field'
+    };
+    setErrors(nextErrors);
+    if (nextErrors.plateNumber || nextErrors.model || nextErrors.make || nextErrors.year || nextErrors.mileage) {
       setError('Please fill in all required fields');
       return;
     }
@@ -249,6 +269,7 @@ export function VehiclesPage({ user }) {
       });
       setVehicles([...vehicles, savedVehicle]);
       setForm({ plateNumber: '', model: '', make: '', year: new Date().getFullYear(), fuelType: '', mileage: 0 });
+      setErrors({ plateNumber: '', model: '', make: '', year: '', fuelType: '', mileage: '' });
       setIsAdding(false);
       setSuccessDialog(true);
     } catch (err) {
@@ -332,7 +353,27 @@ export function VehiclesPage({ user }) {
         <div className="staff-card" style={{ marginBottom: '24px', padding: '24px' }}>
           <h3 style={{ marginBottom: '20px' }}>Register New Vehicle</h3>
           <form style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <VehicleForm value={form} onChange={setForm} errors={{}} showMileageHint={false} />
+            <VehicleForm
+              value={form}
+              onChange={(next) => {
+                // VehicleForm returns partial object; merge into form
+                const updated = { ...form, ...next };
+                setForm(updated);
+                // clear per-field error when field has value
+                const cleared = { ...errors };
+                Object.keys(next).forEach(k => {
+                  const v = next[k];
+                  if (k === 'mileage') {
+                    if (Number(v) > 0) cleared[k] = '';
+                  } else if (v !== '' && v !== null && typeof v !== 'undefined' && !(typeof v === 'string' && v.trim() === '')) {
+                    cleared[k] = '';
+                  }
+                });
+                setErrors(cleared);
+              }}
+              errors={errors}
+              showMileageHint={false}
+            />
             <div style={{ gridColumn: 'span 2', display: 'flex', gap: '12px', marginTop: '12px' }}>
               <button type="button" onClick={() => setIsAdding(false)} className="btn-view-customer" style={{ padding: '10px 24px' }}>Cancel</button>
               <button type="submit" onClick={handleSubmit} className="btn-sale-primary" style={{ padding: '10px 24px' }}>Save Vehicle</button>
@@ -602,7 +643,7 @@ export function AppointmentsPage({ user }) {
       apiFetch(`/Service/appointments?customerId=${user.id}`),
       apiFetch(`/Customers/${user.id}/vehicles`)
     ]);
-    if (a) setAppointments(a);
+    if (a) setAppointments(Array.isArray(a) ? a : (a.items || a.Items || []));
     if (v) setVehicles(v);
   };
 
@@ -675,7 +716,7 @@ export function AppointmentsPage({ user }) {
             </tr>
           </thead>
           <tbody>
-            {appointments.filter(isUpcomingAppointment).map(a => {
+            {sortAppointmentsNewestFirst(appointments).filter(isUpcomingAppointment).map(a => {
               const vehicle = vehicles.find(v => v.id === a.vehicleId);
               return (
                 <tr key={a.id}>
@@ -705,7 +746,7 @@ export function AppointmentsPage({ user }) {
                 </tr>
               );
             })}
-            {appointments.filter(isUpcomingAppointment).length === 0 && (
+            {sortAppointmentsNewestFirst(appointments).filter(isUpcomingAppointment).length === 0 && (
               <tr>
                 <td colSpan="5">
                   <div className="empty-state">
@@ -808,6 +849,7 @@ export function BookingPage({ user }) {
   const [vehicles, setVehicles] = useState([]);
   const [form, setForm] = useState({ vehicleId: '', serviceType: '', appointmentDate: '', appointmentTime: '09:00', description: '' });
   const [error, setError] = useState('');
+  const [errors, setErrors] = useState({ vehicleId: '', serviceType: '', appointmentDate: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successDialog, setSuccessDialog] = useState(false);
 
@@ -820,7 +862,14 @@ export function BookingPage({ user }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.vehicleId || !form.appointmentDate || !form.serviceType) {
+    // per-field validation
+    const nextErrors = {
+      vehicleId: form.vehicleId ? '' : 'Please fill this field',
+      serviceType: form.serviceType ? '' : 'Please fill this field',
+      appointmentDate: form.appointmentDate ? '' : 'Please fill this field'
+    };
+    setErrors(nextErrors);
+    if (nextErrors.vehicleId || nextErrors.serviceType || nextErrors.appointmentDate) {
       setError('Please fill all required fields');
       return;
     }
@@ -837,6 +886,7 @@ export function BookingPage({ user }) {
           description: form.description
         })
       });
+      window.dispatchEvent(new CustomEvent('vis:notifications-refresh'));
       setSuccessDialog(true);
     } catch (err) {
       setError(err.message || 'Failed to book appointment');
@@ -856,23 +906,26 @@ export function BookingPage({ user }) {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div>
             <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Select Vehicle *</label>
-            <select className="search-input-field" style={{ width: '100%', height: '42px' }} value={form.vehicleId} onChange={e => setForm({...form, vehicleId: e.target.value})}>
+            <select className="search-input-field" style={{ width: '100%', height: '42px' }} value={form.vehicleId} onChange={e => { setForm({...form, vehicleId: e.target.value}); if (e.target.value) setErrors({...errors, vehicleId: ''}); }}>
               <option value="">-- Choose from your garage --</option>
               {vehicles.map(v => <option key={v.id} value={v.id}>{v.make} {v.model} ({v.plateNumber})</option>)}
             </select>
+            {errors.vehicleId && <p style={{ color: '#EF4444', fontSize: '12px', marginTop: '8px' }}>{errors.vehicleId}</p>}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
             <div>
               <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Service Type *</label>
-              <select className="search-input-field" style={{ width: '100%', height: '42px' }} value={form.serviceType} onChange={e => setForm({...form, serviceType: e.target.value})}>
+              <select className="search-input-field" style={{ width: '100%', height: '42px' }} value={form.serviceType} onChange={e => { setForm({...form, serviceType: e.target.value}); if (e.target.value) setErrors({...errors, serviceType: ''}); }}>
                 <option value="">-- Select type --</option>
                 {serviceTypes.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
+              {errors.serviceType && <p style={{ color: '#EF4444', fontSize: '12px', marginTop: '8px' }}>{errors.serviceType}</p>}
             </div>
             <div>
               <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Preferred Date *</label>
-              <input type="date" className="search-input-field" style={{ width: '100%', height: '42px' }} min={new Date().toISOString().split('T')[0]} value={form.appointmentDate} onChange={e => setForm({...form, appointmentDate: e.target.value})} />
+              <input type="date" className="search-input-field" style={{ width: '100%', height: '42px' }} min={new Date().toISOString().split('T')[0]} value={form.appointmentDate} onChange={e => { setForm({...form, appointmentDate: e.target.value}); if (e.target.value) setErrors({...errors, appointmentDate: ''}); }} />
+              {errors.appointmentDate && <p style={{ color: '#EF4444', fontSize: '12px', marginTop: '8px' }}>{errors.appointmentDate}</p>}
             </div>
           </div>
 
@@ -883,7 +936,7 @@ export function BookingPage({ user }) {
                 <button 
                   key={t} 
                   type="button"
-                  onClick={() => setForm({...form, appointmentTime: t})}
+                  onClick={() => { setForm({...form, appointmentTime: t}); /* clear any global error when time selected */ setError(''); }}
                   style={{
                     padding: '8px 16px', borderRadius: '8px', border: '1px solid #E2E8F0',
                     background: form.appointmentTime === t ? '#1E3A5F' : '#fff',
@@ -957,7 +1010,7 @@ export function RequestsPage({ user }) {
     <div>
       <div className="page-section-header" style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2>Special Part Orders</h2>
+          <h2>Part Orders</h2>
           <p>Track requests for parts that are currently out of stock or custom-ordered.</p>
         </div>
         <button className="btn-sale-primary" onClick={() => navigate('/customer/new-request')}>
@@ -1000,7 +1053,7 @@ export function RequestsPage({ user }) {
                 <td colSpan="6">
                   <div className="empty-state">
                     <div className="empty-state-icon">📦</div>
-                    <h4>No special orders</h4>
+                    <h4>No part orders</h4>
                     <p>Need a part we don't have in stock? Submit a request!</p>
                   </div>
                 </td>
@@ -1018,11 +1071,14 @@ export function RequestsPage({ user }) {
  */
 export function NewRequestPage({ user }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [vehicles, setVehicles] = useState([]);
   const [parts, setParts] = useState([]);
   const [form, setForm] = useState({ vehicleId: '', partId: '', customPartName: '', quantity: 1, urgency: 'Medium', description: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successDialog, setSuccessDialog] = useState(false);
+  const [errors, setErrors] = useState({ vehicleId: '', part: '', quantity: '', urgency: '' });
+  const [error, setError] = useState('');
 
   useEffect(() => {
     Promise.all([
@@ -1031,12 +1087,36 @@ export function NewRequestPage({ user }) {
     ]).then(([v, p]) => {
       if (v) setVehicles(v);
       if (p) setParts(p);
+      
+      // Auto-select part if coming from home page
+      const selectedPartId = location.state?.selectedPartId;
+      if (selectedPartId && Array.isArray(p)) {
+        const selectedPartExists = p.some(part => (part.id ?? part.Id) === selectedPartId);
+        if (selectedPartExists) {
+          setForm(prevForm => ({
+            ...prevForm,
+            partId: String(selectedPartId),
+            customPartName: ''
+          }));
+        }
+      }
     });
-  }, [user]);
+  }, [user, location.state?.selectedPartId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.vehicleId || (!form.partId && !form.customPartName)) return;
+    // per-field validation
+    const nextErrors = {
+      vehicleId: form.vehicleId ? '' : 'Please fill this field',
+      part: (form.partId || (form.customPartName && form.customPartName.toString().trim())) ? '' : 'Please fill this field',
+      quantity: (form.quantity !== '' && Number(form.quantity) > 0) ? '' : 'Please fill this field',
+      urgency: form.urgency ? '' : 'Please fill this field'
+    };
+    setErrors(nextErrors);
+    if (nextErrors.vehicleId || nextErrors.part || nextErrors.quantity || nextErrors.urgency) {
+      setError('Please fill all required fields');
+      return;
+    }
     setIsSubmitting(true);
     try {
       const urgencyMap = { Low: 0, Medium: 1, High: 2 };
@@ -1054,6 +1134,7 @@ export function NewRequestPage({ user }) {
           requestedAt: new Date().toISOString()
         })
       });
+      window.dispatchEvent(new CustomEvent('vis:notifications-refresh'));
       setSuccessDialog(true);
     } catch (err) {
       alert(err.message);
@@ -1065,7 +1146,7 @@ export function NewRequestPage({ user }) {
   return (
     <div style={{ maxWidth: '700px', margin: '0 auto' }}>
       <div className="page-section-header" style={{ marginBottom: '24px' }}>
-        <h2>Submit Special Order</h2>
+        <h2>Parts Order</h2>
         <p>Request parts that are not in our regular inventory.</p>
       </div>
 
@@ -1073,35 +1154,39 @@ export function NewRequestPage({ user }) {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div>
             <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Select Vehicle *</label>
-            <select className="search-input-field" style={{ width: '100%', height: '42px' }} value={form.vehicleId} onChange={e => setForm({...form, vehicleId: e.target.value})}>
+            <select className="search-input-field" style={{ width: '100%', height: '42px' }} value={form.vehicleId} onChange={e => { setForm({...form, vehicleId: e.target.value}); if (e.target.value) setErrors({...errors, vehicleId: ''}); }}>
               <option value="">-- Select vehicle --</option>
               {vehicles.map(v => <option key={v.id} value={v.id}>{v.make} {v.model} ({v.plateNumber})</option>)}
             </select>
+            {errors.vehicleId && <p style={{ color: '#EF4444', fontSize: '12px', marginTop: '8px' }}>{errors.vehicleId}</p>}
           </div>
 
           <div>
             <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Part Name / Selection *</label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <select className="search-input-field" style={{ height: '42px' }} value={form.partId} onChange={e => setForm({...form, partId: e.target.value, customPartName: ''})}>
+              <select className="search-input-field" style={{ height: '42px' }} value={form.partId} onChange={e => { setForm({...form, partId: e.target.value, customPartName: ''}); if (e.target.value) setErrors({...errors, part: ''}); }}>
                 <option value="">-- Choose existing --</option>
                 {parts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
-              <input type="text" className="search-input-field" style={{ height: '42px' }} placeholder="Or enter custom part name" value={form.customPartName} onChange={e => setForm({...form, customPartName: e.target.value, partId: ''})} />
+              <input type="text" className="search-input-field" style={{ height: '42px' }} placeholder="Or enter custom part name" value={form.customPartName} onChange={e => { setForm({...form, customPartName: e.target.value, partId: ''}); if (e.target.value && e.target.value.toString().trim()) setErrors({...errors, part: ''}); }} />
             </div>
+            {errors.part && <p style={{ color: '#EF4444', fontSize: '12px', marginTop: '8px' }}>{errors.part}</p>}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
             <div>
               <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Quantity *</label>
-              <input type="number" className="search-input-field" style={{ width: '100%', height: '42px' }} min="1" value={form.quantity} onChange={e => setForm({...form, quantity: e.target.value})} />
+              <input type="number" className="search-input-field" style={{ width: '100%', height: '42px' }} min="1" value={form.quantity} onChange={e => { setForm({...form, quantity: e.target.value}); if (Number(e.target.value) > 0) setErrors({...errors, quantity: ''}); }} />
+              {errors.quantity && <p style={{ color: '#EF4444', fontSize: '12px', marginTop: '8px' }}>{errors.quantity}</p>}
             </div>
             <div>
               <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Urgency *</label>
-              <select className="search-input-field" style={{ width: '100%', height: '42px' }} value={form.urgency} onChange={e => setForm({...form, urgency: e.target.value})}>
+              <select className="search-input-field" style={{ width: '100%', height: '42px' }} value={form.urgency} onChange={e => { setForm({...form, urgency: e.target.value}); if (e.target.value) setErrors({...errors, urgency: ''}); }}>
                 <option value="Low">Low</option>
                 <option value="Medium">Medium</option>
                 <option value="High">High</option>
               </select>
+              {errors.urgency && <p style={{ color: '#EF4444', fontSize: '12px', marginTop: '8px' }}>{errors.urgency}</p>}
             </div>
           </div>
 
@@ -1112,8 +1197,9 @@ export function NewRequestPage({ user }) {
 
           <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
             <button type="button" className="btn-view-customer" style={{ flex: 1, padding: '12px' }} onClick={() => navigate('/customer/requests')}>Cancel</button>
-            <button type="submit" className="btn-sale-primary" style={{ flex: 1, padding: '12px' }} disabled={isSubmitting}>Submit Request</button>
+            <button type="submit" className="btn-sale-primary" style={{ flex: 1, padding: '12px' }} disabled={isSubmitting}>Submit Orders</button>
           </div>
+          {error && <p style={{ color: '#EF4444', fontSize: '13px' }}>{error}</p>}
         </form>
       </div>
 
@@ -1124,7 +1210,7 @@ export function NewRequestPage({ user }) {
               <CheckCircle2 size={32} />
             </div>
             <h3>Request Submitted</h3>
-            <p style={{ color: '#64748B', marginBottom: '24px' }}>We've received your special order request and will process it shortly.</p>
+            <p style={{ color: '#64748B', marginBottom: '24px' }}>We've received your parts order request and will process it shortly.</p>
             <button className="btn-sale-primary" style={{ width: '100%' }} onClick={() => navigate('/customer/requests')}>View My Requests</button>
           </div>
         </div>
@@ -1167,6 +1253,14 @@ export function CustomerDashboard({ user }) {
     const currentMessages = [...chatMessages, { sender: 'user', text: userMsg }];
     setChatMessages(currentMessages);
     setChatInput('');
+    setTimeout(() => {
+      let botResponse = "I can help you with bookings, parts, vehicles, or your history. What's on your mind?";
+      const lowerMsg = userMsg.toLowerCase();
+      if (lowerMsg.includes('oil')) botResponse = "You should schedule an oil change every 5,000 miles. Use our 'Book Service' page!";
+      else if (lowerMsg.includes('part')) botResponse = "Need some parts? Check out our 'Part Orders' section.";
+      else if (lowerMsg.includes('vehicle')) botResponse = "You can add and manage multiple vehicles in your 'My Vehicles' section.";
+      setChatMessages(prev => [...prev, { sender: 'bot', text: botResponse }]);
+    }, 1000);
 
     // Append a typing placeholder
     setChatMessages(prev => [...prev, { sender: 'bot', text: 'Thinking...' }]);

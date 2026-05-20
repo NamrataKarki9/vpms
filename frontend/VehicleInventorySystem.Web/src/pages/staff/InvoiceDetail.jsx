@@ -262,6 +262,8 @@ const InvoiceDetail = () => {
   const isPaid = invoice.paymentStatus === 'full-payment';
   const subtotal = invoice.items?.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0) || invoice.totalAmount;
 
+  const discountMessage = invoice.discountMessage || invoice.DiscountMessage || '';
+
   return (
     <div style={{ maxWidth: '720px', margin: '0 auto' }}>
 
@@ -428,6 +430,16 @@ const InvoiceDetail = () => {
               </div>
             </div>
           </div>
+
+          {discountMessage && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+              <div style={{ width: '280px' }}>
+                <div style={{ background: '#e0f5e9', padding: '12px', borderRadius: '8px', color: '#1b5e20', fontSize: '14px', borderLeft: '4px solid #4caf50', textAlign: 'right' }}>
+                  ✓ {discountMessage}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid #E8ECF0', paddingTop: '24px' }}>

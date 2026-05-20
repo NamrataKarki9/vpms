@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { CheckCircle, ChevronRight, Eye, EyeOff, Lock, Mail, Phone, User } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import VehicleForm from '../forms/VehicleForm';
 import { User, Phone, Mail, Lock, Eye, EyeOff, ChevronRight, CheckCircle } from 'lucide-react';
@@ -17,25 +18,27 @@ function CustomerVehicleForm({ onRegister }) {
   });
 
   const validateName = (nameVal) => {
-    if (!nameVal.trim()) return 'Name is required';
+    if (!nameVal.trim()) return 'Please fill this field';
     if (!/^[a-zA-Z\s]*$/.test(nameVal)) return 'Name must contain only letters and spaces';
     return '';
   };
 
   const validatePhone = (phoneVal) => {
-    if (!phoneVal.trim()) return 'Phone is required';
+    if (!phoneVal.trim()) return 'Please fill this field';
     if (!/^\d{10}$/.test(phoneVal)) return 'Phone must be exactly 10 digits';
     return '';
   };
 
   const validateEmail = (emailVal) => {
-    if (!emailVal.trim()) return 'Email is required';
+    if (!emailVal.trim()) return 'Please fill this field';
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(emailVal)) return 'Invalid email format';
     return '';
   };
 
   const validatePassword = (passwordVal) => {
+    if (!passwordVal.trim()) return 'Please fill this field';
+    if (passwordVal.length < 6) return 'At least 6 characters';
     if (!passwordVal.trim()) return 'Password is required';
     if (passwordVal.length < 8) return 'At least 8 characters required';
     if (!/\d/.test(passwordVal)) return 'Must include a number (0-9)';
@@ -46,17 +49,17 @@ function CustomerVehicleForm({ onRegister }) {
   };
 
   const validateVehicleModel = (modelVal) => {
-    if (!modelVal.trim()) return 'Vehicle model is required';
+    if (!modelVal.trim()) return 'Please fill this field';
     return '';
   };
 
   const validateVehicleMake = (makeVal) => {
-    if (!makeVal.trim()) return 'Vehicle make is required';
+    if (!makeVal.trim()) return 'Please fill this field';
     return '';
   };
 
   const validateVehicleYear = (yearVal) => {
-    if (!yearVal) return 'Year is required';
+    if (!yearVal) return 'Please fill this field';
     const year = parseInt(yearVal, 10);
     const currentYear = new Date().getFullYear();
     if (year < 1900 || year > currentYear + 1) return `Between 1900 and ${currentYear + 1}`;
@@ -64,17 +67,17 @@ function CustomerVehicleForm({ onRegister }) {
   };
 
   const validatePlateNumber = (plateVal) => {
-    if (!plateVal.trim()) return 'Plate number is required';
+    if (!plateVal.trim()) return 'Please fill this field';
     return '';
   };
 
   const validateFuelType = (fuelVal) => {
-    if (!fuelVal.trim()) return 'Fuel type is required';
+    if (!fuelVal.trim()) return 'Please fill this field';
     return '';
   };
 
   const validateMileage = (mileageVal) => {
-    if (mileageVal === '' || mileageVal === null || typeof mileageVal === 'undefined') return 'Mileage is required';
+    if (mileageVal === '' || mileageVal === null || typeof mileageVal === 'undefined') return 'Please fill this field';
     const mileage = Number(mileageVal);
     if (Number.isNaN(mileage) || mileage < 0) return 'Mileage must be 0 or greater';
     return '';
@@ -82,6 +85,37 @@ function CustomerVehicleForm({ onRegister }) {
 
   const handleSubmit = async (e) => {
     if (e) e.preventDefault();
+    const payload = {
+      name: formData.name,
+      email: formData.email,
+      phoneNumber: formData.phone,
+      password: formData.password,
+      confirmPassword: formData.password,
+      vehicles: [
+        {
+          plateNumber: formData.plateNumber,
+          make: formData.make,
+          model: formData.model,
+          year: parseInt(formData.year, 10),
+          fuelType: formData.fuelType,
+          mileage: Number(formData.mileage)
+        }
+      ]
+    };
+
+    const submit = async () => {
+      if (onRegister) {
+        await onRegister(payload);
+      }
+      showToast('success', `${formData.name} registered with vehicle ${formData.plateNumber}`);
+      setStep(1);
+      setFormData({ name: '', phone: '', email: '', password: '', plateNumber: '', make: '', model: '', year: new Date().getFullYear(), fuelType: '', mileage: 0 });
+      setErrors({ name: '', phone: '', email: '', password: '', plateNumber: '', make: '', model: '', year: '', fuelType: '', mileage: '' });
+    };
+
+    submit().catch((error) => {
+      showToast('error', error.message || 'Failed to register customer.');
+    });
     if (onRegister) {
       const result = await onRegister({
         name: formData.name,
@@ -159,7 +193,7 @@ function CustomerVehicleForm({ onRegister }) {
               <div className="auth-input-wrapper">
                 <User className="auth-input-icon" size={18} />
                 <input 
-                  type="text" placeholder="John Doe" 
+                  type="text" placeholder="First and Last Name" 
                   className={`auth-input ${errors.name ? 'error' : ''}`}
                   value={formData.name} 
                   onChange={e => {

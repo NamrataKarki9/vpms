@@ -80,6 +80,13 @@ public class UsersController : ControllerBase
         return await ExecuteAsync(() => _userService.ToggleUserStatusAsync(id));
     }
 
+    [Authorize(Roles = "Admin,Staff")]
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> DeleteCustomer(int id)
+    {
+        return await ExecuteAsync(() => _userService.DeleteUserAsync(id));
+    }
+
     [Authorize]
     [HttpPost("{id:int}/change-password")]
     public async Task<IActionResult> ChangePassword(int id, [FromBody] ChangePasswordRequest request)

@@ -11,15 +11,14 @@ import {
   HelpCircle,
   Settings
 } from 'lucide-react';
-import { clearStoredUser } from '../../services/api';
 
-const CustomerSidebar = ({ user }) => {
+const CustomerSidebar = ({ user, onLogout }) => {
   const navigate = useNavigate();
-
+  
   const handleLogout = () => {
-    clearStoredUser();
-    navigate('/login');
-    window.location.reload();
+    if (onLogout) {
+      onLogout();
+    }
   };
 
   const NavItem = ({ to, icon: Icon, label }) => (
@@ -38,7 +37,14 @@ const CustomerSidebar = ({ user }) => {
   return (
     <aside className="staff-sidebar">
       {/* Logo */}
-      <div className="sidebar-logo">
+      <div 
+        className="sidebar-logo"
+        onClick={() => navigate('/customer/home')}
+        style={{ cursor: 'pointer', transition: 'opacity 0.2s' }}
+        onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+        onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+        title="Go to Customer Home"
+      >
         <div className="logo-text">
           <div className="logo-icon">🔧</div>
           <span>AutoParts Pro</span>
@@ -58,6 +64,7 @@ const CustomerSidebar = ({ user }) => {
         <div className="nav-section-label">Services</div>
         <NavItem to="/customer/appointments" icon={CalendarClock} label="Appointments" />
         <NavItem to="/customer/book" icon={PlusCircle} label="Book Service" />
+        <NavItem to="/customer/requests" icon={ClipboardList} label="Parts Orders" />
         <NavItem to="/customer/requests" icon={ClipboardList} label="Special Orders" />
 
         <div className="nav-section-label">Account</div>

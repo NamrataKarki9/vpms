@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import StaffManager from '../components/management/StaffManager';
 import InventoryManager from '../components/management/InventoryManager';
 import CustomerManager from '../components/management/CustomerManager';
+import CustomerVehicleForm from '../components/management/CustomerVehicleForm';
 import Dialog from '../components/Dialog';
 import { extractVendorItems, normalizeVendor, vendorService } from '../services/vendorService';
 import { useToast } from '../context/ToastContext';
@@ -12,6 +13,7 @@ import StaffFilters from '../components/staff/StaffFilters';
 import { ExportFinancialReportPdf } from "../utils/Pdf/FinancialReportPdf";
 import { ExportCustomerReportPdf } from "../utils/Pdf/CustomerReportPdf";
 import TransactionsTable from '../components/staff/TransactionsTable';
+import { Download, FileText, UserPlus, X } from 'lucide-react';
 import StaffStatsCards from '../components/staff/StaffStatsCards';
 import CustomerStatsCards from '../components/customer/CustomerStatsCards';
 import { Download, FileText, AlertCircle, Plus, Edit2, Trash2 } from 'lucide-react';
@@ -378,6 +380,9 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
   const [liveTransactions, setLiveTransactions] = useState([]);
   const [isLiveTransactionsLoading, setIsLiveTransactionsLoading] = useState(false);
   const [liveTransactionsError, setLiveTransactionsError] = useState('');
+  const [adminCustomers, setAdminCustomers] = useState(customerList || []);
+  const filteredTransactions = liveTransactions.filter((transaction) => isWithinReportPeriod(transaction, appliedReportFilter));
+  const filteredTransactionRevenue = filteredTransactions.reduce((sum, transaction) => sum + getTransactionAmount(transaction), 0);
   const liveSales = liveTransactions.filter(tx => tx.type !== 'Purchase');
   const livePurchases = liveTransactions.filter(tx => tx.type === 'Purchase');
 
@@ -533,6 +538,10 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
     }
   }, [sales]);
 
+  useEffect(() => {
+    setAdminCustomers(customerList || []);
+  }, [customerList]);
+
   useEffect(() => { setTxPage(1); }, [appliedReportFilter]);
 
   const handleAdminAddPart = async (payload) => {
@@ -578,6 +587,8 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
           vendor: newPart.vendorName ?? newPart.VendorName ?? vendorName,
           partCode: newPart.partCode ?? newPart.PartCode
         }
+      ]);
+      window.dispatchEvent(new CustomEvent('vis:inventory-changed'));
       ];
 
       console.log('Updated inventory:', updatedInventory);
@@ -598,6 +609,25 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
         setIsAddPartModalOpen(false);
       }, 2000);
     }
+  };
+
+  const handleAdminAddCustomer = async (payload) => {
+    const { authApi } = await import('../services/api');
+    const createdCustomer = await authApi.registerCustomer(payload);
+    const vehicle = createdCustomer?.vehicles?.[0] || payload.vehicles?.[0] || null;
+
+    setAdminCustomers((current) => [
+      {
+        id: createdCustomer?.id ?? createdCustomer?.Id,
+        name: createdCustomer?.name ?? createdCustomer?.Name ?? payload.name,
+        email: createdCustomer?.email ?? createdCustomer?.Email ?? payload.email,
+        phone: createdCustomer?.phoneNumber ?? createdCustomer?.PhoneNumber ?? payload.phoneNumber,
+        plate: vehicle?.plateNumber ?? 'N/A',
+        vehicleInfo: vehicle
+      },
+      ...(current || [])
+    ]);
+    return createdCustomer;
   };
 
   const handleReportPeriodChange = (event) => {
@@ -949,6 +979,9 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
     );
   };
 
+  if (currentView === 'add-staff') return <AddStaffPage onAdd={onAddStaff} onBack={() => navigate(-1)} />;
+  if (currentView === 'manage-inventory') return <InventoryPurchasePage inventory={inventory} onUpdate={onUpdateInventory} onBack={() => navigate(-1)} onRefreshTransactions={refreshLiveTransactions} />;
+  if (currentView === 'manage-customers') return <CustomerManagementPage customers={adminCustomers} onAddCustomer={handleAdminAddCustomer} onRemove={onRemoveCustomer} onUpdate={onUpdateCustomer} onBack={() => navigate(-1)} />;
   if (currentView === 'add-staff') return <AddStaffPage onAdd={onAddStaff} onBack={() => setAdminRoute('main')} />;
   if (currentView === 'manage-inventory') return <InventoryPurchasePage inventory={inventory} vendors={vendors} onUpdate={onUpdateInventory} onBack={() => navigate(-1)} onSuccess={() => navigate('/admin/purchases')} onRefreshTransactions={refreshLiveTransactions} />;
   if (currentView === 'manage-customers') return <CustomerManagementPage customers={customerList} onRemove={onRemoveCustomer} onUpdate={onUpdateCustomer} onBack={() => navigate(-1)} />;
@@ -1005,7 +1038,7 @@ export function AdminDashboard({ staffList, onAddStaff, onRemoveStaff, onUpdateS
           </div>
         </div>
         <div id="customers">
-          <CustomerManager customers={customerList} onNavigate={setAdminRoute} onRemove={onRemoveCustomer} onEdit={onUpdateCustomer} />
+          <CustomerManager customers={adminCustomers} onNavigate={setAdminRoute} onRemove={onRemoveCustomer} onEdit={onUpdateCustomer} />
         </div>
       </div>
       {/* ANALYTICS SECTION */}
@@ -1318,6 +1351,7 @@ function InventoryPurchasePage({ inventory, vendors, onUpdate, onBack, onSuccess
       showToast('success', 'Stock updated successfully.');
       const updatedInventory = inventory.map(p => p.id === parseInt(purchaseData.partId) ? { ...p, stock: p.stock + parseInt(purchaseData.quantity) } : p);
       onUpdate(updatedInventory);
+      window.dispatchEvent(new CustomEvent('vis:inventory-changed'));
       if (onRefreshTransactions) {
         await onRefreshTransactions();
       }
@@ -1423,7 +1457,7 @@ function InventoryPurchasePage({ inventory, vendors, onUpdate, onBack, onSuccess
   );
 }
 
-function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
+function CustomerManagementPage({ customers, onAddCustomer, onRemove, onUpdate, onBack }) {
   const showToast = useToast();
   const [searchInput, setSearchInput] = useState('');
   const [draftStatusFilter, setDraftStatusFilter] = useState('all');
@@ -1433,6 +1467,9 @@ function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ name: '', email: '', phone: '', plate: '' });
   const [validationErrors, setValidationErrors] = useState({ name: '', email: '', phone: '' });
+  const [removeDialog, setRemoveDialog] = useState({ isOpen: false, customerId: null, customerName: '' });
+  const [successDialog, setSuccessDialog] = useState({ isOpen: false, message: '' });
+  const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
   const [removeDialog, setRemoveDialog] = useState({ isOpen: false, customerId: null, customerName: '', isRemoving: true });
   const [isRemoving, setIsRemoving] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -1616,6 +1653,175 @@ function CustomerManagementPage({ customers, onRemove, onUpdate, onBack }) {
   };
 
   return (
+    <div className="staff-card" style={{ maxWidth: '1020px', margin: 'auto' }}>
+      <div className="staff-card-header">
+        <div>
+          <div className="staff-card-title">Customer Database</div>
+          <p style={{ fontSize: '12px', color: '#94A3B8', margin: '2px 0 0' }}>Manage registered customer accounts and vehicle information.</p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            onClick={() => setIsAddCustomerOpen(true)}
+            className="btn-sale-primary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            <UserPlus size={14} /> Add Customer
+          </button>
+          <button onClick={onBack} className="btn-view-customer" style={{ background: '#F1F5F9', color: '#475569' }}>← Back</button>
+        </div>
+      </div>
+      <div className="staff-card-body">
+        <div className="staff-table-scroll">
+          <table className="staff-table">
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>Contact</th>
+                <th>Vehicle</th>
+                <th>Plate</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {customers.map(c => (
+                <tr key={c.id}>
+                  {editingId === c.id ? (
+                    <td colSpan="5" style={{ padding: '12px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px' }}>
+                        <div>
+                          <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '4px' }}>Name</label>
+                          <input type="text" value={editData.name} onChange={e => { setEditData({ ...editData, name: e.target.value }); setValidationErrors({ ...validationErrors, name: validateName(e.target.value) }); }} placeholder="Customer Name" className="search-input-field" style={{ width: '100%', height: '34px', margin: 0, borderColor: validationErrors.name ? '#EF4444' : undefined }} />
+                          {validationErrors.name && <span style={{ fontSize: '10px', color: '#EF4444' }}>{validationErrors.name}</span>}
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '4px' }}>Email</label>
+                          <input type="email" value={editData.email} onChange={e => { setEditData({ ...editData, email: e.target.value }); setValidationErrors({ ...validationErrors, email: validateEmail(e.target.value) }); }} placeholder="Email" className="search-input-field" style={{ width: '100%', height: '34px', margin: 0, borderColor: validationErrors.email ? '#EF4444' : undefined }} />
+                          {validationErrors.email && <span style={{ fontSize: '10px', color: '#EF4444' }}>{validationErrors.email}</span>}
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '4px' }}>Phone</label>
+                          <input type="text" value={editData.phone} onChange={e => { setEditData({ ...editData, phone: e.target.value }); setValidationErrors({ ...validationErrors, phone: validatePhone(e.target.value) }); }} placeholder="Phone Number" className="search-input-field" style={{ width: '100%', height: '34px', margin: 0, borderColor: validationErrors.phone ? '#EF4444' : undefined }} />
+                          {validationErrors.phone && <span style={{ fontSize: '10px', color: '#EF4444' }}>{validationErrors.phone}</span>}
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '4px' }}>Plate Number</label>
+                          <input type="text" value={editData.plate} onChange={e => setEditData({ ...editData, plate: e.target.value })} placeholder="Vehicle Plate" className="search-input-field" style={{ width: '100%', height: '34px', margin: 0 }} />
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '10px' }}>
+                        <button onClick={() => setEditingId(null)} className="btn-view-customer" style={{ background: '#F1F5F9', color: '#475569' }}>Cancel</button>
+                        <button onClick={() => handleSave(c.id)} className="btn-sale-primary" disabled={isSaving || validationErrors.name || validationErrors.email || validationErrors.phone}>{isSaving ? 'Saving...' : 'Save Changes'}</button>
+                      </div>
+                    </td>
+                  ) : (
+                    <>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div className="avatar-circle" style={{ width: '28px', height: '28px', fontSize: '10px' }}>{c.name?.[0]?.toUpperCase()}</div>
+                          <div style={{ fontSize: '13px', fontWeight: 600 }}>{c.name}</div>
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ fontSize: '12px', color: '#1E293B' }}>{c.email}</div>
+                        <div style={{ fontSize: '11px', color: '#94A3B8' }}>{c.phone}</div>
+                      </td>
+                      <td>
+                        {c.vehicleInfo ? (
+                          <div style={{ fontSize: '12px', color: '#475569' }}>
+                            {c.vehicleInfo.make?.toLowerCase().includes(c.vehicleInfo.model?.toLowerCase()) || c.vehicleInfo.model?.toLowerCase().includes(c.vehicleInfo.make?.toLowerCase()) ? c.vehicleInfo.make : `${c.vehicleInfo.make} ${c.vehicleInfo.model}`} ({c.vehicleInfo.year})
+                            {c.vehicleCount > 1 && <span className="badge-pill badge-loyalty" style={{ marginLeft: '5px', fontSize: '10px' }}>+{c.vehicleCount - 1}</span>}
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '11px', color: '#94A3B8' }}>No vehicle</span>
+                        )}
+                      </td>
+                      <td><span className="badge-pill badge-paid">{c.vehicleInfo?.plateNumber || c.plate || 'N/A'}</span></td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                          <button onClick={() => startEdit(c)} className="btn-view-customer">Edit</button>
+                          <button onClick={() => handleRemoveClick(c.id, c.name)} className="btn-view-customer" style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>Remove</button>
+                        </div>
+                      </td>
+                    </>
+                  )}
+                </tr>
+              ))}
+              {customers.length === 0 && (
+                <tr><td colSpan="5" style={{ padding: '28px', textAlign: 'center', color: '#94A3B8' }}>No customers found.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <Dialog isOpen={removeDialog.isOpen} title="Remove Customer" message={`Are you sure you want to remove ${removeDialog.customerName}? This action cannot be undone.`} type="confirm" confirmText="Remove" cancelText="Cancel" isLoading={isRemoving} onConfirm={handleConfirmRemove} onCancel={() => setRemoveDialog({ isOpen: false, customerId: null, customerName: '' })} />
+      <Dialog isOpen={successDialog.isOpen} title="Success" message={successDialog.message} type="success" confirmText="OK" onConfirm={() => setSuccessDialog({ isOpen: false, message: '' })} />
+      {isAddCustomerOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Add customer"
+          onClick={() => setIsAddCustomerOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.55)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
+            zIndex: 9999
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: 'min(760px, 100%)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              borderRadius: '18px',
+              background: '#FFFFFF',
+              boxShadow: '0 24px 60px rgba(15, 23, 42, 0.22)'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #E2E8F0' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '18px', color: '#0F172A' }}>Add Customer</h3>
+                <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748B' }}>Register a new customer and their first vehicle.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddCustomerOpen(false)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  border: '1px solid #1E3A5F',
+                  background: '#1E3A5F',
+                  color: '#FFFFFF',
+                  fontSize: '20px',
+                  lineHeight: 1,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ padding: '24px' }}>
+              <CustomerVehicleForm
+                onRegister={async (data) => {
+                  await onAddCustomer(data);
+                  setIsAddCustomerOpen(false);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     <div style={{ maxWidth: '1200px', margin: 'auto', paddingBottom: '40px' }}>
       <div className="staff-card" style={{ marginBottom: '24px' }}>
         <div className="staff-card-header">

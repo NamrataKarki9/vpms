@@ -4,8 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using VehicleInventorySystem.Api.Data;
 using VehicleInventorySystem.Api.DTOs.Request;
 using VehicleInventorySystem.Api.Models;
-
-using VehicleInventorySystem.Api.DTOs.Response;
 using VehicleInventorySystem.Api.Services.Interfaces;
 using System.Security.Claims;
 using VehicleInventorySystem.Api.Extensions;
@@ -20,11 +18,13 @@ public class TransactionsController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly IEmailService _emailService;
+    private readonly INotificationService _notificationService;
 
-    public TransactionsController(AppDbContext context, IEmailService emailService)
+    public TransactionsController(AppDbContext context, IEmailService emailService, INotificationService notificationService)
     {
         _context = context;
         _emailService = emailService;
+        _notificationService = notificationService;
     }
 
     // F4: Admin - Create purchase invoices for stock updates
@@ -51,6 +51,35 @@ public class TransactionsController : ControllerBase
             
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
+
+            try
+            {
+                var invoiceNumber = $"INV-{invoice.Id:D6}";
+                // include part details in notification
+                var purchaseItems = await _context.InvoiceItems
+                    .Include(ii => ii.Part)
+                    .Where(ii => ii.InvoiceId == invoice.Id)
+                    .ToListAsync();
+
+                var purchasePartsSummary = string.Join(", ", purchaseItems.Select(ii => $"{ii.Part?.Name ?? "Part"} (x{ii.Quantity})"));
+
+                await _notificationService.EnsureNotificationAsync(
+                    $"invoice-admin-purchase-{invoice.Id}",
+                    "Admin",
+                    "Invoice Generated",
+                    $"Purchase invoice {invoiceNumber} has been generated: {purchasePartsSummary}.");
+
+                await _notificationService.EnsureNotificationAsync(
+                    $"invoice-staff-purchase-{invoice.Id}",
+                    "Staff",
+                    "Invoice Generated",
+                    $"Purchase invoice {invoiceNumber} has been generated: {purchasePartsSummary}.");
+
+                await _context.SaveChangesAsync();
+            }
+            catch
+            {
+            }
             
             return Ok(invoice);
         }
@@ -193,12 +222,54 @@ public class TransactionsController : ControllerBase
                 if (invoice.TotalAmount > 5000)
                 {
                     invoice.TotalAmount *= 0.9m; // Apply 10% discount
+                    invoice.DiscountMessage = "10% discount applied on purchase of more than 5000";
                     Console.WriteLine($"[DEBUG] Loyalty discount applied: {originalAmount} -> {invoice.TotalAmount}");
                 }
 
                 // Save items and stock updates
                 await _context.SaveChangesAsync();
                 await dbTransaction.CommitAsync();
+
+                try
+                {
+                    var saleInvoiceNumber = $"INV-{invoice.Id:D6}";
+                        // include vehicle and parts details in sale notifications
+                        var saleItems = await _context.InvoiceItems
+                            .Include(ii => ii.Part)
+                            .Where(ii => ii.InvoiceId == invoice.Id)
+                            .ToListAsync();
+
+                        var salePartsSummary = string.Join(", ", saleItems.Select(ii => $"{ii.Part?.Name ?? "Part"} (x{ii.Quantity})"));
+                        var vehicleLabel = invoice.VehicleId.HasValue
+                            ? (await _context.Vehicles.FindAsync(invoice.VehicleId.Value)) is Vehicle v
+                                ? $"{v.Make} {v.Model}"
+                                : "a vehicle"
+                            : "a vehicle";
+
+                        await _notificationService.EnsureNotificationAsync(
+                            $"invoice-admin-sale-{invoice.Id}",
+                            "Admin",
+                            "Invoice Generated",
+                            $"Invoice {saleInvoiceNumber} for {vehicleLabel}: {salePartsSummary} has been generated.");
+
+                        await _notificationService.EnsureNotificationAsync(
+                            $"invoice-staff-sale-{invoice.Id}",
+                            "Staff",
+                            "Invoice Generated",
+                            $"Invoice {saleInvoiceNumber} for {vehicleLabel}: {salePartsSummary} has been generated.");
+
+                    await _notificationService.EnsureNotificationAsync(
+                        $"invoice-customer-sale-{invoice.Id}",
+                        "Customer",
+                        "Invoice Generated",
+                        $"Invoice {saleInvoiceNumber} for {vehicleLabel}: {salePartsSummary} has been generated.",
+                        request.CustomerId);
+
+                    await _context.SaveChangesAsync();
+                }
+                catch
+                {
+                }
 
                 Console.WriteLine($"[DEBUG] Sale completed successfully. Invoice ID: {invoice.Id}");
 
@@ -212,7 +283,8 @@ public class TransactionsController : ControllerBase
                     date = invoice.Date.ToShortDateString(),
                     paymentStatus = invoice.PaymentStatus,
                     itemCount = request.Items.Count,
-                    discountApplied = invoice.TotalAmount < originalAmount
+                    discountApplied = invoice.TotalAmount < originalAmount,
+                    discountMessage = invoice.DiscountMessage
                 });
             }
             catch (DbUpdateException dbEx)
@@ -338,6 +410,10 @@ public class TransactionsController : ControllerBase
         Total Amount: Rs. {invoice.TotalAmount:N2}
       </div>
 
+      {(!string.IsNullOrEmpty(invoice.DiscountMessage) ? $@"<div style='background:#e0f5e9;padding:12px;border-radius:8px;margin-top:16px;color:#1b5e20;font-size:14px;border-left:4px solid #4caf50'>
+        ✓ {invoice.DiscountMessage}
+      </div>" : "")}
+
       <p style='margin-top:24px;font-size:13px;color:#64748b;text-align:center'>
         <strong>Vehicle Inventory System</strong><br>
         Thank you for choosing us.
@@ -365,6 +441,7 @@ public class TransactionsController : ControllerBase
                 i.Id,
                 CustomerName = i.Customer != null ? i.Customer.Name : "Walk-in",
                 i.TotalAmount,
+                i.DiscountMessage,
                 i.Date,
                 Items = i.Items.Select(ii => new { ii.PartId, ii.Quantity, ii.UnitPrice })
             })
@@ -396,6 +473,7 @@ public class TransactionsController : ControllerBase
                     CustomerEmail = i.Customer != null ? i.Customer.Email : "",
                     i.Date,
                     TotalAmount = i.TotalAmount,
+                    DiscountMessage = i.DiscountMessage,
                     PaymentStatus = i.PaymentStatus,
                     i.IsPaid,
                     Items = i.Items.Select(ii => new
@@ -423,6 +501,7 @@ public class TransactionsController : ControllerBase
                 InvoiceKind = i.Items.Any() ? "Sale" : "Service",
                 i.Date,
                 TotalAmount = i.TotalAmount,
+                DiscountMessage = i.DiscountMessage,
                 PaymentStatus = i.PaymentStatus,
                 IsPaid = i.IsPaid,
                 Items = i.Items.Select(ii => new {
@@ -458,6 +537,7 @@ public class TransactionsController : ControllerBase
                 customerName = i.Type == InvoiceType.Sale ? (i.Customer != null ? i.Customer.Name : "Walk-in") : null,
                 vendorName = i.Type == InvoiceType.Purchase ? (i.Vendor != null ? i.Vendor.Name : "Unknown Vendor") : null,
                 totalAmount = i.TotalAmount,
+                    discountMessage = i.DiscountMessage,
                 itemCount = i.Items.Count,
                 isPaid = i.IsPaid,
                 items = i.Items.Select(ii => new {

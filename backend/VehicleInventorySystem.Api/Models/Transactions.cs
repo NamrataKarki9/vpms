@@ -29,6 +29,7 @@ public class Invoice
     public decimal TotalAmount { get; set; }
     public bool IsPaid { get; set; } = true;
     public string? PaymentStatus { get; set; } // full-payment, half-payment, partial-payment
+    public string? DiscountMessage { get; set; } // For loyalty discount message
     
     // For Sale: Staff Id and Customer Id
     // For Purchase: Vendor Id

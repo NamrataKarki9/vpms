@@ -6,7 +6,7 @@ import CustomerTopBar from './CustomerTopBar';
 import { getAIChatResponse } from '../../services/aiService';
 import '../../styles/staff.css';
 
-const CustomerLayout = ({ user }) => {
+const CustomerLayout = ({ user, onLogout }) => {
   const [chatMessages, setChatMessages] = useState([
     { sender: 'bot', text: 'Hello! I am your AI assistant. How can I help you with your vehicle today?' }
   ]);
@@ -22,6 +22,14 @@ const CustomerLayout = ({ user }) => {
     const currentMessages = [...chatMessages, { sender: 'user', text: userMsg }];
     setChatMessages(currentMessages);
     setChatInput('');
+    setTimeout(() => {
+      let botResponse = "I can help you with bookings, parts, vehicles, or your history. What's on your mind?";
+      const lowerMsg = userMsg.toLowerCase();
+      if (lowerMsg.includes('oil')) botResponse = "You should schedule an oil change every 5,000 miles. Use our 'Book Service' page!";
+      else if (lowerMsg.includes('part')) botResponse = "Need some parts? Check out our 'Parts Orders' section.";
+      else if (lowerMsg.includes('vehicle')) botResponse = "You can add and manage multiple vehicles in your 'My Vehicles' section.";
+      setChatMessages(prev => [...prev, { sender: 'bot', text: botResponse }]);
+    }, 1000);
 
     // Append a typing placeholder
     setChatMessages(prev => [...prev, { sender: 'bot', text: 'Thinking...' }]);
@@ -44,10 +52,10 @@ const CustomerLayout = ({ user }) => {
 
   return (
     <div className="staff-shell">
-      <CustomerSidebar user={user} />
+      <CustomerSidebar user={user} onLogout={onLogout} />
       
       <div className="staff-body">
-        <CustomerTopBar />
+        <CustomerTopBar user={user} />
         
         <main className="staff-content">
           <Outlet />

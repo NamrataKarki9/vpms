@@ -7,6 +7,7 @@ using VehicleInventorySystem.Api.Models;
 using VehicleInventorySystem.Api.DTOs.Request;
 using VehicleInventorySystem.Api.Extensions;
 using VehicleInventorySystem.Api.DTOs.Response;
+using VehicleInventorySystem.Api.Services.Interfaces;
 
 namespace VehicleInventorySystem.Api.Controllers;
 
@@ -16,10 +17,12 @@ namespace VehicleInventorySystem.Api.Controllers;
 public class ServiceController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly INotificationService _notificationService;
 
-    public ServiceController(AppDbContext context)
+    public ServiceController(AppDbContext context, INotificationService notificationService)
     {
         _context = context;
+        _notificationService = notificationService;
     }
 
     [Authorize(Roles = "Customer")]
@@ -70,6 +73,38 @@ public class ServiceController : ControllerBase
             appointment.Status = AppointmentStatus.Confirmed;
             _context.Appointments.Add(appointment);
             await _context.SaveChangesAsync();
+
+            try
+            {
+                var customer = await _context.Users.FindAsync(appointment.CustomerId);
+                var vehicleLabel = vehicle != null ? $"{vehicle.Make} {vehicle.Model}" : "your vehicle";
+                var appointmentDateLabel = appointment.AppointmentDate.ToString("yyyy-MM-dd");
+                var appointmentTimeLabel = DateTime.Today.Add(appointment.AppointmentTime).ToString("h:mm tt");
+
+                    await _notificationService.EnsureNotificationAsync(
+                        $"booking-rescheduled-customer-{appointment.Id}",
+                        "Customer",
+                        "Booking Rescheduled",
+                        $"Your booking for {vehicleLabel} has been rescheduled to {appointmentDateLabel} at {appointmentTimeLabel}.",
+                        appointment.CustomerId);
+                await _notificationService.EnsureNotificationAsync(
+                    $"booking-staff-{appointment.Id}",
+                    "Staff",
+                    "New Booking",
+                    $"New booking created by {customer?.Name ?? "Customer"} for {vehicleLabel} on {appointmentDateLabel} at {appointmentTimeLabel}.");
+
+                await _notificationService.EnsureNotificationAsync(
+                    $"booking-customer-{appointment.Id}",
+                    "Customer",
+                    "Booking Confirmed",
+                    $"Your booking for {appointment.ServiceType} for {vehicleLabel} on {appointmentDateLabel} at {appointmentTimeLabel} has been confirmed.",
+                    appointment.CustomerId);
+
+                await _context.SaveChangesAsync();
+            }
+            catch
+            {
+            }
             return Ok(new { message = "Appointment booked successfully", appointment });
         }
         catch (Exception ex)
@@ -97,18 +132,17 @@ public class ServiceController : ControllerBase
             .OrderByDescending(a => a.AppointmentDate)
             .ThenByDescending(a => a.AppointmentTime)
             .AsQueryable();
-        
+
         if (customerId.HasValue)
         {
             query = query.Where(a => a.CustomerId == customerId.Value);
         }
 
-        if (pageNumber.HasValue || pageSize.HasValue)
-        {
-            return Ok(await query.ToPaginatedResponseAsync(pageNumber ?? 1, pageSize ?? 10));
-        }
-
-        return Ok(await query.ToListAsync());
+        // Always return paginated results. Frontend can control page via query params.
+        var pNumber = pageNumber ?? 1;
+        var pSize = pageSize ?? 10;
+        var paged = await query.ToPaginatedResponseAsync(pNumber, pSize);
+        return Ok(paged);
     }
 
     [Authorize(Roles = "Customer")]
@@ -131,10 +165,50 @@ public class ServiceController : ControllerBase
 
         appointment.CustomerId = existing.CustomerId;
 
+        // Detect reschedule (date or time changed)
+        var wasRescheduled = existing.AppointmentDate != appointment.AppointmentDate
+                             || existing.AppointmentTime != appointment.AppointmentTime;
+
         _context.Entry(appointment).State = EntityState.Modified;
         try
         {
             await _context.SaveChangesAsync();
+
+            if (wasRescheduled)
+            {
+                try
+                {
+                    var vehicle = await _context.Vehicles.FindAsync(appointment.VehicleId);
+                    var customer = await _context.Users.FindAsync(appointment.CustomerId);
+                    var appointmentDateLabel = appointment.AppointmentDate.ToString("yyyy-MM-dd");
+                    var appointmentTimeLabel = DateTime.Today.Add(appointment.AppointmentTime).ToString("h:mm tt");
+
+                    await _notificationService.EnsureNotificationAsync(
+                        $"booking-rescheduled-admin-{appointment.Id}",
+                        "Admin",
+                        "Booking Rescheduled",
+                        $"Booking #{appointment.Id} has been rescheduled to {appointmentDateLabel} at {appointmentTimeLabel}.");
+
+                    await _notificationService.EnsureNotificationAsync(
+                        $"booking-rescheduled-staff-{appointment.Id}",
+                        "Staff",
+                        "Booking Rescheduled",
+                        $"Booking #{appointment.Id} for {(vehicle != null ? $"{vehicle.Make} {vehicle.Model}" : "a vehicle")} has been rescheduled to {appointmentDateLabel} at {appointmentTimeLabel}.");
+
+                    await _notificationService.EnsureNotificationAsync(
+                        $"booking-rescheduled-customer-{appointment.Id}",
+                        "Customer",
+                        "Booking Rescheduled",
+                        $"Your booking has been rescheduled to {appointmentDateLabel} at {appointmentTimeLabel}.",
+                        appointment.CustomerId);
+
+                    await _context.SaveChangesAsync();
+                }
+                catch
+                {
+                }
+            }
+
             return Ok(appointment);
         }
         catch (DbUpdateConcurrencyException)
@@ -155,6 +229,26 @@ public class ServiceController : ControllerBase
 
         appointment.Status = status;
         await _context.SaveChangesAsync();
+
+        if (status == AppointmentStatus.Completed)
+        {
+            var vehicle = await _context.Vehicles.FindAsync(appointment.VehicleId);
+            try
+            {
+                await _notificationService.EnsureNotificationAsync(
+                    $"service-completed-{appointment.Id}",
+                    "Customer",
+                    "Service Completed",
+                    $"Your service for {(vehicle != null ? $"{vehicle.Make} {vehicle.Model}" : "your vehicle")} has been completed.",
+                    appointment.CustomerId);
+
+                await _context.SaveChangesAsync();
+            }
+            catch
+            {
+            }
+        }
+
         return Ok(new { message = "Appointment status updated", appointment });
     }
 
@@ -189,6 +283,39 @@ public class ServiceController : ControllerBase
         request.RequestDate = DateTime.UtcNow;
         _context.PartRequests.Add(request);
         await _context.SaveChangesAsync();
+
+        try
+        {
+            var customer = await _context.Users.FindAsync(request.CustomerId);
+            var requestedPartName = string.IsNullOrWhiteSpace(request.PartName)
+                ? "Requested Part"
+                : request.PartName;
+
+            await _notificationService.EnsureNotificationAsync(
+                $"special-request-admin-{request.Id}",
+                "Admin",
+                "Special Part Request",
+                $"{customer?.Name ?? "Customer"} requested a special part: {requestedPartName}.");
+
+            await _notificationService.EnsureNotificationAsync(
+                $"special-request-staff-{request.Id}",
+                "Staff",
+                "Special Part Request",
+                $"{customer?.Name ?? "Customer"} requested a special part: {requestedPartName}.");
+
+            await _notificationService.EnsureNotificationAsync(
+                $"special-request-customer-{request.Id}",
+                "Customer",
+                "Parts Order Placed",
+                $"Your special part request for {requestedPartName} has been placed successfully.",
+                request.CustomerId);
+
+            await _context.SaveChangesAsync();
+        }
+        catch
+        {
+        }
+
         return Ok(request);
     }
 
@@ -360,8 +487,8 @@ public class ServiceController : ControllerBase
                 }
             }
 
-            // Set status and timestamp
-            request.Status = RequestStatus.Pending;
+            // Auto-confirm the special part request (user requested immediate confirmation)
+            request.Status = RequestStatus.Approved;
             request.RequestedAt = DateTime.UtcNow;
 
             _context.SpecialPartRequests.Add(request);
@@ -371,7 +498,40 @@ public class ServiceController : ControllerBase
             var createdRequest = await _context.SpecialPartRequests
                 .Include(spr => spr.Vehicle)
                 .Include(spr => spr.Part)
+                .Include(spr => spr.Customer)
                 .FirstOrDefaultAsync(spr => spr.Id == request.Id);
+
+            try
+            {
+                var customer = createdRequest?.Customer ?? await _context.Users.FindAsync(request.CustomerId);
+                var vehicleLabel = createdRequest?.Vehicle != null ? $"{createdRequest.Vehicle.Make} {createdRequest.Vehicle.Model}" : "a vehicle";
+                var partLabel = createdRequest?.Part != null ? createdRequest.Part.Name : request.CustomPartName ?? "Special Part";
+                var qty = createdRequest?.Quantity ?? request.Quantity;
+
+                await _notificationService.EnsureNotificationAsync(
+                    $"special-part-request-confirmed-admin-{request.Id}",
+                    "Admin",
+                    "Special Part Request Confirmed",
+                    $"Special part request confirmed for {customer?.Name ?? "Customer"} — {vehicleLabel} — {partLabel} (x{qty}).");
+
+                await _notificationService.EnsureNotificationAsync(
+                    $"special-part-request-confirmed-staff-{request.Id}",
+                    "Staff",
+                    "Special Part Request Confirmed",
+                    $"Special part request for {customer?.Name ?? "Customer"} / {vehicleLabel} / {partLabel} (x{qty}) has been confirmed.");
+
+                await _notificationService.EnsureNotificationAsync(
+                    $"special-part-request-confirmed-customer-{request.Id}",
+                    "Customer",
+                    "Parts Order Confirmed",
+                    $"Your parts order for {partLabel} has been confirmed.",
+                    request.CustomerId);
+
+                await _context.SaveChangesAsync();
+            }
+            catch
+            {
+            }
 
             return CreatedAtAction(nameof(GetSpecialPartRequest), new { id = request.Id }, createdRequest);
         }
@@ -591,9 +751,48 @@ public class ServiceController : ControllerBase
                 _context.Invoices.Add(invoice);
                 _context.Appointments.Add(appointment);
                 await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
 
                 var invoiceNumber = $"SVC-{invoice.Id:D6}";
+
+                await transaction.CommitAsync();
+
+                try
+                {
+                    await _notificationService.EnsureNotificationAsync(
+                        $"invoice-admin-service-{invoice.Id}",
+                        "Admin",
+                        "Invoice Generated",
+                        $"Invoice {invoiceNumber} has been generated successfully.");
+
+                    await _notificationService.EnsureNotificationAsync(
+                        $"invoice-staff-service-{invoice.Id}",
+                        "Staff",
+                        "Invoice Generated",
+                        $"Invoice {invoiceNumber} has been generated successfully.");
+
+                    await _notificationService.EnsureNotificationAsync(
+                        $"invoice-customer-service-{invoice.Id}",
+                        "Customer",
+                        "Invoice Generated",
+                        $"Invoice {invoiceNumber} has been generated successfully.",
+                        appointment.CustomerId);
+
+                    if (serviceStatus == AppointmentStatus.Completed)
+                    {
+                        var vehicleLabel = $"{vehicle.Make} {vehicle.Model}".Trim();
+                        await _notificationService.EnsureNotificationAsync(
+                            $"service-completed-{appointment.Id}",
+                            "Customer",
+                            "Service Completed",
+                            $"Your service for {vehicleLabel} has been completed.",
+                            appointment.CustomerId);
+                    }
+
+                    await _context.SaveChangesAsync();
+                }
+                catch
+                {
+                }
 
                 return Ok(new
                 {
@@ -634,4 +833,5 @@ public class ServiceController : ControllerBase
         var claimValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
         return int.TryParse(claimValue, out var userId) ? userId : null;
     }
+
 }

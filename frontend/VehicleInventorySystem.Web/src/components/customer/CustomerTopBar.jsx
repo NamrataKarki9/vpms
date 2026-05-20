@@ -1,18 +1,19 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Plus, ChevronRight, HelpCircle } from 'lucide-react';
+import { Plus, ChevronRight } from 'lucide-react';
+import NotificationBell from '../management/NotificationBell';
 
 const ROUTE_CRUMBS = {
   '/customer': [{ label: 'Dashboard' }],
   '/customer/vehicles': [{ label: 'Garage', path: '/customer/vehicles' }, { label: 'My Vehicles' }],
   '/customer/appointments': [{ label: 'Services', path: '/customer/appointments' }, { label: 'Appointments' }],
   '/customer/book': [{ label: 'Services', path: '/customer/appointments' }, { label: 'Book Appointment' }],
-  '/customer/requests': [{ label: 'Services', path: '/customer/appointments' }, { label: 'Special Orders' }],
-  '/customer/new-request': [{ label: 'Services', path: '/customer/appointments' }, { label: 'Submit Special Order' }],
+  '/customer/requests': [{ label: 'Services', path: '/customer/appointments' }, { label: 'Parts Orders' }],
+  '/customer/new-request': [{ label: 'Services', path: '/customer/appointments' }, { label: 'Submit Parts Order' }],
   '/customer/history': [{ label: 'Garage', path: '/customer/vehicles' }, { label: 'Service History' }],
 };
 
-const CustomerTopBar = () => {
+const CustomerTopBar = ({ user }) => {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -41,6 +42,7 @@ const CustomerTopBar = () => {
 
       {/* Right Actions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <NotificationBell role="Customer" userId={user?.id} className="admin-icon-btn" />
         {/* Date chip */}
         <div style={{
           background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px',
